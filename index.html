@@ -2729,7 +2729,7 @@
           return;
         }
 
-        // 2. Fetch from translation API with abort controller
+        // 2. Fetch from Official Google Cloud Translation API
         if (activeController) {
           activeController.abort();
         }
@@ -2737,49 +2737,45 @@
         loadingIndicator.classList.remove('hidden');
 
         try {
-          const pair = `${effectiveSource}|${effectiveTarget}`;
-          const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${pair}`;
-          
-          const response = await fetch(url, {
+          const googleApiKey = 'AIzaSyCs9Fp4gp8oOnyFkogXUBtM8tyMSOYDvsk';
+          const postPayload = {
+            q: text,
+            target: effectiveTarget,
+            format: 'text'
+          };
+          if (selectedSource !== 'auto') {
+            postPayload.source = selectedSource;
+          }
+
+          const response = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${googleApiKey}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(postPayload),
             signal: activeController.signal
           });
-          
-          if (!response.ok) throw new Error('API request failed');
+
+          if (!response.ok) throw new Error('Google Translation API request failed');
           const data = await response.json();
 
-          let chosenText = null;
+          if (data && data.data && data.data.translations && data.data.translations.length > 0) {
+            const translationObj = data.data.translations[0];
+            const translated = translationObj.translatedText;
 
-          if (data && data.matches && data.matches.length > 0) {
-            // Filter out any matches with vulgarity/slang
-            const cleanMatches = data.matches.filter(m => {
-              const t = (m.translation || '').trim();
-              return t && !hasProfanity(t);
-            });
+            // If auto-detected, show detected badge
+            if (translationObj.detectedSourceLanguage && selectedSource === 'auto') {
+              const det = translationObj.detectedSourceLanguage;
+              detectedBadge.textContent = `সনাক্ত: ${getLanguageName(det)}`;
+              detectedBadge.classList.remove('hidden');
+            }
 
-            // Find best vetted match (prefer MateCat, MT, or highest quality)
-            let vetted = cleanMatches.find(m => m['created-by'] === 'MateCat');
-            if (!vetted) {
-              vetted = cleanMatches.find(m => m['created-by'] && m['created-by'].includes('MT'));
+            if (!hasProfanity(translated)) {
+              outputEl.textContent = translated;
+              outputCount.textContent = `${toBanglaDigits(translated.length)} অক্ষর`;
+            } else {
+              fallbackTranslate(text, effectiveSource, effectiveTarget);
             }
-            if (!vetted && cleanMatches.length > 0) {
-              cleanMatches.sort((a, b) => (Number(b.quality) || 0) - (Number(a.quality) || 0));
-              vetted = cleanMatches[0];
-            }
-            if (vetted && vetted.translation) {
-              chosenText = vetted.translation.trim();
-            }
-          }
-
-          if (!chosenText && data && data.responseData && data.responseData.translatedText) {
-            const raw = data.responseData.translatedText.trim();
-            if (!hasProfanity(raw)) {
-              chosenText = raw;
-            }
-          }
-
-          if (chosenText && !hasProfanity(chosenText)) {
-            outputEl.textContent = chosenText;
-            outputCount.textContent = `${toBanglaDigits(chosenText.length)} অক্ষর`;
           } else {
             fallbackTranslate(text, effectiveSource, effectiveTarget);
           }
