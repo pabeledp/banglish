@@ -21,26 +21,27 @@
 
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>যোগাযোগ ও সহায়তা | Banglish — Best iAvro Alternative for macOS</title>
+  <title>যোগাযোগ ও সহায়তা | Banglish — Best iAvro Alternative for macOS & Windows</title>
   
   <!-- SEO & Social Meta Tags -->
   <meta name="description" content="Banglish কীবোর্ড সংক্রান্ত যেকোনো প্রশ্ন, টেকনিক্যাল সাপোর্ট, ফিচার রিকুয়েস্ট বা সহযোগিতার জন্য Team FramEmpire এবং Lead Developer A M Pabel-এর সাথে যোগাযোগ করুন।">
-  <meta name="keywords" content="Banglish Contact, যোগাযোগ, Banglish Support, FramEmpire, A M Pabel, macOS Bangla Keyboard Support">
+  <meta name="keywords" content="Banglish Contact, যোগাযোগ, Banglish Support, FramEmpire, A M Pabel, macOS & Windows Bangla Keyboard Support">
   <meta name="author" content="Team FramEmpire, A M Pabel">
   <link rel="canonical" href="https://banglish.bd/contact">
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://banglish.bd/contact">
-  <meta property="og:title" content="যোগাযোগ ও সহায়তা | Banglish — Best iAvro Alternative for macOS">
+  <meta property="og:title" content="যোগাযোগ ও সহায়তা | Banglish — Best iAvro Alternative for macOS & Windows">
   <meta property="og:description" content="Banglish কীবোর্ড সংক্রান্ত যেকোনো প্রশ্ন, টেকনিক্যাল সাপোর্ট বা ফিডব্যাকের জন্য যোগাযোগ করুন।">
   <meta property="og:image" content="https://banglish.bd/assets/banglish-logo-512.png">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://banglish.bd/contact">
-  <meta name="twitter:title" content="যোগাযোগ ও সহায়তা | Banglish">
+  <meta name="twitter:title" content="যোগাযোগ ও সহায়তা | Banglish — macOS & Windows">
   <meta name="twitter:description" content="Banglish কীবোর্ড সংক্রান্ত যেকোনো প্রশ্ন, টেকনিক্যাল সাপোর্ট বা ফিডব্যাকের জন্য যোগাযোগ করুন।">
+  <meta property="og:image" content="https://banglish.bd/assets/banglish-logo-512.png">
   <meta name="twitter:image" content="https://banglish.bd/assets/banglish-logo-512.png">
 
   <!-- Favicons -->
@@ -156,11 +157,39 @@
             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
           </a>
 
-          <!-- Download Button -->
-          <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white text-sm font-semibold shadow-sm hover:shadow-emerald-500/25 transition-all duration-300">
-            <span class="font-sans">Download Banglish</span>
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-          </a>
+          <!-- Header Main CTA with Dropdown -->
+          <div class="relative group" id="download-dropdown-wrapper">
+            <button id="download-dropdown-btn" type="button" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white text-sm font-semibold shadow-sm hover:shadow-emerald-500/25 transition-all duration-300 transform active:scale-95 cursor-pointer">
+              <span class="font-sans">Download Banglish</span>
+              <svg id="download-chevron" class="w-4 h-4 transition-transform duration-200 group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            
+            <div id="download-dropdown-menu" class="absolute right-0 top-full pt-1.5 w-64 hidden group-hover:block transition-all z-50">
+              <div class="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/90 py-2 overflow-hidden ring-1 ring-black/5">
+                <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg" class="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 text-slate-800 transition-colors group/item">
+                  <div class="w-8 h-8 rounded-lg bg-slate-100 group-hover/item:bg-emerald-100 flex items-center justify-center text-slate-800 group-hover/item:text-emerald-700 flex-shrink-0 transition-colors">
+                    <svg class="w-4 h-4 fill-current" viewBox="0 0 170 170"><path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.04-7.69-7.85-12-14.44-6.1-9.35-10.87-20.02-14.33-32-3.46-11.98-5.19-23.27-5.19-33.86 0-14.58 3.7-26.68 11.1-36.29 7.4-9.61 16.65-14.53 27.75-14.75 4.35 0 9.29 1.15 14.81 3.46 5.53 2.31 9.38 3.52 11.55 3.63 1.74 0 5.86-1.32 12.38-3.95 6.52-2.63 12.06-3.72 16.62-3.27 12.63.87 22.65 5.76 30.06 14.67-10.89 6.64-16.22 15.77-16 27.42.22 9.14 3.69 16.75 10.42 22.84 6.74 6.09 14.77 9.58 24.1 10.45-2.18 6.53-4.79 13.06-7.83 19.59zM119.22 31.84c0-7.39 2.61-14.35 7.83-20.87 5.22-6.52 11.75-10.51 19.59-11.97.22 1.09.33 2.07.33 2.94 0 7.39-2.72 14.46-8.16 21.21-5.44 6.74-12.18 10.76-20.24 12.06-.22-1.09-.35-2.2-.35-3.37z"/></svg>
+                  </div>
+                  <div>
+                    <div class="font-semibold text-xs text-slate-900 font-sans">macOS Installer</div>
+                    <div class="text-[11px] text-slate-500 font-bangla">Banglish.dmg (Apple & Intel)</div>
+                  </div>
+                </a>
+                <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe" class="flex items-center justify-between px-4 py-3 hover:bg-sky-50 text-slate-800 transition-colors group/item border-t border-slate-100">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-sky-100 group-hover/item:bg-sky-200 flex items-center justify-center text-sky-700 flex-shrink-0 transition-colors">
+                      <svg class="w-4 h-4 fill-current" viewBox="0 0 88 88"><path d="M0 12.402l35.689-4.86.016 34.423-35.67.203zm35.67 33.529l.026 34.453L0 75.481l.035-29.327zm4.326-39.027L87.914 0v41.527l-47.918.378zm47.919 38.928l-.005 41.79-47.914-6.745-.031-34.793z"/></svg>
+                    </div>
+                    <div>
+                      <div class="font-semibold text-xs text-slate-900 font-sans">Windows Installer</div>
+                      <div class="text-[11px] text-slate-500 font-bangla">Banglish-Setup.exe (10/11)</div>
+                    </div>
+                  </div>
+                  <span class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800">.exe</span>
+                </a>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Mobile Menu Toggle Button -->
@@ -183,6 +212,9 @@
       <div class="pt-4 border-t border-slate-100 flex flex-col gap-2.5">
         <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg" class="w-full text-center py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold font-sans shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2">
           <span>Download for macOS (.dmg)</span>
+        </a>
+        <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe" class="w-full text-center py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold font-sans shadow-md shadow-sky-600/20 flex items-center justify-center gap-2">
+          <span>Download for Windows (.exe)</span>
         </a>
         <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard" target="_blank" class="w-full text-center py-2 px-4 rounded-xl border border-slate-200 text-slate-700 font-medium font-sans hover:bg-slate-50 flex items-center justify-center gap-2 text-xs">
           GitHub Repository
@@ -356,7 +388,7 @@
             অভ্র শিখিয়েছিল ভাষা উন্মুক্ত করার পাঠ; সেই ভালোবাসাকে ধারণ করেই প্রতিটি আঙুলের ছোঁয়ায় আমরা—বাংলায় লিখি বিজয়ের সুর।
           </p>
           <div class="pt-2 text-xs text-slate-500 font-mono">
-            Designed for Apple Silicon & macOS Ecosystem.
+            Designed for macOS & Windows Ecosystems.
           </div>
         </div>
 
@@ -378,7 +410,7 @@
           <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-200 font-mono">রিসোর্স ও লাইসেন্স</h4>
           <ul class="space-y-2 text-sm font-bangla">
             <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg" class="text-emerald-400 hover:underline">Download macOS (.dmg)</a></li>
-            <li><span class="text-slate-500 flex items-center gap-2 select-none"><span>Windows Version</span> <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">Coming Soon</span></span></li>
+            <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe" class="text-sky-400 hover:underline">Download Windows (.exe)</a></li>
             <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard" target="_blank" class="hover:text-emerald-400 transition-colors">GitHub Repository</a></li>
             <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/blob/main/LICENSE" target="_blank" class="hover:text-emerald-400 transition-colors">MIT Open Source License</a></li>
             <li><a href="mailto:info@banglish.bd" class="hover:text-emerald-400 transition-colors">সরাসরি ইমেইল সাপোর্ট</a></li>
