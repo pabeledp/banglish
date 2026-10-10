@@ -409,13 +409,14 @@
           </div>
         </a>
 
-        <!-- Desktop Navigation Links -->
-        <nav class="hidden md:flex items-center gap-1 lg:gap-2">
-          <a href="#features" class="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">ফিচারসমূহ</a>
-          <a href="#simulator" class="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">লাইভ সিমুলেটর</a>
-          <a href="#installation" class="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">ইনস্টলেশন</a>
-          <a href="#cheatsheet" class="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">টাইপিং গাইড</a>
-          <a href="#contact" class="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">যোগাযোগ</a>
+        <!-- Desktop Navigation Links (Single Line Guarantee) -->
+        <nav class="hidden md:flex items-center gap-0.5 lg:gap-1.5 whitespace-nowrap">
+          <a href="#features" class="px-2.5 lg:px-3 py-1.5 text-xs lg:text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla whitespace-nowrap">ফিচারসমূহ</a>
+          <a href="#simulator" class="px-2.5 lg:px-3 py-1.5 text-xs lg:text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla whitespace-nowrap">সিমুলেটর</a>
+          <a href="#dictionary" class="px-2.5 lg:px-3 py-1.5 text-xs lg:text-sm font-medium text-emerald-800 bg-emerald-50/80 hover:bg-emerald-100/80 rounded-lg transition-colors font-bangla whitespace-nowrap font-semibold">অভিধান</a>
+          <a href="#installation" class="px-2.5 lg:px-3 py-1.5 text-xs lg:text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla whitespace-nowrap">ইনস্টলেশন</a>
+          <a href="#cheatsheet" class="px-2.5 lg:px-3 py-1.5 text-xs lg:text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla whitespace-nowrap">টাইপিং গাইড</a>
+          <a href="#contact" class="px-2.5 lg:px-3 py-1.5 text-xs lg:text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla whitespace-nowrap">যোগাযোগ</a>
         </nav>
 
         <!-- CTA & Quick Actions -->
@@ -473,6 +474,7 @@
     <div id="mobile-menu" class="hidden md:hidden border-t border-emerald-100 bg-white/95 backdrop-blur-lg px-4 pt-3 pb-6 space-y-2">
       <a href="#features" class="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">ফিচারসমূহ</a>
       <a href="#simulator" class="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">লাইভ সিমুলেটর</a>
+      <a href="#dictionary" class="block px-3 py-2 rounded-lg text-base font-medium text-emerald-800 bg-emerald-50 font-bangla font-semibold">অভিধান ও অনুবাদক</a>
       <a href="#installation" class="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">ইনস্টলেশন</a>
       <a href="#cheatsheet" class="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">টাইপিং গাইড ও বর্ণ চার্ট</a>
       <a href="#contact" class="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">যোগাযোগ</a>
@@ -1067,11 +1069,178 @@
         </div>
       </div>
 
+  <!-- ======================================================== -->
+  <!-- 5. Tri-Lingual Translator & Dictionary (অভিধান ও অনুবাদক) -->
+  <!-- ======================================================== -->
+  <section id="dictionary" class="py-16 sm:py-24 relative bg-gradient-to-b from-white via-emerald-50/20 to-white border-t border-emerald-100/70 overflow-hidden">
+    <!-- Ambient glow decorations -->
+    <div class="absolute top-1/4 -right-36 w-96 h-96 bg-emerald-200/20 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute bottom-10 -left-36 w-96 h-96 bg-teal-200/20 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 space-y-8 sm:space-y-10">
+      
+      <!-- Section Header -->
+      <div class="text-center max-w-3xl mx-auto space-y-3">
+        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-100/90 text-emerald-800 text-xs font-semibold font-bangla border border-emerald-200/80 shadow-xs">
+          <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+          </svg>
+          <span>অভিধান ও তাৎক্ষণিক অনুবাদক</span>
+        </div>
+        <h2 class="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 font-bangla tracking-tight leading-snug">
+          বাংলা, ইংরেজি ও আরবি—<span class="text-emerald-600">সহজ ও তাৎক্ষণিক অনুবাদ</span>
+        </h2>
+        <p class="text-sm sm:text-base text-slate-600 font-bangla max-w-2xl mx-auto leading-relaxed">
+          একপাশে লিখুন, অন্যপাশে সরাসরি আউটপুট পাবেন। ভাষা স্বয়ংক্রিয়ভাবে সনাক্ত হবে এবং ডিফল্ট অনুবাদ বাংলাতে হবে।
+        </p>
+      </div>
+
+      <!-- Quick Sample Chips -->
+      <div class="flex flex-wrap items-center justify-center gap-2 text-xs font-bangla text-slate-600">
+        <span class="text-slate-400 text-xs">উদাহরণ:</span>
+        <button type="button" class="sample-chip px-3 py-1 rounded-full bg-white border border-slate-200/80 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition shadow-2xs font-sans text-xs cursor-pointer" data-text="Hello, how are you?">Hello, how are you?</button>
+        <button type="button" class="sample-chip px-3 py-1 rounded-full bg-white border border-slate-200/80 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition shadow-2xs font-bangla text-xs cursor-pointer" data-text="আমি বাংলায় গান গাই">আমি বাংলায় গান গাই</button>
+        <button type="button" class="sample-chip px-3 py-1 rounded-full bg-white border border-slate-200/80 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition shadow-2xs font-sans text-xs cursor-pointer" data-text="Thank you very much">Thank you very much</button>
+        <button type="button" class="sample-chip px-3 py-1 rounded-full bg-white border border-slate-200/80 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition shadow-2xs text-xs cursor-pointer" data-text="السلام عليكم">السلام عليكم</button>
+        <button type="button" class="sample-chip px-3 py-1 rounded-full bg-white border border-slate-200/80 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition shadow-2xs text-xs cursor-pointer" data-text="شكراً جزيلاً">شكراً جزيلاً</button>
+      </div>
+
+      <!-- Main Dual-Pane Translator Card -->
+      <div class="bg-white/95 backdrop-blur-xl rounded-3xl border border-emerald-100/90 shadow-xl shadow-emerald-950/5 p-4 sm:p-6 lg:p-8">
+        
+        <!-- Controls Bar for Source / Target + Swap Button -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 items-center mb-4">
+          <!-- Left Bar (Source Language Select) -->
+          <div class="flex items-center justify-between gap-3 bg-slate-50/90 p-2.5 sm:p-3 rounded-2xl border border-slate-200/70">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-slate-500 font-bangla uppercase tracking-wider pl-1">মূল ভাষা:</span>
+              <div class="relative">
+                <select id="trans-source-lang" class="appearance-none bg-white text-slate-800 text-xs sm:text-sm font-medium font-bangla py-1.5 pl-3 pr-8 rounded-xl border border-slate-300 hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer shadow-2xs">
+                  <option value="auto" selected>🔍 স্বয়ংক্রিয় সনাক্ত (Auto Detect)</option>
+                  <option value="en">English (ইংরেজি)</option>
+                  <option value="bn">বাংলা (Bengali)</option>
+                  <option value="ar">العربية (Arabic - আরবি)</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Detected badge -->
+            <span id="trans-detected-badge" class="hidden text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200"></span>
+          </div>
+
+          <!-- Right Bar (Target Language Select & Controls) -->
+          <div class="flex items-center justify-between gap-3 bg-emerald-50/60 p-2.5 sm:p-3 rounded-2xl border border-emerald-200/60">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-emerald-800 font-bangla uppercase tracking-wider pl-1">অনুবাদ হবে:</span>
+              <div class="relative">
+                <select id="trans-target-lang" class="appearance-none bg-white text-slate-800 text-xs sm:text-sm font-semibold font-bangla py-1.5 pl-3 pr-8 rounded-xl border border-emerald-300 hover:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 cursor-pointer shadow-2xs">
+                  <option value="bn" selected>বাংলা (Bengali) — ডিফল্ট</option>
+                  <option value="en">English (ইংরেজি)</option>
+                  <option value="ar">العربية (Arabic - আরবি)</option>
+                </select>
+                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-400">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- Swap Button -->
+            <button id="trans-swap-btn" type="button" title="ভাষা অদলবদল করুন" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-600 text-slate-700 hover:text-white border border-emerald-200 text-xs font-medium font-bangla shadow-2xs transition-all active:scale-95 cursor-pointer group">
+              <svg id="trans-swap-icon" class="w-3.5 h-3.5 text-emerald-600 group-hover:text-white transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              <span class="hidden sm:inline">অদলবদল</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- The Two Boxes: Side-by-Side (এক পাশে লিখবে, আরেক পাশে আউটপুট দিবে) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+          
+          <!-- Left Box: Source Input -->
+          <div class="flex flex-col bg-slate-50/60 rounded-2xl border border-slate-200/90 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/15 transition-all p-4">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60 text-xs text-slate-400">
+              <span class="font-bangla font-medium text-slate-500">ইনপুট টেক্সট</span>
+              <button id="trans-clear-btn" type="button" class="text-slate-400 hover:text-red-500 transition-colors inline-flex items-center gap-1 font-bangla cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                <span>মুছুন</span>
+              </button>
+            </div>
+            
+            <textarea id="trans-input" rows="6" placeholder="এখানে কিছু লিখুন বা পেস্ট করুন... (বাংলা, English বা العربية)" class="w-full bg-transparent resize-y text-slate-800 text-base sm:text-lg focus:outline-none placeholder:text-slate-400 font-sans leading-relaxed"></textarea>
+            
+            <div class="mt-auto pt-3 flex items-center justify-between text-xs text-slate-400 border-t border-slate-200/60">
+              <span id="trans-input-count">০ অক্ষর</span>
+              <button id="trans-paste-btn" type="button" class="text-emerald-700 hover:text-emerald-800 font-bangla font-medium inline-flex items-center gap-1 cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                <span>পেস্ট করুন</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Right Box: Target Output -->
+          <div class="flex flex-col bg-emerald-50/30 rounded-2xl border border-emerald-200/80 transition-all p-4 relative">
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-emerald-100 text-xs text-slate-400">
+              <div class="flex items-center gap-2">
+                <span class="font-bangla font-semibold text-emerald-800">অনুবাদিত ফলাফল</span>
+                <!-- Loading indicator -->
+                <span id="trans-loading-indicator" class="hidden inline-flex items-center gap-1 text-[11px] text-emerald-600 font-bangla animate-pulse">
+                  <svg class="animate-spin w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                  <span>অনুবাদ হচ্ছে...</span>
+                </span>
+              </div>
+
+              <!-- Action buttons -->
+              <div class="flex items-center gap-2">
+                <button id="trans-speak-btn" type="button" title="উচ্চারণ শুনুন" class="p-1 text-slate-500 hover:text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+                </button>
+                <button id="trans-copy-btn" type="button" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bangla text-xs font-semibold shadow-xs transition active:scale-95 cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                  <span id="trans-copy-label">কপি করুন</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Output Text Content -->
+            <div id="trans-output" class="w-full flex-1 min-h-[140px] text-slate-800 text-base sm:text-lg font-sans leading-relaxed select-text whitespace-pre-wrap break-words">
+              <span class="text-slate-400 font-bangla text-sm italic">অনুবাদ এখানে প্রদর্শিত হবে... বাম পাশের বক্সে কিছু লিখুন।</span>
+            </div>
+
+            <div class="mt-auto pt-3 flex items-center justify-between text-xs text-slate-400 border-t border-emerald-100">
+              <span id="trans-output-count">০ অক্ষর</span>
+              <span class="text-[11px] text-emerald-700/80 font-bangla font-medium">নিখুঁত দ্বিভাষিক ও ত্রিভাষিক রূপান্তর</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Manual Translate Button if user prefers clicking -->
+        <div class="mt-4 pt-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="text-xs text-slate-500 font-bangla flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>টাইপ করার সাথে সাথেই লাইভ অনুবাদ হবে; প্রয়োজনে বাটনে ক্লিক করতে পারেন।</span>
+          </div>
+
+          <button id="trans-action-btn" type="button" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white font-bangla font-semibold text-sm shadow-sm hover:shadow-emerald-500/25 transition-all duration-300 active:scale-95 cursor-pointer">
+            <span>অনুবাদ করুন</span>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+          </button>
+        </div>
+
+      </div>
+
     </div>
   </section>
 
   <!-- ======================================================== -->
-  <!-- 5. Phonetic Typing Guide & Key Chart (টাইপিং গাইড ও বর্ণ চার্ট) -->
+  <!-- 6. Phonetic Typing Guide & Key Chart (টাইপিং গাইড ও বর্ণ চার্ট) -->
   <!-- ======================================================== -->
   <section id="cheatsheet" class="py-16 sm:py-20 bg-slate-50/70 border-t border-b border-emerald-100/60">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
@@ -2206,6 +2375,568 @@
     window.addEventListener('DOMContentLoaded', () => {
       playAudio();
     });
+  </script>
+
+  <!-- ======================================================== -->
+  <!-- Tri-Lingual Translator Script (Bangla, English, Arabic) -->
+  <!-- ======================================================== -->
+  <script>
+    (function initBanglishTranslator() {
+      const inputEl = document.getElementById('trans-input');
+      const outputEl = document.getElementById('trans-output');
+      const sourceLangSelect = document.getElementById('trans-source-lang');
+      const targetLangSelect = document.getElementById('trans-target-lang');
+      const swapBtn = document.getElementById('trans-swap-btn');
+      const swapIcon = document.getElementById('trans-swap-icon');
+      const clearBtn = document.getElementById('trans-clear-btn');
+      const copyBtn = document.getElementById('trans-copy-btn');
+      const copyLabel = document.getElementById('trans-copy-label');
+      const pasteBtn = document.getElementById('trans-paste-btn');
+      const speakBtn = document.getElementById('trans-speak-btn');
+      const actionBtn = document.getElementById('trans-action-btn');
+      const inputCount = document.getElementById('trans-input-count');
+      const outputCount = document.getElementById('trans-output-count');
+      const detectedBadge = document.getElementById('trans-detected-badge');
+      const loadingIndicator = document.getElementById('trans-loading-indicator');
+      const sampleChips = document.querySelectorAll('.sample-chip');
+
+      if (!inputEl || !outputEl) return;
+
+      // Comprehensive profanity blacklist (English & Bengali vulgarities)
+      const vulgarWords = [
+        'চুদেছিস', 'চুদেছে', 'চুদে', 'চোদ', 'চোদা', 'চুদা', 'বাল', 'মাগী', 'খানকি', 'বেশ্যা', 
+        'লুচ্চা', 'কুত্তা', 'খানকির', 'বোকাচোদা', 'মাদারচোদ', 'fuck', 'fucking', 'bitch', 
+        'asshole', 'bastard', 'cunt', 'dick', 'pussy', 'slut', 'whore', 'choda', 'chuda', 'baal'
+      ];
+
+      function hasProfanity(str) {
+        if (!str) return false;
+        const low = str.toLowerCase();
+        return vulgarWords.some(v => low.includes(v));
+      }
+
+      // Vetted offline dictionary corpus for instant and clean lookups
+      const offlineDict = {
+        // Pronouns (English -> Bengali & Arabic)
+        "you": { bn: "আপনি / তুমি", ar: "أنتَ / أنتِ / أنتم" },
+        "u": { bn: "আপনি / তুমি", ar: "أنتَ" },
+        "i": { bn: "আমি", ar: "أنا" },
+        "me": { bn: "আমাকে", ar: "إياي" },
+        "my": { bn: "আমার", ar: "لي / خاصتي" },
+        "mine": { bn: "আমার", ar: "لي" },
+        "we": { bn: "আমরা", ar: "نحن" },
+        "us": { bn: "আমাদের / আমাদেরকে", ar: "لنا" },
+        "our": { bn: "আমাদের", ar: "لنا" },
+        "ours": { bn: "আমাদের", ar: "لنا" },
+        "your": { bn: "আপনার / তোমার", ar: "لك" },
+        "yours": { bn: "আপনার / তোমার", ar: "لك" },
+        "he": { bn: "সে / তিনি", ar: "هو" },
+        "him": { bn: "তাকে / তাঁকে", ar: "له" },
+        "his": { bn: "তার / তাঁর", ar: "له" },
+        "she": { bn: "সে / তিনি", ar: "هي" },
+        "her": { bn: "তার / তাঁর", ar: "لها" },
+        "hers": { bn: "তার / তাঁর", ar: "لها" },
+        "they": { bn: "তারা / তাঁরা", ar: "هم" },
+        "them": { bn: "তাদের / তাঁদেরকে", ar: "لهم" },
+        "their": { bn: "তাদের / তাঁদের", ar: "لهم" },
+        "theirs": { bn: "তাদের / তাঁদের", ar: "لهم" },
+        "it": { bn: "এটি / এটা", ar: "هو / هي" },
+        "its": { bn: "এটির / এর", ar: "له" },
+        "this": { bn: "এই / এটি", ar: "هذا" },
+        "that": { bn: "ওই / সেটা", ar: "ذلك" },
+        "these": { bn: "এইগুলো / এগুলো", ar: "هؤلاء" },
+        "those": { bn: "ওইগুলো / সেগুলো", ar: "أولئك" },
+        "here": { bn: "এখানে", ar: "هنا" },
+        "there": { bn: "সেখানে", ar: "هناك" },
+
+        // Wh- Questions
+        "what": { bn: "কী", ar: "ماذا" },
+        "who": { bn: "কে / কারা", ar: "من" },
+        "whom": { bn: "কাকে / কাদেরকে", ar: "من" },
+        "whose": { bn: "কার / কাদের", ar: "لمن" },
+        "where": { bn: "কোথায়", ar: "أين" },
+        "when": { bn: "কখন", ar: "متى" },
+        "why": { bn: "কেন", ar: "لماذا" },
+        "how": { bn: "কীভাবে / কেমন", ar: "كيف" },
+        "which": { bn: "কোনটি", ar: "أي" },
+
+        // Common Greetings & Phrases
+        "hello": { bn: "হ্যালো / আসসালামু আলাইকুম", ar: "مرحبا / السلام عليكم" },
+        "hi": { bn: "হাই / হ্যালো", ar: "أهلاً / مرحباً" },
+        "how are you": { bn: "আপনি কেমন আছেন?", ar: "كيف حالك؟" },
+        "how are you?": { bn: "আপনি কেমন আছেন?", ar: "كيف حالك؟" },
+        "i am fine": { bn: "আমি ভালো আছি", ar: "أنا بخير" },
+        "thank you": { bn: "আপনাকে ধন্যবাদ", ar: "شكراً لك" },
+        "thank you very much": { bn: "আপনাকে অনেক ধন্যবাদ", ar: "شكراً جزيلاً" },
+        "thanks": { bn: "ধন্যবাদ", ar: "شكراً" },
+        "welcome": { bn: "স্বাগতম", ar: "أهلاً وسهلاً" },
+        "welcome to banglish": { bn: "বাংলিশে স্বাগতম", ar: "مرحباً بكم في بنغليش" },
+        "good morning": { bn: "শুভ সকাল", ar: "صباح الخير" },
+        "good afternoon": { bn: "শুভ অপরাহ্ন", ar: "مساء الخير" },
+        "good evening": { bn: "শুভ সন্ধ্যা", ar: "مساء الخير" },
+        "good night": { bn: "শুভ রাত্রি", ar: "تصبح على خير" },
+        "goodbye": { bn: "বিদায়", ar: "مع السلامة" },
+        "bye": { bn: "বিদায়", ar: "إلى اللقاء" },
+        "see you": { bn: "আবার দেখা হবে", ar: "أراك لاحقاً" },
+        "take care": { bn: "ভালো থেকো / নিজের যত্ন নিও", ar: "اعتن بنفسك" },
+        "congratulations": { bn: "অভিনন্দন", ar: "مبروك / تهانينا" },
+        "yes": { bn: "হ্যাঁ", ar: "نعم" },
+        "no": { bn: "না", ar: "لا" },
+        "please": { bn: "দয়া করে", ar: "من فضلك" },
+        "sorry": { bn: "দুঃখিত", ar: "آسف" },
+        "excuse me": { bn: "শুনুন / মাফ করবেন", ar: "معذرة" },
+        "peace": { bn: "শান্তি", ar: "سلام" },
+        "friend": { bn: "বন্ধু", ar: "صديق" },
+        "friends": { bn: "বন্ধুরা", ar: "أصدقاء" },
+        "love": { bn: "ভালোবাসা", ar: "حب" },
+        "heart": { bn: "হৃদয়", ar: "قلب" },
+        "language": { bn: "ভাষা", ar: "لغة" },
+        "keyboard": { bn: "কিবোর্ড", ar: "لوحة المفاتيح" },
+        "typing": { bn: "টাইপিং / লেখা", ar: "كتابة" },
+        "software": { bn: "সফটওয়্যার", ar: "برنامج" },
+        "computer": { bn: "কম্পিউটার", ar: "حاسوب" },
+        "book": { bn: "বই", ar: "كتاب" },
+        "pen": { bn: "কলম", ar: "قلم" },
+        "water": { bn: "পানি / জল", ar: "ماء" },
+        "food": { bn: "খাবার", ar: "طعام" },
+        "tea": { bn: "চা", ar: "شاي" },
+        "coffee": { bn: "কফি", ar: "قهوة" },
+        "brother": { bn: "ভাই", ar: "أخ" },
+        "sister": { bn: "বোন", ar: "أخت" },
+        "father": { bn: "বাবা", ar: "أب" },
+        "mother": { bn: "মা", ar: "أم" },
+        "family": { bn: "পরিবার", ar: "عائلة" },
+        "work": { bn: "কাজ", ar: "عمل" },
+        "job": { bn: "চাকরি / কাজ", ar: "وظيفة" },
+        "money": { bn: "টাকা / অর্থ", ar: "نقود" },
+        "free": { bn: "সম্পূর্ণ বিনামূল্যে / মুক্ত", ar: "مجاني" },
+        "download": { bn: "ডাউনলোড", ar: "تحميل" },
+        "install": { bn: "ইনস্টল", ar: "تثبيت" },
+        "fast": { bn: "দ্রুত", ar: "سريع" },
+        "slow": { bn: "ধীর", ar: "بطيء" },
+        "easy": { bn: "সহজ", ar: "سهل" },
+        "hard": { bn: "কঠিন", ar: "صعب" },
+        "beautiful": { bn: "সুন্দর", ar: "جميل" },
+        "great": { bn: "দারুণ / চমৎকার", ar: "عظيم / رائع" },
+        "good": { bn: "ভালো", ar: "جيد" },
+        "bad": { bn: "খারাপ", ar: "سيء" },
+        "big": { bn: "বড়", ar: "كبير" },
+        "small": { bn: "ছোট", ar: "صغير" },
+        "new": { bn: "নতুন", ar: "جديد" },
+        "old": { bn: "পুরনো", ar: "قديم" },
+        "bangla": { bn: "বাংলা", ar: "البنغالية" },
+        "bengali": { bn: "বাংলা ভাষা", ar: "اللغة البنغالية" },
+        "english": { bn: "ইংরেজি", ar: "الإنجليزية" },
+        "arabic": { bn: "আরবি", ar: "العربية" },
+
+        // Bengali -> English & Arabic
+        "তুমি": { en: "You", ar: "أنتَ / أنتِ" },
+        "আপনি": { en: "You (polite)", ar: "حضرتك / أنتم" },
+        "তুই": { en: "You (informal)", ar: "أنتَ" },
+        "আমি": { en: "I", ar: "أنا" },
+        "আমরা": { en: "We", ar: "نحن" },
+        "সে": { en: "He / She", ar: "هو / هي" },
+        "তিনি": { en: "He / She (polite)", ar: "هو / هي" },
+        "তারা": { en: "They", ar: "هم" },
+        "তাঁরা": { en: "They (polite)", ar: "هم" },
+        "আমার": { en: "My / Mine", ar: "لي" },
+        "তোমার": { en: "Your / Yours", ar: "لك" },
+        "আপনার": { en: "Your / Yours (polite)", ar: "لحضرتك" },
+        "আমাদের": { en: "Our / Ours", ar: "لنا" },
+        "তাদের": { en: "Their / Theirs", ar: "لهم" },
+        "তাঁদের": { en: "Their / Theirs (polite)", ar: "لهم" },
+        "এটা": { en: "This / It", ar: "هذا" },
+        "এটি": { en: "This / It", ar: "هذا" },
+        "ওটা": { en: "That", ar: "ذلك" },
+        "সেটা": { en: "That", ar: "ذلك" },
+        "কী": { en: "What", ar: "ماذا" },
+        "কে": { en: "Who", ar: "من" },
+        "কোথায়": { en: "Where", ar: "أين" },
+        "কোথায়": { en: "Where", ar: "أين" },
+        "কখন": { en: "When", ar: "متى" },
+        "কেন": { en: "Why", ar: "لماذا" },
+        "কীভাবে": { en: "How", ar: "كيف" },
+        "কিভাবে": { en: "How", ar: "كيف" },
+        "কেমন": { en: "How", ar: "كيف" },
+        "কেমন আছেন": { en: "How are you?", ar: "كيف حالك؟" },
+        "কেমন আছেন?": { en: "How are you?", ar: "كيف حالك؟" },
+        "কেমন আছো": { en: "How are you?", ar: "كيف حالك؟" },
+        "আমি ভালো আছি": { en: "I am fine", ar: "أنا بخير" },
+        "আমি বাংলায় গান গাই": { en: "I sing in Bengali", ar: "أنا أغني باللغة البنغالية" },
+        "হ্যালো": { en: "Hello", ar: "مرحباً" },
+        "নমস্কার": { en: "Greetings / Namaskar", ar: "تحياتي" },
+        "আসসালামু আলাইকুম": { en: "Peace be upon you", ar: "السلام عليكم" },
+        "ধন্যবাদ": { en: "Thank you", ar: "شكراً" },
+        "আপনাকে ধন্যবাদ": { en: "Thank you", ar: "شكراً لك" },
+        "তোমাকে ধন্যবাদ": { en: "Thank you", ar: "شكراً لك" },
+        "আপনাকে অনেক ধন্যবাদ": { en: "Thank you very much", ar: "شكراً جزيلاً" },
+        "স্বাগতম": { en: "Welcome", ar: "أهلاً وسهلاً" },
+        "শুভ সকাল": { en: "Good morning", ar: "صباح الخير" },
+        "শুভ সন্ধ্যা": { en: "Good evening", ar: "مساء الخير" },
+        "শুভ রাত্রি": { en: "Good night", ar: "تصبح على خير" },
+        "বিদায়": { en: "Goodbye", ar: "مع السلامة" },
+        "বিদায়": { en: "Goodbye", ar: "مع السلامة" },
+        "বন্ধু": { en: "Friend", ar: "صديق" },
+        "ভালোবাসা": { en: "Love", ar: "حب" },
+        "শান্তি": { en: "Peace", ar: "سلام" },
+        "বই": { en: "Book", ar: "كتاب" },
+        "পানি": { en: "Water", ar: "ماء" },
+        "খাবার": { en: "Food", ar: "طعام" },
+        "হ্যাঁ": { en: "Yes", ar: "نعم" },
+        "না": { en: "No", ar: "لا" },
+        "দয়া করে": { en: "Please", ar: "من فضلك" },
+        "দয়া করে": { en: "Please", ar: "من فضلك" },
+        "দুঃখিত": { en: "Sorry", ar: "آسف" },
+        "ভালো": { en: "Good", ar: "جيد" },
+        "খারাপ": { en: "Bad", ar: "سيء" },
+        "সুন্দর": { en: "Beautiful", ar: "جمিল" },
+        "কাজ": { en: "Work", ar: "عمل" },
+        "বাংলা": { en: "Bangla / Bengali", ar: "البنغالية" },
+        "ভাষা": { en: "Language", ar: "لغة" },
+        "কিবোর্ড": { en: "Keyboard", ar: "لوحة المفاتيح" },
+        "সফটওয়্যার": { en: "Software", ar: "برنامج" },
+
+        // Arabic -> Bengali & English
+        "أنت": { bn: "আপনি / তুমি", en: "You" },
+        "أنتَ": { bn: "তুমি (পুরুষ)", en: "You (male)" },
+        "أنتِ": { bn: "তুমি (নারী)", en: "You (female)" },
+        "أنتم": { bn: "আপনারা / তোমরা", en: "You (plural)" },
+        "أنا": { bn: "আমি", en: "I" },
+        "نحن": { bn: "আমরা", en: "We" },
+        "هو": { bn: "সে / তিনি", en: "He" },
+        "هي": { bn: "সে / তিনি", en: "She" },
+        "هم": { bn: "তারা / তাঁরা", en: "They" },
+        "مرحبا": { bn: "হ্যালো / স্বাগতম", en: "Hello / Welcome" },
+        "مرحباً": { bn: "হ্যালো / স্বাগতম", en: "Hello / Welcome" },
+        "السلام عليكم": { bn: "আসসালামু আলাইকুম (আপনার উপর শান্তি বর্ষিত হোক)", en: "Peace be upon you" },
+        "كيف حالك": { bn: "আপনি কেমন আছেন?", en: "How are you?" },
+        "كيف حالك؟": { bn: "আপনি কেমন আছেন?", en: "How are you?" },
+        "أنا بخير": { bn: "আমি ভালো আছি", en: "I am fine" },
+        "شكرا": { bn: "ধন্যবাদ", en: "Thank you" },
+        "شكراً": { bn: "ধন্যবাদ", en: "Thank you" },
+        "شكراً جزيلاً": { bn: "আপনাকে অনেক ধন্যবাদ", en: "Thank you very much" },
+        "أهلاً وسهلاً": { bn: "স্বাগতম", en: "Welcome" },
+        "صباح الخير": { bn: "শুভ সকাল", en: "Good morning" },
+        "مساء الخير": { bn: "শুভ সন্ধ্যা", en: "Good evening" },
+        "تصبح على خير": { bn: "শুভ রাত্রি", en: "Good night" },
+        "مع السلامة": { bn: "বিদায়", en: "Goodbye" },
+        "سلام": { bn: "শান্তি", en: "Peace" },
+        "صديق": { bn: "বন্ধু", en: "Friend" },
+        "حب": { bn: "ভালোবাসা", en: "Love" },
+        "كتاب": { bn: "বই", en: "Book" },
+        "ماء": { bn: "পানি", en: "Water" },
+        "طعام": { bn: "খাবার", en: "Food" },
+        "نعم": { bn: "হ্যাঁ", en: "Yes" },
+        "لا": { bn: "না", en: "No" },
+        "من فضلك": { bn: "দয়া করে", en: "Please" },
+        "آسف": { bn: "দুঃখিত", en: "Sorry" },
+        "لغة": { bn: "ভাষা", en: "Language" },
+        "البنغالية": { bn: "বাংলা ভাষা", en: "Bengali language" }
+      };
+        "آسف": { bn: "দুঃখিত", en: "Sorry" },
+        "لغة": { bn: "ভাষা", en: "Language" },
+        "البنغالية": { bn: "বাংলা ভাষা", en: "Bengali language" }
+      };
+
+      // Detect language
+      function detectLanguage(text) {
+        if (!text || !text.trim()) return 'en';
+        // Arabic check (Arabic unicode range)
+        if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/.test(text)) {
+          return 'ar';
+        }
+        // Bengali check (Bengali unicode range)
+        if (/[\u0980-\u09FF]/.test(text)) {
+          return 'bn';
+        }
+        // Latin / English check
+        if (/[a-zA-Z]/.test(text)) {
+          return 'en';
+        }
+        return 'en';
+      }
+
+      function getLanguageName(code) {
+        switch (code) {
+          case 'bn': return 'বাংলা';
+          case 'en': return 'English';
+          case 'ar': return 'العربية';
+          default: return code;
+        }
+      }
+
+      function toBanglaDigits(num) {
+        const banglaDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+        return String(num).replace(/[0-9]/g, d => banglaDigits[d]);
+      }
+
+      let debounceTimer = null;
+      let activeController = null;
+
+      async function performTranslation() {
+        const rawText = inputEl.value;
+        const text = rawText.trim();
+
+        // Update count
+        inputCount.textContent = `${toBanglaDigits(rawText.length)} অক্ষর`;
+
+        if (!text) {
+          outputEl.innerHTML = '<span class="text-slate-400 font-bangla text-sm italic">অনুবাদ এখানে প্রদর্শিত হবে... বাম পাশের বক্সে কিছু লিখুন।</span>';
+          outputCount.textContent = '০ অক্ষর';
+          detectedBadge.classList.add('hidden');
+          loadingIndicator.classList.add('hidden');
+          return;
+        }
+
+        const selectedSource = sourceLangSelect.value;
+        let detected = detectLanguage(text);
+
+        let effectiveSource = selectedSource;
+        if (selectedSource === 'auto') {
+          effectiveSource = detected;
+          detectedBadge.textContent = `সনাক্ত: ${getLanguageName(detected)}`;
+          detectedBadge.classList.remove('hidden');
+
+          // If detected language matches current target, smartly flip target
+          if (detected === targetLangSelect.value) {
+            if (detected === 'bn') {
+              targetLangSelect.value = 'en';
+            } else {
+              targetLangSelect.value = 'bn';
+            }
+          }
+        } else {
+          detectedBadge.classList.add('hidden');
+        }
+
+        const effectiveTarget = targetLangSelect.value;
+
+        // If source and target are identical
+        if (effectiveSource === effectiveTarget) {
+          outputEl.textContent = text;
+          outputCount.textContent = `${toBanglaDigits(text.length)} অক্ষর`;
+          loadingIndicator.classList.add('hidden');
+          return;
+        }
+
+        // 1. Instant check in offline dictionary
+        const lowerKey = text.toLowerCase().replace(/[\.,!\?]+$/, '');
+        if (offlineDict[lowerKey] && offlineDict[lowerKey][effectiveTarget]) {
+          const result = offlineDict[lowerKey][effectiveTarget];
+          outputEl.textContent = result;
+          outputCount.textContent = `${toBanglaDigits(result.length)} অক্ষর`;
+          loadingIndicator.classList.add('hidden');
+          return;
+        }
+
+        // 2. Fetch from translation API with abort controller
+        if (activeController) {
+          activeController.abort();
+        }
+        activeController = new AbortController();
+        loadingIndicator.classList.remove('hidden');
+
+        try {
+          const pair = `${effectiveSource}|${effectiveTarget}`;
+          const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${pair}`;
+          
+          const response = await fetch(url, {
+            signal: activeController.signal
+          });
+          
+          if (!response.ok) throw new Error('API request failed');
+          const data = await response.json();
+
+          let chosenText = null;
+
+          if (data && data.matches && data.matches.length > 0) {
+            // Filter out any matches with vulgarity/slang
+            const cleanMatches = data.matches.filter(m => {
+              const t = (m.translation || '').trim();
+              return t && !hasProfanity(t);
+            });
+
+            // Find best vetted match (prefer MateCat, MT, or highest quality)
+            let vetted = cleanMatches.find(m => m['created-by'] === 'MateCat');
+            if (!vetted) {
+              vetted = cleanMatches.find(m => m['created-by'] && m['created-by'].includes('MT'));
+            }
+            if (!vetted && cleanMatches.length > 0) {
+              cleanMatches.sort((a, b) => (Number(b.quality) || 0) - (Number(a.quality) || 0));
+              vetted = cleanMatches[0];
+            }
+            if (vetted && vetted.translation) {
+              chosenText = vetted.translation.trim();
+            }
+          }
+
+          if (!chosenText && data && data.responseData && data.responseData.translatedText) {
+            const raw = data.responseData.translatedText.trim();
+            if (!hasProfanity(raw)) {
+              chosenText = raw;
+            }
+          }
+
+          if (chosenText && !hasProfanity(chosenText)) {
+            outputEl.textContent = chosenText;
+            outputCount.textContent = `${toBanglaDigits(chosenText.length)} অক্ষর`;
+          } else {
+            fallbackTranslate(text, effectiveSource, effectiveTarget);
+          }
+        } catch (err) {
+          if (err.name !== 'AbortError') {
+            fallbackTranslate(text, effectiveSource, effectiveTarget);
+          }
+        } finally {
+          loadingIndicator.classList.add('hidden');
+        }
+      }
+
+      function fallbackTranslate(text, src, tgt) {
+        // Simple token matching
+        const words = text.split(/\s+/);
+        const translatedWords = words.map(word => {
+          const clean = word.toLowerCase().replace(/[^a-zA-Z\u0980-\u09FF\u0600-\u06FF]/g, '');
+          if (offlineDict[clean] && offlineDict[clean][tgt]) {
+            return offlineDict[clean][tgt];
+          }
+          return word;
+        });
+        const fallbackResult = translatedWords.join(' ');
+        outputEl.textContent = fallbackResult;
+        outputCount.textContent = `${toBanglaDigits(fallbackResult.length)} অক্ষর`;
+      }
+
+      // Input event listener with debounce
+      inputEl.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(performTranslation, 350);
+      });
+
+      // Language change listeners
+      sourceLangSelect.addEventListener('change', () => {
+        performTranslation();
+      });
+
+      targetLangSelect.addEventListener('change', () => {
+        performTranslation();
+      });
+
+      // Swap button
+      swapBtn.addEventListener('click', () => {
+        // Spin icon
+        swapIcon.classList.add('rotate-180');
+        setTimeout(() => swapIcon.classList.remove('rotate-180'), 350);
+
+        const currentSource = sourceLangSelect.value;
+        const currentTarget = targetLangSelect.value;
+        const currentInput = inputEl.value;
+        const currentOutput = outputEl.textContent;
+
+        if (currentSource === 'auto') {
+          const detected = detectLanguage(currentInput);
+          sourceLangSelect.value = currentTarget;
+          targetLangSelect.value = detected;
+        } else {
+          sourceLangSelect.value = currentTarget;
+          targetLangSelect.value = currentSource;
+        }
+
+        // Swap texts if output has meaningful content
+        if (currentOutput && !currentOutput.includes('অনুবাদ এখানে প্রদর্শিত হবে')) {
+          inputEl.value = currentOutput;
+        }
+
+        performTranslation();
+      });
+
+      // Clear button
+      clearBtn.addEventListener('click', () => {
+        inputEl.value = '';
+        outputEl.innerHTML = '<span class="text-slate-400 font-bangla text-sm italic">অনুবাদ এখানে প্রদর্শিত হবে... বাম পাশের বক্সে কিছু লিখুন।</span>';
+        inputCount.textContent = '০ অক্ষর';
+        outputCount.textContent = '০ অক্ষর';
+        detectedBadge.classList.add('hidden');
+        inputEl.focus();
+      });
+
+      // Paste button
+      pasteBtn.addEventListener('click', async () => {
+        try {
+          if (navigator.clipboard && navigator.clipboard.readText) {
+            const clipText = await navigator.clipboard.readText();
+            if (clipText) {
+              inputEl.value = clipText;
+              performTranslation();
+            }
+          }
+        } catch (e) {
+          inputEl.focus();
+        }
+      });
+
+      // Copy button
+      copyBtn.addEventListener('click', async () => {
+        const textToCopy = outputEl.textContent;
+        if (!textToCopy || textToCopy.includes('অনুবাদ এখানে প্রদর্শিত হবে')) return;
+
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(textToCopy);
+          } else {
+            const ta = document.createElement('textarea');
+            ta.value = textToCopy;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          }
+
+          copyLabel.textContent = 'কপি হয়েছে! ✓';
+          copyBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+          copyBtn.classList.add('bg-slate-900');
+          setTimeout(() => {
+            copyLabel.textContent = 'কপি করুন';
+            copyBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+            copyBtn.classList.remove('bg-slate-900');
+          }, 2000);
+        } catch (e) {}
+      });
+
+      // Speak button (TTS)
+      speakBtn.addEventListener('click', () => {
+        const textToSpeak = outputEl.textContent;
+        if (!textToSpeak || textToSpeak.includes('অনুবাদ এখানে প্রদর্শিত হবে')) return;
+        if (!window.speechSynthesis) return;
+
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        const tgt = targetLangSelect.value;
+        if (tgt === 'bn') utterance.lang = 'bn-BD';
+        else if (tgt === 'ar') utterance.lang = 'ar-SA';
+        else utterance.lang = 'en-US';
+
+        window.speechSynthesis.speak(utterance);
+      });
+
+      // Action button
+      actionBtn.addEventListener('click', () => {
+        performTranslation();
+      });
+
+      // Sample chips
+      sampleChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+          const sampleText = chip.getAttribute('data-text');
+          if (sampleText) {
+            inputEl.value = sampleText;
+            sourceLangSelect.value = 'auto';
+            performTranslation();
+            inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      });
+    })();
   </script>
 </body>
 </html>
