@@ -1,12 +1,12 @@
 name = "banglish"
 compatibility_date = "2024-09-23"
 
-# Static site configuration (serves static assets for the root directory)
+# Direct Next.js static exported output directory
 [assets]
-directory = "."
+directory = "out"
 
 [env.dev]
 name = "banglish-dev"
 routes = [
-  { pattern = "dev.banglish.bd", zone_name = "banglish.bd" }
+  { pattern = "dev.banglish.bd/*", zone_name = "banglish.bd" }
 ]
