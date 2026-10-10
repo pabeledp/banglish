@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>৪০৪ — পৃষ্ঠাটি পাওয়া যায়নি | Banglish — Best iAvro Alternative for macOS</title>
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/banglish-logo-192.png">
+
+  <!-- Google Fonts: Hind Siliguri & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            bangla: ['"Hind Siliguri"', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', '"Hind Siliguri"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Hind Siliguri', 'Plus Jakarta Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background-color: #ffffff;
+    }
+
+    .bg-grid-pattern {
+      background-image: 
+        linear-gradient(to right, rgba(16, 185, 129, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(16, 185, 129, 0.05) 1px, transparent 1px);
+      background-size: 36px 36px;
+      -webkit-mask-image: linear-gradient(to right, black 60%, transparent 100%);
+      mask-image: linear-gradient(to right, black 60%, transparent 100%);
+    }
+
+    @keyframes floatGlyph1 {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-20px) rotate(4deg); }
+    }
+    @keyframes floatGlyph2 {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      50% { transform: translateY(-28px) rotate(-5deg); }
+    }
+
+    .float-glyph-1 { animation: floatGlyph1 10s ease-in-out infinite; }
+    .float-glyph-2 { animation: floatGlyph2 13s ease-in-out infinite; }
+  </style>
+</head>
+<body class="relative min-h-screen flex flex-col justify-between text-slate-800 bg-gradient-to-br from-emerald-50/40 via-white to-teal-50/30 overflow-x-hidden selection:bg-emerald-100 selection:text-emerald-900">
+
+  <!-- Subtle CSS Background Grid (Masked Right) -->
+  <div class="fixed inset-0 pointer-events-none z-0 bg-grid-pattern" aria-hidden="true"></div>
+
+  <!-- Ambient Floating Blurry Bangla Characters -->
+  <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none" aria-hidden="true">
+    <span class="absolute top-20 left-[10%] text-9xl font-bangla font-bold text-emerald-900/10 blur-[2.5px] float-glyph-1">অ</span>
+    <span class="absolute top-[45%] right-[12%] text-8xl font-bangla font-bold text-teal-900/10 blur-[3px] float-glyph-2">ব</span>
+    <span class="absolute bottom-20 left-[18%] text-8xl font-bangla font-bold text-emerald-800/10 blur-[3px] float-glyph-1">শ</span>
+  </div>
+
+  <!-- Navigation Bar Minimal -->
+  <header class="relative z-10 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6">
+    <a href="/" class="inline-flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100/80 p-1.5 flex items-center justify-center border border-emerald-200/60 shadow-xs">
+        <img src="assets/banglish-logo-192.png" alt="Banglish Logo" class="w-full h-full object-contain">
+      </div>
+      <span class="text-2xl font-bold tracking-tight text-slate-900 font-sans">Banglish<span class="text-emerald-500">.</span></span>
+    </a>
+  </header>
+
+  <!-- 404 Main Message Content -->
+  <main class="relative z-10 flex-grow flex items-center justify-center px-4 py-12">
+    <div class="max-w-md w-full text-center space-y-6">
+      
+      <div class="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-emerald-50 text-emerald-600 border border-emerald-200/80 shadow-sm mx-auto">
+        <span class="text-4xl font-black font-sans tracking-tight">404</span>
+      </div>
+
+      <div class="space-y-3">
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-900 font-bangla">
+          পৃষ্ঠাটি খুঁজে পাওয়া যায়নি
+        </h1>
+        <p class="text-base text-slate-600 font-bangla leading-relaxed">
+          দুঃখিত! আপনি যে পৃষ্ঠাটি খুঁজছেন সেটি সরানো হয়েছে, নাম পরিবর্তন হয়েছে অথবা বিদ্যমান নেই।
+        </p>
+      </div>
+
+      <div class="pt-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+        <a href="/" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all transform active:scale-95 font-bangla">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+          <span>মূল পাতায় ফিরে যান</span>
+        </a>
+        
+        <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm border border-slate-200 shadow-xs transition-all font-bangla">
+          <span>Banglish ডাউনলোড (.dmg)</span>
+        </a>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer Minimal -->
+  <footer class="relative z-10 py-6 border-t border-slate-200/60 text-center text-xs text-slate-500 font-bangla">
+    © 2026 Banglish. Created with passion by <a href="https://www.framempire.com" target="_blank" rel="noopener noreferrer" class="hover:text-emerald-600 underline decoration-slate-400">Team FramEmpire</a>.
+  </footer>
+
+</body>
+</html>
