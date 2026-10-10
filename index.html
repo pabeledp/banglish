@@ -2385,7 +2385,6 @@
       const outputCount = document.getElementById('trans-output-count');
       const detectedBadge = document.getElementById('trans-detected-badge');
       const loadingIndicator = document.getElementById('trans-loading-indicator');
-      const sampleChips = document.querySelectorAll('.sample-chip');
 
       if (!inputEl || !outputEl) return;
 
@@ -2931,19 +2930,6 @@
       // Action button
       actionBtn.addEventListener('click', () => {
         performTranslation();
-      });
-
-      // Sample chips
-      sampleChips.forEach(chip => {
-        chip.addEventListener('click', () => {
-          const sampleText = chip.getAttribute('data-text');
-          if (sampleText) {
-            inputEl.value = sampleText;
-            sourceLangSelect.value = 'auto';
-            performTranslation();
-            inputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        });
       });
     })();
   </script>
