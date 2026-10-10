@@ -2633,10 +2633,6 @@
         "لغة": { bn: "ভাষা", en: "Language" },
         "البنغالية": { bn: "বাংলা ভাষা", en: "Bengali language" }
       };
-        "آسف": { bn: "দুঃখিত", en: "Sorry" },
-        "لغة": { bn: "ভাষা", en: "Language" },
-        "البنغالية": { bn: "বাংলা ভাষা", en: "Bengali language" }
-      };
 
       // Detect language
       function detectLanguage(text) {
@@ -2671,13 +2667,14 @@
       }
 
       let debounceTimer = null;
-      let activeController = null;
+      let latestTranslateRequestId = 0;
 
-      async function performTranslation() {
+      async function performTranslation(isImmediate = false) {
+        const thisRequestId = ++latestTranslateRequestId;
         const rawText = inputEl.value;
         const text = rawText.trim();
 
-        // Update count
+        // Update character count instantly
         inputCount.textContent = `${toBanglaDigits(rawText.length)} অক্ষর`;
 
         if (!text) {
@@ -2689,37 +2686,24 @@
         }
 
         const selectedSource = sourceLangSelect.value;
-        let detected = detectLanguage(text);
+        const detected = detectLanguage(text);
 
         let effectiveSource = selectedSource;
         if (selectedSource === 'auto') {
           effectiveSource = detected;
           detectedBadge.textContent = `সনাক্ত: ${getLanguageName(detected)}`;
           detectedBadge.classList.remove('hidden');
-
-          // If detected language matches current target, smartly flip target
-          if (detected === targetLangSelect.value) {
-            if (detected === 'bn') {
-              targetLangSelect.value = 'en';
-            } else {
-              targetLangSelect.value = 'bn';
-            }
-          }
         } else {
           detectedBadge.classList.add('hidden');
         }
 
-        const effectiveTarget = targetLangSelect.value;
-
-        // If source and target are identical
-        if (effectiveSource === effectiveTarget) {
-          outputEl.textContent = text;
-          outputCount.textContent = `${toBanglaDigits(text.length)} অক্ষর`;
-          loadingIndicator.classList.add('hidden');
-          return;
+        // Smart target selection: if input is Bengali and target is default Bengali, translate to English
+        let effectiveTarget = targetLangSelect.value;
+        if (selectedSource === 'auto' && effectiveSource === 'bn' && effectiveTarget === 'bn') {
+          effectiveTarget = 'en';
         }
 
-        // 1. Instant check in offline dictionary
+        // 1. Instant 0ms check in offline dictionary
         const lowerKey = text.toLowerCase().replace(/[\.,!\?]+$/, '');
         if (offlineDict[lowerKey] && offlineDict[lowerKey][effectiveTarget]) {
           const result = offlineDict[lowerKey][effectiveTarget];
@@ -2729,11 +2713,16 @@
           return;
         }
 
-        // 2. Fetch from Official Google Cloud Translation API
-        if (activeController) {
-          activeController.abort();
+        // If user typed Banglish phonetic (e.g. ami, valo, kemon acho) and target is bn
+        if (effectiveTarget === 'bn' && typeof transliteratePhonetic === 'function') {
+          const phoneticCandidate = transliteratePhonetic(text);
+          if (phoneticCandidate && phoneticCandidate !== text) {
+            outputEl.textContent = phoneticCandidate;
+            outputCount.textContent = `${toBanglaDigits(phoneticCandidate.length)} অক্ষর`;
+          }
         }
-        activeController = new AbortController();
+
+        // 2. Fetch from Official Google Cloud Translation API
         loadingIndicator.classList.remove('hidden');
 
         try {
@@ -2752,9 +2741,11 @@
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify(postPayload),
-            signal: activeController.signal
+            body: JSON.stringify(postPayload)
           });
+
+          // Discard stale response if newer request fired
+          if (thisRequestId !== latestTranslateRequestId) return;
 
           if (!response.ok) throw new Error('Google Translation API request failed');
           const data = await response.json();
@@ -2780,16 +2771,28 @@
             fallbackTranslate(text, effectiveSource, effectiveTarget);
           }
         } catch (err) {
-          if (err.name !== 'AbortError') {
+          if (thisRequestId === latestTranslateRequestId) {
             fallbackTranslate(text, effectiveSource, effectiveTarget);
           }
         } finally {
-          loadingIndicator.classList.add('hidden');
+          if (thisRequestId === latestTranslateRequestId) {
+            loadingIndicator.classList.add('hidden');
+          }
         }
       }
 
       function fallbackTranslate(text, src, tgt) {
-        // Simple token matching
+        // First check transliteration if target is Bengali
+        if (tgt === 'bn' && typeof transliteratePhonetic === 'function') {
+          const p = transliteratePhonetic(text);
+          if (p && p !== text) {
+            outputEl.textContent = p;
+            outputCount.textContent = `${toBanglaDigits(p.length)} অক্ষর`;
+            return;
+          }
+        }
+
+        // Token matching
         const words = text.split(/\s+/);
         const translatedWords = words.map(word => {
           const clean = word.toLowerCase().replace(/[^a-zA-Z\u0980-\u09FF\u0600-\u06FF]/g, '');
@@ -2803,24 +2806,45 @@
         outputCount.textContent = `${toBanglaDigits(fallbackResult.length)} অক্ষর`;
       }
 
-      // Input event listener with debounce
-      inputEl.addEventListener('input', () => {
+      // Live typing triggers with 300ms debounce
+      function triggerLiveTranslation() {
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(performTranslation, 350);
+        // Instant count update
+        inputCount.textContent = `${toBanglaDigits(inputEl.value.length)} অক্ষর`;
+        debounceTimer = setTimeout(() => {
+          performTranslation();
+        }, 300);
+      }
+
+      // Input event listener (fires on EVERY keystroke, typing, composition)
+      inputEl.addEventListener('input', triggerLiveTranslation);
+
+      // Keyup event listener (handles Enter for instant translation)
+      inputEl.addEventListener('keyup', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          clearTimeout(debounceTimer);
+          performTranslation(true);
+        } else {
+          triggerLiveTranslation();
+        }
+      });
+
+      // Paste event listener
+      inputEl.addEventListener('paste', () => {
+        setTimeout(() => performTranslation(true), 100);
       });
 
       // Language change listeners
       sourceLangSelect.addEventListener('change', () => {
-        performTranslation();
+        performTranslation(true);
       });
 
       targetLangSelect.addEventListener('change', () => {
-        performTranslation();
+        performTranslation(true);
       });
 
       // Swap button
       swapBtn.addEventListener('click', () => {
-        // Spin icon
         swapIcon.classList.add('rotate-180');
         setTimeout(() => swapIcon.classList.remove('rotate-180'), 350);
 
@@ -2843,16 +2867,18 @@
           inputEl.value = currentOutput;
         }
 
-        performTranslation();
+        performTranslation(true);
       });
 
       // Clear button
       clearBtn.addEventListener('click', () => {
+        clearTimeout(debounceTimer);
         inputEl.value = '';
         outputEl.innerHTML = '<span class="text-slate-400 font-bangla text-sm italic">অনুবাদ এখানে প্রদর্শিত হবে... বাম পাশের বক্সে কিছু লিখুন।</span>';
         inputCount.textContent = '০ অক্ষর';
         outputCount.textContent = '০ অক্ষর';
         detectedBadge.classList.add('hidden');
+        loadingIndicator.classList.add('hidden');
         inputEl.focus();
       });
 
@@ -2863,7 +2889,7 @@
             const clipText = await navigator.clipboard.readText();
             if (clipText) {
               inputEl.value = clipText;
-              performTranslation();
+              performTranslation(true);
             }
           }
         } catch (e) {
