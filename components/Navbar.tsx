@@ -29,10 +29,7 @@ export default function Navbar() {
           {/* Desktop Navigation Links */}
           <nav className="hidden md:flex items-center gap-1 lg:gap-2">
             <Link href="/#features" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">ফিচারসমূহ</Link>
-            <Link href="/dictionary" className="px-3.5 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100/70 rounded-lg transition-colors font-bangla border border-emerald-200/60 flex items-center gap-1.5">
-              <span>অভিধান (Dictionary)</span>
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-emerald-600 text-white">BN-EN-AR</span>
-            </Link>
+            <Link href="/#dictionary" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">অভিধান</Link>
             <Link href="/#simulator" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">লাইভ সিমুলেটর</Link>
             <Link href="/#installation" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">ইনস্টলেশন</Link>
             <Link href="/#cheatsheet" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">টাইপিং গাইড</Link>
@@ -108,7 +105,7 @@ export default function Navbar() {
       {isMobileMenuOpen && (
         <div className="md:hidden border-t border-emerald-100 bg-white/95 backdrop-blur-lg px-4 pt-3 pb-6 space-y-2">
           <Link href="/#features" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">ফিচারসমূহ</Link>
-          <Link href="/dictionary" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-semibold text-emerald-700 bg-emerald-50 font-bangla border border-emerald-200/60">অভিধান (3-Language Dictionary)</Link>
+          <Link href="/#dictionary" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">অভিধান</Link>
           <Link href="/#simulator" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">লাইভ সিমুলেটর</Link>
           <Link href="/#installation" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">ইনস্টলেশন</Link>
           <Link href="/#cheatsheet" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">টাইপিং গাইড ও বর্ণ চার্ট</Link>
