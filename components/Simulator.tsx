@@ -175,12 +175,6 @@ export default function Simulator() {
     inputRef.current?.focus();
   };
 
-  const handlePreset = (word: string) => {
-    userTakeOver();
-    setInputText(word);
-    inputRef.current?.focus();
-  };
-
   const handleCopy = async () => {
     const output = transliteratePhonetic(inputText);
     if (!output) return;
@@ -223,21 +217,6 @@ export default function Simulator() {
 
         {/* Simulator Body */}
         <div className="p-4 sm:p-7 md:p-8 space-y-6">
-
-          {/* Preset Quick Pills */}
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-slate-400 font-bangla text-xs">ক্লিক করে ট্রাই করুন:</span>
-            {['amra', 'valobasa', 'bangla', 'shundor', 'dhonnobad'].map((word) => (
-              <button
-                key={word}
-                type="button"
-                onClick={() => handlePreset(word)}
-                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-800 font-mono text-xs transition-colors cursor-pointer"
-              >
-                {word}
-              </button>
-            ))}
-          </div>
 
           {/* Input & Output Dual Display */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2">
