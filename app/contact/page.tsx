@@ -90,6 +90,25 @@ export default function ContactPage() {
                 </div>
               </a>
 
+              {/* Facebook Page Card */}
+              <a href="https://www.facebook.com/banglishkeyboard/" target="_blank" rel="noopener noreferrer" className="hover-card p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm transition-all group flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" clipRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"/></svg>
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-400 uppercase font-mono">Facebook Page</span>
+                    <div className="text-sm sm:text-base font-bold text-slate-900 font-sans group-hover:text-blue-600 transition-colors mt-0.5">
+                      /banglishkeyboard
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 text-xs text-blue-600 font-bangla flex items-center gap-1">
+                  <span>ফেসবুক পেজে যুক্ত হোন</span>
+                  <svg className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+                </div>
+              </a>
+
               {/* GitHub Card */}
               <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/issues" target="_blank" rel="noopener noreferrer" className="hover-card p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm transition-all group flex flex-col justify-between">
                 <div className="space-y-3">
@@ -105,6 +124,25 @@ export default function ContactPage() {
                 </div>
                 <div className="mt-4 text-xs text-emerald-600 font-bangla flex items-center gap-1">
                   <span>ইস্যু তৈরি করুন</span>
+                  <svg className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+                </div>
+              </a>
+
+              {/* Phone Card */}
+              <a href="tel:+8801615288259" className="hover-card p-6 rounded-2xl bg-white border border-slate-200/90 shadow-sm transition-all group flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-400 uppercase font-mono">Phone Number</span>
+                    <div className="text-sm sm:text-base font-bold text-slate-900 font-sans group-hover:text-teal-700 transition-colors mt-0.5">
+                      +880 1615-288259
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 text-xs text-teal-600 font-bangla flex items-center gap-1">
+                  <span>কল করুন বা WhatsApp</span>
                   <svg className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
                 </div>
               </a>

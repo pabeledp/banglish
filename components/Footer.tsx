@@ -47,6 +47,7 @@ export default function Footer() {
               <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg" className="text-emerald-400 hover:underline">Download macOS (.dmg)</a></li>
               <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe" className="text-sky-400 hover:underline">Download Windows (.exe)</a></li>
               <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition-colors">GitHub Repository</a></li>
+              <li><a href="https://www.facebook.com/banglishkeyboard/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Facebook Community Page</a></li>
               <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition-colors">MIT Open Source License</a></li>
               <li><a href="mailto:info@banglish.bd" className="hover:text-emerald-400 transition-colors">সরাসরি ইমেইল সাপোর্ট</a></li>
             </ul>
@@ -60,6 +61,8 @@ export default function Footer() {
             © 2026 Banglish. Created with passion by <a href="https://www.framempire.com" target="_blank" rel="noopener noreferrer" className="text-white hover:text-emerald-400 font-medium underline decoration-slate-600 hover:decoration-emerald-400 transition-colors">Team FramEmpire</a>.
           </div>
           <div className="flex items-center gap-3 text-slate-400 font-sans">
+            <a href="https://www.facebook.com/banglishkeyboard/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 font-medium">Facebook</a>
+            <span>•</span>
             <a href="https://www.ampabel.com" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 font-medium">www.ampabel.com</a>
             <span>•</span>
             <a href="https://github.com/pabeledp" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400">@pabeledp</a>
