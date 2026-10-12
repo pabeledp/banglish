@@ -32,7 +32,7 @@ export default function Footer() {
             <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-200 font-mono">নেভিগেশন</h4>
             <ul className="space-y-2 text-sm font-bangla">
               <li><Link href="/#features" className="hover:text-emerald-400 transition-colors">ফিচারসমূহ</Link></li>
-              <li><Link href="/dictionary" className="text-emerald-400 hover:underline flex items-center gap-1.5"><span>৩-ভাষার অভিধান</span> <span className="text-[10px] bg-emerald-900/60 text-emerald-300 px-1.5 py-0.2 rounded font-mono">New</span></Link></li>
+              <li><Link href="/#dictionary" className="hover:text-emerald-400 transition-colors">অভিধান</Link></li>
               <li><Link href="/#simulator" className="hover:text-emerald-400 transition-colors">লাইভ সিমুলেটর</Link></li>
               <li><Link href="/#installation" className="hover:text-emerald-400 transition-colors">ইনস্টলেশন গাইড</Link></li>
               <li><Link href="/#cheatsheet" className="hover:text-emerald-400 transition-colors">কী-ম্যাপ রেফারেন্স</Link></li>
