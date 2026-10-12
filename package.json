@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "node -e \"const fs = require('fs'); fs.rmSync('out', { recursive: true, force: true }); fs.mkdirSync('out'); ['index.html', 'contact.html', '404.html', 'favicon.ico', 'robots.txt', 'sitemap.xml', 'CNAME'].forEach(f => fs.existsSync(f) && fs.copyFileSync(f, 'out/' + f)); ['assets', 'downloads'].forEach(d => fs.existsSync(d) && fs.cpSync(d, 'out/' + d, { recursive: true })); console.log('Build completed: static assets copied to out/');\"",
-    "deploy:dev": "npm run build && wrangler deploy --env dev"
+    "deploy:dev": "npm run build && npx wrangler deploy --env dev"
   },
   "dependencies": {
     "lucide-react": "^1.16.0",
