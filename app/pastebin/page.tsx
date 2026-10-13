@@ -486,7 +486,7 @@ export default function PastebinPage() {
           />
 
           {/* 4. Main Canvas Editor Area (Unrestricted Height & Smooth Scroll) */}
-          <div className="flex-1 flex flex-col min-h-[550px] sm:min-h-[620px]">
+          <div className="flex-1 flex flex-col min-h-[550px] sm:min-h-[620px] h-full">
             {activeTab.mode === 'text' && (
               <TextCodeEditor
                 content={activeTab.content}

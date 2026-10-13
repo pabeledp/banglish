@@ -320,11 +320,11 @@ export default function TextCodeEditor({
         <div
           ref={lineNumbersRef}
           aria-hidden="true"
-          className="select-none py-4 px-2.5 sm:px-3 text-right bg-slate-50 border-r border-slate-200 text-slate-400 font-mono text-xs overflow-hidden shrink-0"
+          className="select-none py-4 sm:py-5 px-2.5 sm:px-3 text-right bg-slate-50 border-r border-slate-200 text-slate-400 font-mono text-xs overflow-hidden shrink-0"
           style={{ 
             fontSize: `${Math.max(fontSize - 2, 11)}px`, 
             lineHeight: '1.75',
-            minWidth: '42px',
+            minWidth: '44px',
           }}
         >
           {Array.from({ length: lineCount }).map((_, i) => (
@@ -335,8 +335,8 @@ export default function TextCodeEditor({
         </div>
       )}
 
-      {/* Main Textarea */}
-      <div className="relative flex-1 flex flex-col h-full">
+      {/* Main Textarea Container (Full Unrestricted Height) */}
+      <div className="relative flex-1 min-h-[550px] sm:min-h-[620px] h-full w-full">
         <textarea
           ref={textareaRef}
           value={content}
@@ -350,7 +350,7 @@ export default function TextCodeEditor({
           onKeyUp={updateCursorPos}
           onScroll={handleScroll}
           placeholder={phoneticActive ? "এখানে লিখুন..." : "Write here..."}
-          className={`flex-1 w-full h-full p-4 sm:p-5 bg-white text-slate-900 outline-none resize-none leading-relaxed transition-all placeholder:text-slate-400 ${
+          className={`absolute inset-0 w-full h-full p-4 sm:py-5 sm:px-5 bg-white text-slate-900 outline-none resize-none leading-relaxed transition-all placeholder:text-slate-400 overflow-y-auto ${
             wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto'
           }`}
           style={{
