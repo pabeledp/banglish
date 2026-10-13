@@ -7,7 +7,6 @@ import {
   SUPPORTED_FONTS, 
   CODE_LANGUAGES 
 } from '@/lib/pastebinTypes';
-import { TARGET_LANGUAGES } from '@/lib/translatorService';
 import { 
   Bold, 
   Italic, 
@@ -31,10 +30,9 @@ import {
   Trash2, 
   CaseSensitive, 
   Hash, 
-  Globe, 
-  Loader2,
   Highlighter,
-  Sparkles
+  PaintBucket,
+  Baseline
 } from 'lucide-react';
 
 interface PastebinToolbarProps {
@@ -66,13 +64,6 @@ interface PastebinToolbarProps {
   onDeleteCol?: () => void;
   onInsertFormula?: (formula: string) => void;
   onSheetCellFormat?: (property: 'bold' | 'italic' | 'align' | 'color' | 'bg', value?: string) => void;
-
-  // Phonetic Convert Action
-  onConvertPhonetic?: () => void;
-
-  // Universal Translation Action
-  onTranslate?: (targetLangCode: string) => void;
-  isTranslating?: boolean;
 }
 
 export default function PastebinToolbar({
@@ -98,18 +89,18 @@ export default function PastebinToolbar({
   onDeleteCol,
   onInsertFormula,
   onSheetCellFormat,
-  onConvertPhonetic,
-  onTranslate,
-  isTranslating = false,
 }: PastebinToolbarProps) {
-  const [selectedTargetLang, setSelectedTargetLang] = useState<string>('bn');
   const [showCaseMenu, setShowCaseMenu] = useState(false);
   const [showFormulaMenu, setShowFormulaMenu] = useState(false);
   const [showHighlightMenu, setShowHighlightMenu] = useState(false);
+  const [showCellBgMenu, setShowCellBgMenu] = useState(false);
+  const [showCellTextMenu, setShowCellTextMenu] = useState(false);
 
   const caseMenuRef = useRef<HTMLDivElement | null>(null);
   const formulaMenuRef = useRef<HTMLDivElement | null>(null);
   const highlightMenuRef = useRef<HTMLDivElement | null>(null);
+  const cellBgMenuRef = useRef<HTMLDivElement | null>(null);
+  const cellTextMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Close any open dropdown on click anywhere outside on the page
   useEffect(() => {
@@ -123,6 +114,12 @@ export default function PastebinToolbar({
       }
       if (highlightMenuRef.current && !highlightMenuRef.current.contains(target)) {
         setShowHighlightMenu(false);
+      }
+      if (cellBgMenuRef.current && !cellBgMenuRef.current.contains(target)) {
+        setShowCellBgMenu(false);
+      }
+      if (cellTextMenuRef.current && !cellTextMenuRef.current.contains(target)) {
+        setShowCellTextMenu(false);
       }
     };
 
@@ -141,6 +138,29 @@ export default function PastebinToolbar({
     { name: 'বেগুনি (Purple)', color: '#e9d5ff', bgClass: 'bg-purple-200' },
     { name: 'গোলাপি (Pink)', color: '#fbcfe8', bgClass: 'bg-pink-200' },
     { name: 'হাইলাইট মুছুন', color: 'transparent', bgClass: 'bg-white border border-slate-300' },
+  ];
+
+  // Sheet Cell Background Fill Colors
+  const cellBgColors = [
+    { name: 'ডিফল্ট (স্বচ্ছ)', color: 'transparent', previewClass: 'bg-white border border-slate-300' },
+    { name: 'হালকা সবুজ', color: '#ecfdf5', previewClass: 'bg-emerald-100' },
+    { name: 'হালকা নীল', color: '#f0f9ff', previewClass: 'bg-sky-100' },
+    { name: 'হালকা হলুদ', color: '#fefce8', previewClass: 'bg-yellow-100' },
+    { name: 'হালকা লাল', color: '#fff1f2', previewClass: 'bg-rose-100' },
+    { name: 'হালকা বেগুনি', color: '#faf5ff', previewClass: 'bg-purple-100' },
+    { name: 'হালকা স্লেট', color: '#f1f5f9', previewClass: 'bg-slate-200' },
+    { name: 'ডার্ক হেডার', color: '#0f172a', previewClass: 'bg-slate-900' },
+  ];
+
+  // Sheet Cell Text Colors
+  const cellTextColors = [
+    { name: 'ডিফল্ট (কালো)', color: 'transparent', previewClass: 'bg-slate-900' },
+    { name: 'সবুজ (Emerald)', color: '#059669', previewClass: 'bg-emerald-600' },
+    { name: 'নীল (Blue)', color: '#2563eb', previewClass: 'bg-blue-600' },
+    { name: 'লাল (Rose)', color: '#e11d48', previewClass: 'bg-rose-600' },
+    { name: 'অ্যাম্বার (Amber)', color: '#d97706', previewClass: 'bg-amber-600' },
+    { name: 'বেগুনি (Purple)', color: '#9333ea', previewClass: 'bg-purple-600' },
+    { name: 'সাদা (White)', color: '#ffffff', previewClass: 'bg-white border border-slate-300' },
   ];
 
   return (
@@ -457,6 +477,7 @@ export default function PastebinToolbar({
         {/* 3. SHEET MODE CONTROLS */}
         {mode === 'sheet' && (
           <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
+            {/* Add / Delete Row */}
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
               <button
                 type="button"
@@ -477,6 +498,7 @@ export default function PastebinToolbar({
               </button>
             </div>
 
+            {/* Add / Delete Column */}
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
               <button
                 type="button"
@@ -497,6 +519,7 @@ export default function PastebinToolbar({
               </button>
             </div>
 
+            {/* Cell Text Styles: Bold, Italic, Alignment */}
             <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
               <button
                 type="button"
@@ -540,6 +563,77 @@ export default function PastebinToolbar({
               </button>
             </div>
 
+            {/* Cell Text Color Picker */}
+            <div className="relative" ref={cellTextMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowCellTextMenu(!showCellTextMenu)}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 shadow-2xs cursor-pointer"
+                title="সেলের টেক্সট রং (Text Color)"
+              >
+                <Baseline className="w-3.5 h-3.5 text-blue-600" />
+                <span className="hidden sm:inline font-bangla text-[11px]">টেক্সট রং</span>
+              </button>
+
+              {showCellTextMenu && (
+                <div className="absolute left-0 top-full mt-1.5 w-44 rounded-xl bg-white border border-slate-200 shadow-xl p-1.5 z-50 space-y-1 ring-1 ring-black/5 animate-in fade-in duration-100">
+                  <div className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 uppercase tracking-wider font-mono">
+                    সেলের টেক্সট রং
+                  </div>
+                  {cellTextColors.map((tc) => (
+                    <button
+                      key={tc.name}
+                      type="button"
+                      onClick={() => {
+                        onSheetCellFormat?.('color', tc.color);
+                        setShowCellTextMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-xs text-slate-700 text-left transition-colors font-bangla cursor-pointer"
+                    >
+                      <span className={`w-3.5 h-3.5 rounded-full ${tc.previewClass}`} />
+                      <span>{tc.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Cell Fill / Background Color Picker */}
+            <div className="relative" ref={cellBgMenuRef}>
+              <button
+                type="button"
+                onClick={() => setShowCellBgMenu(!showCellBgMenu)}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 shadow-2xs cursor-pointer"
+                title="সেলের ব্যাকগ্রাউন্ড রং (Cell Fill Color)"
+              >
+                <PaintBucket className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="hidden sm:inline font-bangla text-[11px]">সেল ব্যাকগ্রাউন্ড</span>
+              </button>
+
+              {showCellBgMenu && (
+                <div className="absolute left-0 top-full mt-1.5 w-48 rounded-xl bg-white border border-slate-200 shadow-xl p-1.5 z-50 space-y-1 ring-1 ring-black/5 animate-in fade-in duration-100">
+                  <div className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 uppercase tracking-wider font-mono">
+                    সেল ব্যাকগ্রাউন্ড রং
+                  </div>
+                  {cellBgColors.map((bg) => (
+                    <button
+                      key={bg.name}
+                      type="button"
+                      onClick={() => {
+                        onSheetCellFormat?.('bg', bg.color);
+                        setShowCellBgMenu(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-xs text-slate-700 text-left transition-colors font-bangla cursor-pointer"
+                    >
+                      <span className={`w-3.5 h-3.5 rounded-md ${bg.previewClass}`} />
+                      <span>{bg.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Formula Helper */}
             <div className="relative" ref={formulaMenuRef}>
               <button
                 type="button"
@@ -596,57 +690,7 @@ export default function PastebinToolbar({
 
       </div>
 
-      {/* Right Actions: 1-Click Phonetic Convert + Universal "Translate to" */}
-      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-        
-        {/* 1-Click Phonetic Transliterate Button */}
-        {onConvertPhonetic && (
-          <button
-            type="button"
-            onClick={onConvertPhonetic}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 font-medium text-xs shadow-2xs transition-all cursor-pointer font-bangla"
-            title="বাংলিশ লেখাগুলোকে বিশুদ্ধ অভ্র বাংলায় রূপান্তর করুন"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-            <span className="hidden sm:inline">বাংলিশ ➔ বাংলা</span>
-          </button>
-        )}
-
-        {/* Universal "Translate to [Language]" Action */}
-        <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-2xs">
-          <span className="text-[11px] text-slate-500 font-sans font-medium pl-2 pr-1 flex items-center gap-1">
-            <Globe className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="hidden sm:inline">Translate to:</span>
-          </span>
-          <select
-            value={selectedTargetLang}
-            onChange={(e) => setSelectedTargetLang(e.target.value)}
-            className="bg-transparent text-slate-800 text-xs outline-none cursor-pointer py-1 pr-1 font-sans font-medium"
-          >
-            {TARGET_LANGUAGES.map(lang => (
-              <option key={lang.code} value={lang.code} className="bg-white text-slate-800">
-                {lang.flag} {lang.nativeName} ({lang.name})
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            disabled={isTranslating}
-            onClick={() => onTranslate?.(selectedTargetLang)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-xs transition-all cursor-pointer disabled:opacity-60 font-bangla"
-            title="যেকোনো ভাষা থেকে নির্বাচিত ভাষায় অনুবাদ করুন"
-          >
-            {isTranslating ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>অনুবাদ হচ্ছে...</span>
-              </>
-            ) : (
-              <span>অনুবাদ</span>
-            )}
-          </button>
-        </div>
-      </div>
+      {/* Right side is intentionally clean and uncrowded */}
 
     </div>
   );

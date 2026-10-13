@@ -353,6 +353,12 @@ export default function PastebinPage() {
     if (prop === 'align' && (val === 'left' || val === 'center' || val === 'right')) {
       newStyle.align = val;
     }
+    if (prop === 'color') {
+      newStyle.color = val === 'transparent' ? undefined : val;
+    }
+    if (prop === 'bg') {
+      newStyle.bg = val === 'transparent' ? undefined : val;
+    }
 
     updateActiveTab({
       sheetData: {
@@ -459,9 +465,6 @@ export default function PastebinPage() {
             onDeleteCol={handleDeleteCol}
             onInsertFormula={handleInsertFormula}
             onSheetCellFormat={handleSheetCellFormat}
-            onConvertPhonetic={handleConvertPhonetic}
-            onTranslate={handleTranslate}
-            isTranslating={isTranslating}
           />
 
           {/* 4. Main Canvas Editor Area (Unrestricted Height & Smooth Scroll) */}
@@ -551,9 +554,6 @@ export default function PastebinPage() {
 
       {/* Floating Bottom Utility Action Bar */}
       <FloatingActions
-        phoneticActive={state.phoneticActive}
-        onTogglePhonetic={togglePhonetic}
-        onConvertPhonetic={handleConvertPhonetic}
         onTranslate={handleTranslate}
         isTranslating={isTranslating}
         onCopyContent={handleCopyContent}

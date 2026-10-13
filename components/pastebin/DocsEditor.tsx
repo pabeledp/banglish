@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { FontFamilyOption } from '@/lib/pastebinTypes';
 import { TARGET_LANGUAGES } from '@/lib/translatorService';
-import { transliterateWord, transliterateText } from '@/lib/phoneticEngine';
+import { transliterateWord } from '@/lib/phoneticEngine';
 import { 
   Bold, 
   Italic, 
@@ -12,10 +12,10 @@ import {
   Trash2, 
   Check, 
   Globe, 
-  Loader2,
-  Highlighter,
+  Loader2, 
+  Highlighter, 
   Link2,
-  Sparkles
+  ChevronDown
 } from 'lucide-react';
 
 interface DocsEditorProps {
@@ -42,8 +42,14 @@ export default function DocsEditor({
   const editorRef = useRef<HTMLDivElement | null>(null);
   const [selectedTargetLang, setSelectedTargetLang] = useState('bn');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [showFloatingLangPicker, setShowFloatingLangPicker] = useState(false);
   
-  // Floating toolbar state
+  // Floating toolbar state & saved selection range
+  const savedRangeRef = useRef<Range | null>(null);
+  const isInteractingWithToolbarRef = useRef<boolean>(false);
+  const floatingToolbarRef = useRef<HTMLDivElement | null>(null);
+  const floatingLangPickerRef = useRef<HTMLDivElement | null>(null);
+
   const [floatingToolbar, setFloatingToolbar] = useState<{
     visible: boolean;
     x: number;
@@ -93,30 +99,50 @@ export default function DocsEditor({
 
   // Handle selection change for floating toolbar
   const handleSelectionChange = () => {
+    // If the user is currently interacting with the floating toolbar or picker, do not hide it
+    if (isInteractingWithToolbarRef.current || showFloatingLangPicker) return;
+
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed || !editorRef.current) {
-      setFloatingToolbar(prev => ({ ...prev, visible: false }));
+      if (!isInteractingWithToolbarRef.current) {
+        setFloatingToolbar(prev => ({ ...prev, visible: false }));
+        setShowFloatingLangPicker(false);
+      }
       return;
     }
 
+    if (selection.rangeCount === 0) return;
     const range = selection.getRangeAt(0);
+
     if (!editorRef.current.contains(range.commonAncestorContainer)) {
-      setFloatingToolbar(prev => ({ ...prev, visible: false }));
+      if (!isInteractingWithToolbarRef.current) {
+        setFloatingToolbar(prev => ({ ...prev, visible: false }));
+        setShowFloatingLangPicker(false);
+      }
       return;
     }
 
     const text = selection.toString().trim();
     if (!text) {
-      setFloatingToolbar(prev => ({ ...prev, visible: false }));
+      if (!isInteractingWithToolbarRef.current) {
+        setFloatingToolbar(prev => ({ ...prev, visible: false }));
+        setShowFloatingLangPicker(false);
+      }
       return;
     }
 
+    // Save the range reference clone for safe translation replacement
+    savedRangeRef.current = range.cloneRange();
+
     const rect = range.getBoundingClientRect();
+    const toolbarWidth = 320;
+    const safeLeft = Math.max(12, Math.min(window.innerWidth - toolbarWidth - 16, rect.left + rect.width / 2 - toolbarWidth / 2));
+    const safeTop = Math.max(10, rect.top - 54);
 
     setFloatingToolbar({
       visible: true,
-      x: Math.max(10, rect.left + rect.width / 2 - 140),
-      y: Math.max(10, rect.top - 50),
+      x: safeLeft,
+      y: safeTop,
       selectedText: text,
     });
   };
@@ -126,6 +152,28 @@ export default function DocsEditor({
     return () => {
       document.removeEventListener('selectionchange', handleSelectionChange);
     };
+  }, [showFloatingLangPicker]);
+
+  // Close menus on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as Node;
+      if (floatingLangPickerRef.current && !floatingLangPickerRef.current.contains(target)) {
+        setShowFloatingLangPicker(false);
+      }
+      if (floatingToolbarRef.current && !floatingToolbarRef.current.contains(target) && !editorRef.current?.contains(target)) {
+        setFloatingToolbar(prev => ({ ...prev, visible: false }));
+        setShowFloatingLangPicker(false);
+      }
+      setContextMenu(prev => ({ ...prev, visible: false }));
+    };
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('touchstart', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
   }, []);
 
   const execFormat = (command: string, value: string = '') => {
@@ -133,45 +181,39 @@ export default function DocsEditor({
     handleInput();
   };
 
-  // Convert selected Banglish text into Bangla using Avro engine
-  const handleConvertSelectionPhonetic = () => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
-    const selectedText = selection.toString();
-    if (!selectedText) return;
-
-    const converted = transliterateText(selectedText);
-    range.deleteContents();
-    range.insertNode(document.createTextNode(converted));
-    handleInput();
-
-    setFloatingToolbar(prev => ({ ...prev, visible: false }));
-    setContextMenu(prev => ({ ...prev, visible: false }));
-  };
-
   // Translate selected text into target language
   const handleTranslateSelection = async () => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    const range = selection.getRangeAt(0);
-    const selectedText = selection.toString();
-    if (!selectedText) return;
+    const textToTranslate = floatingToolbar.selectedText;
+    if (!textToTranslate) return;
 
     setIsTranslating(true);
     try {
       if (onTranslateSelected) {
-        const translated = await onTranslateSelected(selectedText, selectedTargetLang);
-        range.deleteContents();
-        range.insertNode(document.createTextNode(translated));
-        handleInput();
+        const translated = await onTranslateSelected(textToTranslate, selectedTargetLang);
+        
+        // Use the saved cloned range to replace the text accurately
+        const targetRange = savedRangeRef.current;
+        if (targetRange) {
+          targetRange.deleteContents();
+          targetRange.insertNode(document.createTextNode(translated));
+          handleInput();
+        } else {
+          // Fallback to active selection if available
+          const sel = window.getSelection();
+          if (sel && sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            range.insertNode(document.createTextNode(translated));
+            handleInput();
+          }
+        }
       }
     } finally {
       setIsTranslating(false);
       setFloatingToolbar(prev => ({ ...prev, visible: false }));
+      setShowFloatingLangPicker(false);
       setContextMenu(prev => ({ ...prev, visible: false }));
+      isInteractingWithToolbarRef.current = false;
     }
   };
 
@@ -188,15 +230,6 @@ export default function DocsEditor({
       selectedText: text,
     });
   };
-
-  // Close context menu & floating toolbar on outside click
-  useEffect(() => {
-    const handleClickOutside = () => {
-      setContextMenu(prev => ({ ...prev, visible: false }));
-    };
-    window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
-  }, []);
 
   // Real-time Phonetic typing inside contentEditable
   const activeDocBufferRef = useRef<string>('');
@@ -304,6 +337,8 @@ export default function DocsEditor({
     }
   };
 
+  const selectedLangObj = TARGET_LANGUAGES.find(l => l.code === selectedTargetLang) || TARGET_LANGUAGES[0];
+
   return (
     <div 
       className="relative flex-1 w-full min-h-[550px] sm:min-h-[620px] bg-slate-50/50 rounded-b-2xl border-x border-b border-slate-200/90 p-4 sm:p-8 pb-32 flex justify-center overflow-y-auto"
@@ -312,9 +347,11 @@ export default function DocsEditor({
       {/* Floating Selection Toolbar */}
       {floatingToolbar.visible && (
         <div
+          ref={floatingToolbarRef}
+          onMouseEnter={() => { isInteractingWithToolbarRef.current = true; }}
+          onMouseLeave={() => { isInteractingWithToolbarRef.current = false; }}
           className="fixed z-50 flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 shadow-2xl shadow-slate-900/15 animate-in fade-in zoom-in-95 duration-150"
           style={{ top: `${floatingToolbar.y}px`, left: `${floatingToolbar.x}px` }}
-          onMouseDown={(e) => e.preventDefault()}
         >
           <button
             type="button"
@@ -360,46 +397,67 @@ export default function DocsEditor({
             <Link2 className="w-3.5 h-3.5" />
           </button>
 
-          <div className="h-4 w-[1px] bg-slate-200 mx-1" />
+          <div className="h-4 w-[1px] bg-slate-200 mx-0.5" />
 
-          {/* 1-Click Phonetic Transliterate Button */}
-          <button
-            type="button"
-            onClick={handleConvertSelectionPhonetic}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 text-[11px] font-medium transition-colors cursor-pointer font-bangla"
-            title="বাংলিশ থেকে অভ্র বাংলায় রূপান্তর"
-          >
-            <Sparkles className="w-3 h-3 text-teal-600" />
-            <span>বাংলা রূপান্তর</span>
-          </button>
+          {/* Interactive Floating Language Picker Dropdown */}
+          <div className="relative" ref={floatingLangPickerRef}>
+            <div className="flex items-center bg-slate-100/90 rounded-lg p-0.5 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowFloatingLangPicker(!showFloatingLangPicker)}
+                className="flex items-center gap-1 px-2 py-1 text-[11px] text-slate-800 hover:text-emerald-700 font-sans font-medium rounded cursor-pointer"
+                title="অনুবাদ করার ভাষা নির্বাচন করুন"
+              >
+                <span>{selectedLangObj.flag}</span>
+                <span>{selectedLangObj.nativeName}</span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+              </button>
 
-          {/* Universal Translate Selection Button */}
-          <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-0.5 border border-slate-200">
-            <select
-              value={selectedTargetLang}
-              onChange={(e) => setSelectedTargetLang(e.target.value)}
-              className="bg-transparent text-[11px] text-slate-800 outline-none cursor-pointer pr-1 font-sans"
-            >
-              {TARGET_LANGUAGES.map(l => (
-                <option key={l.code} value={l.code}>
-                  {l.flag} {l.nativeName}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              disabled={isTranslating}
-              onClick={handleTranslateSelection}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium shadow-2xs transition-all cursor-pointer font-bangla disabled:opacity-60"
-            >
-              {isTranslating ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
-              ) : (
-                <Globe className="w-3 h-3" />
-              )}
-              <span>অনুবাদ</span>
-            </button>
+              <button
+                type="button"
+                disabled={isTranslating}
+                onClick={handleTranslateSelection}
+                className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium shadow-2xs transition-all cursor-pointer font-bangla disabled:opacity-60"
+                title="নির্বাচিত টেক্সট অনুবাদ করুন"
+              >
+                {isTranslating ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Globe className="w-3 h-3" />
+                )}
+                <span>অনুবাদ</span>
+              </button>
+            </div>
+
+            {/* Language Selection Popup Menu */}
+            {showFloatingLangPicker && (
+              <div className="absolute left-0 bottom-full mb-1.5 w-48 max-h-52 overflow-y-auto rounded-xl bg-white border border-slate-200 shadow-2xl p-1 z-50 space-y-0.5 ring-1 ring-black/5 animate-in fade-in duration-100">
+                <div className="text-[10px] font-semibold text-slate-400 px-2 py-1 uppercase tracking-wider font-mono border-b border-slate-100">
+                  Translate to:
+                </div>
+                {TARGET_LANGUAGES.map(l => (
+                  <button
+                    key={l.code}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTargetLang(l.code);
+                      setShowFloatingLangPicker(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors cursor-pointer ${
+                      selectedTargetLang === l.code ? 'bg-emerald-50 text-emerald-800 font-semibold' : 'text-slate-700 hover:bg-slate-100'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span>{l.flag}</span>
+                      <span>{l.nativeName}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">{l.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
         </div>
       )}
 
@@ -410,25 +468,14 @@ export default function DocsEditor({
           style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
         >
           {contextMenu.selectedText && (
-            <>
-              <button
-                type="button"
-                onClick={handleConvertSelectionPhonetic}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold font-bangla text-left transition-colors cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5 text-teal-600" />
-                <span>বাংলিশ ➔ বাংলায় রূপান্তর</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleTranslateSelection}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold font-bangla text-left transition-colors cursor-pointer"
-              >
-                <Globe className="w-3.5 h-3.5 text-emerald-600" />
-                <span>অনুবাদ করুন (Translate)</span>
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={handleTranslateSelection}
+              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold font-bangla text-left transition-colors cursor-pointer"
+            >
+              <Globe className="w-3.5 h-3.5 text-emerald-600" />
+              <span>অনুবাদ করুন (Translate)</span>
+            </button>
           )}
 
           <button
