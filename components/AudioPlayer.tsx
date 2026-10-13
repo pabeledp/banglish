@@ -1,13 +1,27 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function AudioPlayer() {
+  const pathname = usePathname();
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const LOW_DB_VOLUME = 0.16;
 
+  // Do not render or play song on pastebin workspace pages
+  const isPastebin = pathname?.startsWith('/pastebin') || pathname?.startsWith('/paste-bin');
+
   useEffect(() => {
+    if (isPastebin && audioRef.current && !audioRef.current.paused) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [isPastebin]);
+
+  useEffect(() => {
+    if (isPastebin) return;
+
     if (audioRef.current) {
       audioRef.current.volume = LOW_DB_VOLUME;
     }
@@ -29,10 +43,10 @@ export default function AudioPlayer() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying]);
+  }, [isPlaying, isPastebin]);
 
   const togglePlay = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || isPastebin) return;
     if (audioRef.current.paused) {
       audioRef.current.volume = LOW_DB_VOLUME;
       audioRef.current.play().then(() => {
@@ -45,6 +59,10 @@ export default function AudioPlayer() {
       setIsPlaying(false);
     }
   };
+
+  if (isPastebin) {
+    return null;
+  }
 
   return (
     <>

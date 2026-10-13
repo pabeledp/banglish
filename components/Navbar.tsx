@@ -33,6 +33,10 @@ export default function Navbar() {
             <Link href="/#simulator" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">লাইভ সিমুলেটর</Link>
             <Link href="/#installation" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">ইনস্টলেশন</Link>
             <Link href="/#cheatsheet" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">টাইপিং গাইড</Link>
+            <Link href="/pastebin" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla inline-flex items-center gap-1.5 group">
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 group-hover:scale-125 transition-transform"></span>
+              <span>পেস্টবিন</span>
+            </Link>
             <Link href="/contact" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">যোগাযোগ</Link>
           </nav>
 
@@ -112,6 +116,13 @@ export default function Navbar() {
           <Link href="/#simulator" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">লাইভ সিমুলেটর</Link>
           <Link href="/#installation" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">ইনস্টলেশন</Link>
           <Link href="/#cheatsheet" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">টাইপিং গাইড ও বর্ণ চার্ট</Link>
+          <Link href="/pastebin" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-between px-3 py-2 rounded-lg text-base font-medium text-cyan-800 bg-cyan-50/70 hover:bg-cyan-100/70 font-bangla">
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+              <span>পেস্টবিন (Smart Workspace)</span>
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-200/70 text-cyan-900 font-bold">NEW</span>
+          </Link>
           <Link href="/contact" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">যোগাযোগ</Link>
           
           <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
