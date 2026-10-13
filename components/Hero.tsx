@@ -35,7 +35,8 @@ export default function Hero() {
               <svg className="w-3.5 h-3.5 text-sky-600 flex-shrink-0" fill="currentColor" viewBox="0 0 88 88">
                 <path d="M0 12.402l35.689-4.86.016 34.423-35.67.203zm35.67 33.529l.026 34.453L0 75.481l.035-29.327zm4.326-39.027L87.914 0v41.527l-47.918.378zm47.919 38.928l-.005 41.79-47.914-6.745-.031-34.793z" />
               </svg>
-              Windows 10 / 11 (64-bit)
+              <span>Windows 10 / 11</span>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300">Beta</span>
             </span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 border border-slate-200 shadow-xs">
               <svg className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -70,8 +71,11 @@ export default function Hero() {
                 <path d="M0 12.402l35.689-4.86.016 34.423-35.67.203zm35.67 33.529l.026 34.453L0 75.481l.035-29.327zm4.326-39.027L87.914 0v41.527l-47.918.378zm47.919 38.928l-.005 41.79-47.914-6.745-.031-34.793z" />
               </svg>
               <div className="flex flex-col leading-tight">
-                <span className="font-sans text-xs sm:text-base">Windows (.exe)</span>
-                <span className="text-[10px] sm:text-xs font-bangla text-sky-100 font-normal hidden xs:inline">উইন্ডোজ ১০/১১</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-sans text-xs sm:text-base">Windows (.exe)</span>
+                  <span className="text-[9px] sm:text-[10px] font-mono font-extrabold px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 uppercase tracking-wider shadow-xs">BETA</span>
+                </div>
+                <span className="text-[10px] sm:text-xs font-bangla text-sky-100 font-normal hidden xs:inline">টেস্টিং রিলিজ • প্রিভিউ</span>
               </div>
             </a>
           </div>

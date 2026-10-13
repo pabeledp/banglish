@@ -73,8 +73,11 @@ export default function Navbar() {
                         <svg className="w-4 h-4 fill-current" viewBox="0 0 88 88"><path d="M0 12.402l35.689-4.86.016 34.423-35.67.203zm35.67 33.529l.026 34.453L0 75.481l.035-29.327zm4.326-39.027L87.914 0v41.527l-47.918.378zm47.919 38.928l-.005 41.79-47.914-6.745-.031-34.793z"/></svg>
                       </div>
                       <div>
-                        <div className="font-semibold text-xs text-slate-900 font-sans">Windows Installer</div>
-                        <div className="text-[11px] text-slate-500 font-bangla">Banglish-Setup.exe (10/11)</div>
+                        <div className="flex items-center gap-1.5 font-semibold text-xs text-slate-900 font-sans">
+                          <span>Windows Installer</span>
+                          <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300">Beta</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-bangla">Banglish-Setup.exe (টেস্টিং রিলিজ)</div>
                       </div>
                     </div>
                     <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800">.exe</span>
@@ -118,6 +121,7 @@ export default function Navbar() {
               </a>
               <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe" className="flex-1 text-center py-2.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold font-sans shadow-md shadow-sky-600/20 flex items-center justify-center gap-1.5 text-xs">
                 <span>Windows (.exe)</span>
+                <span className="text-[9px] font-mono font-bold px-1 py-0.2 rounded bg-amber-400 text-slate-950">BETA</span>
               </a>
             </div>
             <div className="flex flex-row gap-2">

@@ -44,8 +44,7 @@ export default function Footer() {
           <div className="space-y-3">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-200 font-mono">রিসোর্স ও লাইসেন্স</h4>
             <ul className="space-y-2 text-sm font-bangla">
-              <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg" className="text-emerald-400 hover:underline">Download macOS (.dmg)</a></li>
-              <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe" className="text-sky-400 hover:underline">Download Windows (.exe)</a></li>
+              <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe" className="text-sky-400 hover:underline flex items-center gap-1.5"><span>Download Windows (.exe)</span> <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-950/80 text-amber-300 border border-amber-500/40">Beta</span></a></li>
               <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition-colors">GitHub Repository</a></li>
               <li><a href="https://www.facebook.com/banglishkeyboard/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Facebook Community Page</a></li>
               <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition-colors">MIT Open Source License</a></li>
