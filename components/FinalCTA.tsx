@@ -33,12 +33,15 @@ export default function FinalCTA() {
                 <svg className="w-4 h-4 sm:w-5 sm:h-5 fill-current" viewBox="0 0 88 88">
                   <path d="M0 12.402l35.689-4.86.016 34.423-35.67.203zm35.67 33.529l.026 34.453L0 75.481l.035-29.327zm4.326-39.027L87.914 0v41.527l-47.918.378zm47.919 38.928l-.005 41.79-47.914-6.745-.031-34.793z" />
                 </svg>
-                <span>Windows (.exe)</span>
+                <div className="flex items-center gap-1.5">
+                  <span>Windows (.exe)</span>
+                  <span className="text-[9px] sm:text-[10px] font-mono font-extrabold px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 uppercase shadow-xs">BETA</span>
+                </div>
               </a>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-xs text-emerald-100 font-mono">
-              <span>macOS 12+ (Apple Silicon & Intel) • Windows 10 & 11 (64-bit) • 100% Free Forever</span>
+              <span>macOS 12+ (Apple Silicon & Intel) • Windows 10 & 11 (Beta Preview) • 100% Free Forever</span>
             </div>
           </div>
 

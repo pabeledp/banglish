@@ -70,7 +70,7 @@ const jsonLd = {
         'Banglish Avro Alternative',
         'Banglish iAvro Alternative'
       ],
-      operatingSystem: 'macOS 12.0 or later (Monterey, Ventura, Sonoma, Sequoia) & Windows 10/11 (64-bit)',
+      operatingSystem: 'macOS 12.0 or later (Monterey, Ventura, Sonoma, Sequoia) & Windows 10/11 (64-bit Beta)',
       applicationCategory: 'UtilitiesApplication',
       applicationSubCategory: 'Productivity',
       softwareVersion: '1.0.0',
@@ -79,11 +79,11 @@ const jsonLd = {
       url: 'https://banglish.bd/',
       image: 'https://banglish.bd/assets/banglish-logo-512.png',
       screenshot: 'https://banglish.bd/assets/banglish-og-preview.png',
-      description: 'Banglish is the fastest, modern 100% native phonetic Bangla keyboard input method for macOS and Windows. Designed as the ultimate replacement for iAvro on Apple Silicon (M1/M2/M3/M4), Intel Macs, and Windows.',
+      description: 'Banglish is the fastest, modern 100% native phonetic Bangla keyboard input method for macOS and Windows. Designed as the ultimate replacement for iAvro on Apple Silicon (M1/M2/M3/M4), Intel Macs, and Windows (Beta).',
       featureList: [
         '100% Native architecture for macOS & Windows',
         'Universal Binary: Native Apple Silicon (M1/M2/M3/M4) and Intel support',
-        'Windows 10 and 11 (64-bit) native compatibility',
+        'Windows 10 and 11 (64-bit) Public Beta compatibility',
         'Zero telemetry, no background network calls, and 100% privacy',
         'Instant phonetic transliteration with zero typing latency',
         'Drop-in modern replacement for legacy iAvro'

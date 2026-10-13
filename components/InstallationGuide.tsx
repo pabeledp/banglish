@@ -44,6 +44,7 @@ export default function InstallationGuide() {
                 <path d="M0 12.402l35.689-4.86.016 34.423-35.67.203zm35.67 33.529l.026 34.453L0 75.481l.035-29.327zm4.326-39.027L87.914 0v41.527l-47.918.378zm47.919 38.928l-.005 41.79-47.914-6.745-.031-34.793z"/>
               </svg>
               <span className="font-bangla font-semibold">Windows ইনস্টলেশন</span>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300">Beta</span>
             </button>
           </div>
         </div>
@@ -146,6 +147,24 @@ export default function InstallationGuide() {
         {/* Windows Installation Content */}
         {activeTab === 'win' && (
           <div className="space-y-8">
+            {/* Windows Beta Notice Banner */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border border-amber-200/90 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-800 flex-shrink-0 font-bold text-sm">
+                  β
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-slate-900 font-bangla text-sm sm:text-base">Windows সংস্করণটি বর্তমানে Public Beta (টেস্টিং রিলিজ) পর্যায়ে রয়েছে</span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 uppercase tracking-wide">Under Construction</span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-slate-600 font-bangla mt-0.5 leading-relaxed">
+                    এটি পরীক্ষামূলক বা প্রিভিউ রিলিজ হিসেবে উন্মুক্ত করা হয়েছে এবং দ্রুত গতিতে নিয়মিত আপডেট করা হচ্ছে। কোনো বাগ বা সাজেশন থাকলে সরাসরি আমাদের জানান।
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
               
               {/* Step 1 */}
@@ -154,17 +173,20 @@ export default function InstallationGuide() {
                   <div className="w-10 h-10 rounded-xl bg-sky-600 text-white font-bold text-lg flex items-center justify-center font-sans mb-5 shadow-sm">
                     1
                   </div>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900 font-bangla mb-2">Setup ফাইলটি ডাউনলোড করুন</h3>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 font-bangla">Setup ফাইল ডাউনলোড করুন</h3>
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300">Beta</span>
+                  </div>
                   <p className="text-sm text-slate-600 font-bangla leading-relaxed mb-4">
-                    নিচের বাটন থেকে সরাসরি অফিশিয়াল <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-semibold">Banglish-Setup.exe</span> ফাইলটি ডাউনলোড করে নিন।
+                    নিচের বাটন থেকে সরাসরি <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-800 font-semibold">Banglish-Setup.exe</span> বিটা ফাইলটি ডাউনলোড করে নিন।
                   </p>
                   <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe" className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-600 hover:text-sky-700 font-bangla mb-3">
-                    <span>Banglish-Setup.exe ডাউনলোড করতে ক্লিক করুন</span>
+                    <span>Banglish-Setup.exe (Beta) ডাউনলোড করতে ক্লিক করুন</span>
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                   </a>
                 </div>
                 <div className="p-2.5 rounded-lg bg-sky-50 border border-sky-200 text-[11px] text-sky-900 font-bangla leading-normal">
-                  ⚡ <strong>সাপোর্ট:</strong> Windows 10 ও Windows 11 (64-bit) সম্পূর্ণ সমর্থিত।
+                  ⚡ <strong>সাপোর্ট:</strong> Windows 10 ও Windows 11 (64-bit) পাবলিক বিটা।
                 </div>
               </div>
 
