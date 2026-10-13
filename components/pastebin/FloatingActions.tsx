@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Copy, 
   Download, 
@@ -15,6 +15,7 @@ import { TARGET_LANGUAGES } from '@/lib/translatorService';
 interface FloatingActionsProps {
   phoneticActive: boolean;
   onTogglePhonetic: () => void;
+  onConvertPhonetic?: () => void;
   onTranslate: (targetLangCode: string) => void;
   isTranslating?: boolean;
   onCopyContent: () => void;
@@ -26,6 +27,7 @@ interface FloatingActionsProps {
 export default function FloatingActions({
   phoneticActive,
   onTogglePhonetic,
+  onConvertPhonetic,
   onTranslate,
   isTranslating = false,
   onCopyContent,
@@ -35,6 +37,24 @@ export default function FloatingActions({
 }: FloatingActionsProps) {
   const [targetLang, setTargetLang] = useState('bn');
   const [showLangPicker, setShowLangPicker] = useState(false);
+  const langPickerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close language picker on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (langPickerRef.current && !langPickerRef.current.contains(e.target as Node)) {
+        setShowLangPicker(false);
+      }
+    };
+    if (showLangPicker) {
+      document.addEventListener('mousedown', handleOutsideClick);
+      document.addEventListener('touchstart', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('touchstart', handleOutsideClick);
+    };
+  }, [showLangPicker]);
 
   const selectedLangObj = TARGET_LANGUAGES.find(l => l.code === targetLang) || TARGET_LANGUAGES[0];
 
@@ -56,15 +76,27 @@ export default function FloatingActions({
         <span className="font-bangla">{phoneticActive ? 'বাংলিশ (BN)' : 'English (EN)'}</span>
       </button>
 
+      {/* 2. 1-Click Banglish to Bangla Conversion Button */}
+      {onConvertPhonetic && (
+        <button
+          type="button"
+          onClick={onConvertPhonetic}
+          className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 text-xs font-medium transition-all cursor-pointer font-bangla"
+          title="বাংলিশ টেক্সটকে বাংলায় রূপান্তর করুন"
+        >
+          <span>বাংলিশ ➔ বাংলা</span>
+        </button>
+      )}
+
       <div className="h-4 w-[1px] bg-slate-200 mx-0.5" />
 
-      {/* 2. Universal "Translate to" Action with Dropdown */}
-      <div className="relative">
+      {/* 3. Universal "Translate to" Action with Dropdown */}
+      <div className="relative" ref={langPickerRef}>
         <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-0.5 shadow-2xs">
           <button
             type="button"
             onClick={() => setShowLangPicker(!showLangPicker)}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-slate-700 hover:text-slate-900 font-sans"
+            className="flex items-center gap-1 px-2 py-1 text-xs text-slate-700 hover:text-slate-900 font-sans cursor-pointer"
             title="টার্গেট ভাষা নির্বাচন করুন"
           >
             <Globe className="w-3.5 h-3.5 text-emerald-600" />
@@ -90,40 +122,37 @@ export default function FloatingActions({
         </div>
 
         {showLangPicker && (
-          <>
-            <div className="fixed inset-0 z-20" onClick={() => setShowLangPicker(false)} />
-            <div className="absolute bottom-full mb-2 left-0 w-48 max-h-56 overflow-y-auto rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 shadow-2xl p-1 z-30 space-y-0.5 ring-1 ring-black/5">
-              <div className="text-[10px] font-semibold text-slate-400 px-2 py-1 uppercase tracking-wider font-mono">
-                Translate to:
-              </div>
-              {TARGET_LANGUAGES.map(lang => (
-                <button
-                  key={lang.code}
-                  type="button"
-                  onClick={() => {
-                    setTargetLang(lang.code);
-                    setShowLangPicker(false);
-                    onTranslate(lang.code);
-                  }}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs text-left transition-colors ${
-                    targetLang === lang.code ? 'bg-emerald-50 text-emerald-800 font-semibold' : 'text-slate-700 hover:bg-slate-100'
-                  }`}
-                >
-                  <span className="flex items-center gap-2">
-                    <span>{lang.flag}</span>
-                    <span>{lang.nativeName}</span>
-                  </span>
-                  <span className="text-[10px] text-slate-400">{lang.name}</span>
-                </button>
-              ))}
+          <div className="absolute bottom-full mb-2 left-0 w-48 max-h-56 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-2xl p-1 z-50 space-y-0.5 ring-1 ring-black/5 animate-in fade-in duration-100">
+            <div className="text-[10px] font-semibold text-slate-400 px-2 py-1 uppercase tracking-wider font-mono">
+              Translate to:
             </div>
-          </>
+            {TARGET_LANGUAGES.map(lang => (
+              <button
+                key={lang.code}
+                type="button"
+                onClick={() => {
+                  setTargetLang(lang.code);
+                  setShowLangPicker(false);
+                  onTranslate(lang.code);
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs text-left transition-colors cursor-pointer ${
+                  targetLang === lang.code ? 'bg-emerald-50 text-emerald-800 font-semibold' : 'text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <span>{lang.flag}</span>
+                  <span>{lang.nativeName}</span>
+                </span>
+                <span className="text-[10px] text-slate-400">{lang.name}</span>
+              </button>
+            ))}
+          </div>
         )}
       </div>
 
       <div className="h-4 w-[1px] bg-slate-200 mx-0.5" />
 
-      {/* 3. Copy to Clipboard Button */}
+      {/* 4. Copy to Clipboard Button */}
       <button
         type="button"
         onClick={onCopyContent}
@@ -143,7 +172,7 @@ export default function FloatingActions({
         )}
       </button>
 
-      {/* 4. Download / Export Modal Trigger */}
+      {/* 5. Download / Export Modal Trigger */}
       <button
         type="button"
         onClick={onOpenExportModal}
@@ -154,7 +183,7 @@ export default function FloatingActions({
         <span className="hidden sm:inline">এক্সপোর্ট</span>
       </button>
 
-      {/* 5. Clear Canvas Button */}
+      {/* 6. Clear Canvas Button */}
       <button
         type="button"
         onClick={onOpenClearModal}

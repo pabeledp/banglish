@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { FontFamilyOption } from '@/lib/pastebinTypes';
 import { transliterateWord, transliterateText } from '@/lib/phoneticEngine';
+import { Sparkles } from 'lucide-react';
 
 interface TextCodeEditorProps {
   content: string;
@@ -13,6 +14,7 @@ interface TextCodeEditorProps {
   showLineNumbers: boolean;
   phoneticActive: boolean;
   onCursorChange?: (line: number, col: number) => void;
+  onTogglePhonetic?: () => void;
 }
 
 export default function TextCodeEditor({
@@ -24,10 +26,12 @@ export default function TextCodeEditor({
   showLineNumbers,
   phoneticActive,
   onCursorChange,
+  onTogglePhonetic,
 }: TextCodeEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lineNumbersRef = useRef<HTMLDivElement | null>(null);
   const [lineCount, setLineCount] = useState(1);
+  const [candidateWord, setCandidateWord] = useState<{ raw: string; converted: string } | null>(null);
 
   // Synchronize line count
   useEffect(() => {
@@ -42,8 +46,8 @@ export default function TextCodeEditor({
     }
   };
 
-  // Cursor position tracking
-  const updateCursorPos = () => {
+  // Cursor position tracking & candidate preview
+  const updateCursorAndCandidate = () => {
     if (!textareaRef.current) return;
     const pos = textareaRef.current.selectionStart || 0;
     const textBefore = content.substring(0, pos);
@@ -51,13 +55,43 @@ export default function TextCodeEditor({
     const line = lines.length;
     const col = lines[lines.length - 1].length + 1;
     onCursorChange?.(line, col);
+
+    if (phoneticActive) {
+      const match = textBefore.match(/([a-zA-Z0-9`^:$~]+)$/);
+      if (match && match[1] && /[a-zA-Z]/.test(match[1])) {
+        const raw = match[1];
+        const converted = transliterateWord(raw);
+        setCandidateWord({ raw, converted });
+      } else {
+        setCandidateWord(null);
+      }
+    } else {
+      setCandidateWord(null);
+    }
   };
 
-  // Handle KeyDown for Space / Enter / Punctuation instant transliteration
+  // Handle KeyDown for Space / Enter / Tab / Punctuation instant transliteration
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Universal Avro Shortcut Ctrl+M
+    if (e.key === 'm' && (e.ctrlKey || e.metaKey) && !e.altKey) {
+      e.preventDefault();
+      onTogglePhonetic?.();
+      return;
+    }
+
     if (!phoneticActive) return;
 
-    if (e.key === ' ' || e.key === 'Enter' || e.key === '.' || e.key === '?' || e.key === '!' || e.key === ',') {
+    if (
+      e.key === ' ' ||
+      e.key === 'Enter' ||
+      e.key === 'Tab' ||
+      e.key === '.' ||
+      e.key === '?' ||
+      e.key === '!' ||
+      e.key === ',' ||
+      e.key === ';' ||
+      e.key === ':'
+    ) {
       const el = textareaRef.current;
       if (!el) return;
 
@@ -65,31 +99,36 @@ export default function TextCodeEditor({
       const text = el.value;
       const textBefore = text.slice(0, cursor);
 
-      // Find the last word token before cursor
-      const match = textBefore.match(/([a-zA-Z0-9]+)$/);
-      if (match && match[1]) {
+      // Extract the word token before cursor
+      const match = textBefore.match(/([a-zA-Z0-9`^:$~]+)$/);
+      if (match && match[1] && /[a-zA-Z]/.test(match[1])) {
         e.preventDefault();
         const lastWord = match[1];
         const converted = transliterateWord(lastWord);
         const startPos = cursor - lastWord.length;
-        const separatorChar = e.key === '.' ? '।' : (e.key === 'Enter' ? '\n' : e.key);
 
-        const newText = text.slice(0, startPos) + converted + separatorChar + text.slice(cursor);
+        let sep = e.key;
+        if (e.key === '.') sep = '।';
+        else if (e.key === 'Enter') sep = '\n';
+        else if (e.key === 'Tab') sep = '  ';
+
+        const newText = text.slice(0, startPos) + converted + sep + text.slice(cursor);
         onChange(newText);
+        setCandidateWord(null);
 
-        setTimeout(() => {
+        const newCursor = startPos + converted.length + sep.length;
+        requestAnimationFrame(() => {
           if (textareaRef.current) {
-            const newCursor = startPos + converted.length + 1;
             textareaRef.current.selectionStart = newCursor;
             textareaRef.current.selectionEnd = newCursor;
-            updateCursorPos();
+            updateCursorAndCandidate();
           }
-        }, 0);
+        });
       }
     }
   };
 
-  // Handle onChange fallback (handles mobile browsers, soft keyboards, or pasted text)
+  // Handle onChange fallback (handles mobile keyboards, IME, autocomplete)
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newRaw = e.target.value;
     const cursor = e.target.selectionStart;
@@ -99,12 +138,11 @@ export default function TextCodeEditor({
       return;
     }
 
-    // Check if the character just inserted is a space, newline, or punctuation
     const lastChar = newRaw[cursor - 1];
-    if (lastChar && /[\s.,;!?।\n]/.test(lastChar)) {
+    if (lastChar && /[\s.,;!?।\n\t]/.test(lastChar)) {
       const textBefore = newRaw.slice(0, cursor - 1);
-      const match = textBefore.match(/([a-zA-Z0-9]+)$/);
-      if (match && match[1]) {
+      const match = textBefore.match(/([a-zA-Z0-9`^:$~]+)$/);
+      if (match && match[1] && /[a-zA-Z]/.test(match[1])) {
         const lastWord = match[1];
         const converted = transliterateWord(lastWord);
         const startPos = (cursor - 1) - lastWord.length;
@@ -112,20 +150,22 @@ export default function TextCodeEditor({
 
         const transformed = newRaw.slice(0, startPos) + converted + sep + newRaw.slice(cursor);
         onChange(transformed);
+        setCandidateWord(null);
 
-        setTimeout(() => {
+        const nextCursor = startPos + converted.length + sep.length;
+        requestAnimationFrame(() => {
           if (textareaRef.current) {
-            const nextCursor = startPos + converted.length + 1;
             textareaRef.current.selectionStart = nextCursor;
             textareaRef.current.selectionEnd = nextCursor;
-            updateCursorPos();
+            updateCursorAndCandidate();
           }
-        }, 0);
+        });
         return;
       }
     }
 
     onChange(newRaw);
+    setTimeout(updateCursorAndCandidate, 0);
   };
 
   // Handle Paste when phonetic mode is active
@@ -134,7 +174,6 @@ export default function TextCodeEditor({
     const pastedText = e.clipboardData.getData('text/plain');
     if (!pastedText) return;
 
-    // Check if pasted text contains english words that should be transliterated
     if (/[a-zA-Z]/.test(pastedText)) {
       e.preventDefault();
       const el = textareaRef.current;
@@ -147,14 +186,14 @@ export default function TextCodeEditor({
       
       onChange(newText);
 
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         if (textareaRef.current) {
           const nextCursor = cursor + converted.length;
           textareaRef.current.selectionStart = nextCursor;
           textareaRef.current.selectionEnd = nextCursor;
-          updateCursorPos();
+          updateCursorAndCandidate();
         }
-      }, 0);
+      });
     }
   };
 
@@ -200,24 +239,23 @@ export default function TextCodeEditor({
         </div>
       )}
 
-      {/* Editor Textarea */}
-      <div className="relative flex-1 h-full min-h-[550px] sm:min-h-[620px] flex flex-col">
+      {/* Main Textarea */}
+      <div className="relative flex-1 flex flex-col h-full">
         <textarea
           ref={textareaRef}
           value={content}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
+          onKeyUp={updateCursorAndCandidate}
+          onClick={updateCursorAndCandidate}
           onScroll={handleScroll}
-          onClick={updateCursorPos}
-          onKeyUp={updateCursorPos}
           placeholder={
             phoneticActive
-              ? "এখানে বাংলিশে লিখুন (যেমন: amra banglay gan gai -> আমরা বাংলায় গান গাই)..."
-              : "Type text, notes, or code here..."
+              ? "বাংলিশ ফোনেটিক চালু আছে... যেমন: 'amra banglay gan gai' টাইপ করে Space চাপুন..."
+              : "এখানে আপনার টেক্সট বা কোড লিখুন..."
           }
-          spellCheck={false}
-          className={`w-full flex-1 min-h-[550px] sm:min-h-[620px] p-4 sm:p-6 pb-28 sm:pb-32 bg-white text-slate-900 placeholder-slate-400 outline-none resize-none selection:bg-emerald-100 selection:text-emerald-900 ${
+          className={`flex-1 w-full h-full p-4 sm:p-5 bg-white text-slate-900 outline-none resize-none leading-relaxed transition-all placeholder:text-slate-400 ${
             wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto'
           }`}
           style={{
@@ -225,13 +263,20 @@ export default function TextCodeEditor({
             fontSize: `${fontSize}px`,
             lineHeight: '1.75',
           }}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoComplete="off"
+          autoCorrect="off"
         />
 
-        {/* Phonetic Status Tag */}
-        {phoneticActive && (
-          <div className="absolute bottom-4 right-4 pointer-events-none flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-bangla shadow-xs backdrop-blur-md">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>বাংলিশ ফোনেটিক সক্রিয় [BN]</span>
+        {/* Live Phonetic Candidate Helper Badge */}
+        {phoneticActive && candidateWord && (
+          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700/95 text-white text-xs shadow-lg backdrop-blur-md animate-in fade-in duration-150">
+            <Sparkles className="w-3.5 h-3.5 text-emerald-300 animate-pulse" />
+            <span className="font-mono text-emerald-200">{candidateWord.raw}</span>
+            <span className="text-white/60">➔</span>
+            <span className="font-bangla font-semibold text-white">{candidateWord.converted}</span>
+            <span className="text-[10px] text-emerald-200/80 font-bangla pl-1">(Space চাপুন)</span>
           </div>
         )}
       </div>

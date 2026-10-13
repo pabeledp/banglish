@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { SheetData, FontFamilyOption } from '@/lib/pastebinTypes';
-import { Download } from 'lucide-react';
+import { Download, Plus } from 'lucide-react';
 import { transliterateText } from '@/lib/phoneticEngine';
 
 interface SheetEditorProps {
@@ -245,17 +245,17 @@ export default function SheetEditor({
       </div>
 
       {/* Spreadsheet Grid */}
-      <div className="flex-1 overflow-auto bg-white select-none pb-28">
-        <table className="border-collapse table-fixed w-full text-xs">
+      <div className="flex-1 overflow-auto bg-white select-none">
+        <table className="border-collapse w-full text-xs">
           <thead>
             <tr className="bg-slate-100/90 sticky top-0 z-10 border-b border-slate-200">
-              <th className="w-12 p-2 border-r border-slate-200 text-slate-500 font-mono text-[11px] font-semibold text-center select-none bg-slate-100">
+              <th className="w-12 min-w-[48px] p-2 border-r border-slate-200 text-slate-500 font-mono text-[11px] font-semibold text-center select-none bg-slate-100">
                 #
               </th>
               {colHeaders.map(col => (
                 <th
                   key={col}
-                  className="min-w-[110px] w-32 p-2 border-r border-slate-200 text-slate-700 font-mono text-[11px] font-semibold text-center select-none"
+                  className="min-w-[120px] p-2 border-r border-slate-200 text-slate-700 font-mono text-[11px] font-semibold text-center select-none"
                 >
                   {col}
                 </th>
@@ -267,7 +267,7 @@ export default function SheetEditor({
               const rowNum = rIdx + 1;
               return (
                 <tr key={rowNum} className="border-b border-slate-200/80 hover:bg-slate-50/60">
-                  <td className="w-12 p-1.5 border-r border-slate-200 text-slate-500 font-mono text-[10px] text-center select-none bg-slate-50 sticky left-0 z-0">
+                  <td className="w-12 min-w-[48px] p-1.5 border-r border-slate-200 text-slate-500 font-mono text-[10px] text-center select-none bg-slate-50 sticky left-0 z-0">
                     {rowNum}
                   </td>
                   {colHeaders.map(col => {
@@ -283,7 +283,7 @@ export default function SheetEditor({
                         key={cellKey}
                         onClick={() => handleCellClick(cellKey)}
                         onDoubleClick={() => handleCellDoubleClick(cellKey)}
-                        className={`p-0 border-r border-slate-200 relative cursor-cell transition-colors ${
+                        className={`p-0 border-r border-slate-200 relative cursor-cell transition-colors min-w-[120px] align-top ${
                           isSelected ? 'ring-2 ring-emerald-500 bg-emerald-50/40 z-10' : ''
                         }`}
                         style={{
@@ -292,17 +292,20 @@ export default function SheetEditor({
                         }}
                       >
                         {isEditing ? (
-                          <input
-                            type="text"
+                          <textarea
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
                             onBlur={commitCellEdit}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') commitCellEdit();
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                commitCellEdit();
+                              }
                               if (e.key === 'Escape') setEditingCell(null);
                             }}
                             autoFocus
-                            className="w-full h-full px-2 py-1.5 bg-white text-slate-900 outline-none border border-emerald-500 font-sans"
+                            rows={Math.max(1, editValue.split('\n').length)}
+                            className="w-full min-h-[36px] px-2 py-1.5 bg-white text-slate-900 outline-none border border-emerald-500 font-sans resize-none leading-relaxed"
                             style={{
                               fontFamily: getFontFamilyStyle(),
                               fontSize: `${fontSize}px`,
@@ -310,7 +313,7 @@ export default function SheetEditor({
                           />
                         ) : (
                           <div
-                            className="px-2 py-1.5 truncate text-slate-800 select-text"
+                            className="px-2 py-1.5 min-h-[36px] break-words whitespace-pre-wrap text-slate-800 select-text leading-relaxed"
                             style={{
                               fontFamily: getFontFamilyStyle(),
                               fontSize: `${fontSize}px`,
@@ -330,6 +333,23 @@ export default function SheetEditor({
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Sheet Bottom Bar with "+ 50 more rows" Button */}
+      <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between flex-wrap gap-2 select-none">
+        <button
+          type="button"
+          onClick={() => onChange({ ...sheetData, rows: (sheetData.rows || 15) + 50 })}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-emerald-50 text-slate-800 hover:text-emerald-700 border border-slate-300 hover:border-emerald-400 font-medium text-xs shadow-2xs transition-all cursor-pointer font-bangla"
+          title="শীটে ৫০টি অতিরিক্ত সারি যুক্ত করুন"
+        >
+          <Plus className="w-3.5 h-3.5 text-emerald-600" />
+          <span>+ ৫০টি নতুন সারি যোগ করুন (+ 50 more rows)</span>
+        </button>
+
+        <div className="text-xs text-slate-500 font-mono">
+          মোট সারি: {numRows} | মোট কলাম: {numCols}
+        </div>
       </div>
 
     </div>

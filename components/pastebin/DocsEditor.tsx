@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { FontFamilyOption } from '@/lib/pastebinTypes';
 import { TARGET_LANGUAGES } from '@/lib/translatorService';
+import { transliterateWord, transliterateText } from '@/lib/phoneticEngine';
 import { 
   Bold, 
   Italic, 
@@ -13,7 +14,8 @@ import {
   Globe, 
   Loader2,
   Highlighter,
-  Link2
+  Link2,
+  Sparkles
 } from 'lucide-react';
 
 interface DocsEditorProps {
@@ -131,6 +133,24 @@ export default function DocsEditor({
     handleInput();
   };
 
+  // Convert selected Banglish text into Bangla using Avro engine
+  const handleConvertSelectionPhonetic = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+
+    const range = selection.getRangeAt(0);
+    const selectedText = selection.toString();
+    if (!selectedText) return;
+
+    const converted = transliterateText(selectedText);
+    range.deleteContents();
+    range.insertNode(document.createTextNode(converted));
+    handleInput();
+
+    setFloatingToolbar(prev => ({ ...prev, visible: false }));
+    setContextMenu(prev => ({ ...prev, visible: false }));
+  };
+
   // Translate selected text into target language
   const handleTranslateSelection = async () => {
     const selection = window.getSelection();
@@ -169,6 +189,7 @@ export default function DocsEditor({
     });
   };
 
+  // Close context menu & floating toolbar on outside click
   useEffect(() => {
     const handleClickOutside = () => {
       setContextMenu(prev => ({ ...prev, visible: false }));
@@ -176,6 +197,50 @@ export default function DocsEditor({
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
+
+  // Handle Phonetic typing inside contentEditable
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!phoneticActive) return;
+
+    if (
+      e.key === ' ' ||
+      e.key === 'Enter' ||
+      e.key === '.' ||
+      e.key === '?' ||
+      e.key === '!' ||
+      e.key === ','
+    ) {
+      const sel = window.getSelection();
+      if (!sel || !sel.isCollapsed || !sel.anchorNode) return;
+
+      const node = sel.anchorNode;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent || '';
+        const offset = sel.anchorOffset;
+        const textBefore = text.slice(0, offset);
+
+        const match = textBefore.match(/([a-zA-Z0-9`^:$~]+)$/);
+        if (match && match[1] && /[a-zA-Z]/.test(match[1])) {
+          e.preventDefault();
+          const word = match[1];
+          const converted = transliterateWord(word);
+          const start = offset - word.length;
+          const sep = e.key === '.' ? '।' : (e.key === 'Enter' ? '\n' : e.key);
+
+          const newText = text.slice(0, start) + converted + sep + text.slice(offset);
+          node.textContent = newText;
+
+          const newRange = document.createRange();
+          newRange.setStart(node, start + converted.length + sep.length);
+          newRange.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(newRange);
+
+          handleInput();
+        }
+      }
+    }
+  };
 
   const getFontFamilyStyle = () => {
     switch (font) {
@@ -211,7 +276,7 @@ export default function DocsEditor({
           <button
             type="button"
             onClick={() => execFormat('bold')}
-            className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg"
+            className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg cursor-pointer"
             title="Bold"
           >
             <Bold className="w-3.5 h-3.5" />
@@ -219,7 +284,7 @@ export default function DocsEditor({
           <button
             type="button"
             onClick={() => execFormat('italic')}
-            className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg"
+            className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg cursor-pointer"
             title="Italic"
           >
             <Italic className="w-3.5 h-3.5" />
@@ -227,7 +292,7 @@ export default function DocsEditor({
           <button
             type="button"
             onClick={() => execFormat('underline')}
-            className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg"
+            className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg cursor-pointer"
             title="Underline"
           >
             <Underline className="w-3.5 h-3.5" />
@@ -235,7 +300,7 @@ export default function DocsEditor({
           <button
             type="button"
             onClick={() => execFormat('hiliteColor', '#fef08a')}
-            className="p-1.5 hover:bg-slate-100 text-amber-500 rounded-lg"
+            className="p-1.5 hover:bg-slate-100 text-amber-500 rounded-lg cursor-pointer"
             title="হাইলাইটার (Highlighter)"
           >
             <Highlighter className="w-3.5 h-3.5" />
@@ -246,13 +311,24 @@ export default function DocsEditor({
               onOpenLinkModal?.(floatingToolbar.selectedText);
               setFloatingToolbar(prev => ({ ...prev, visible: false }));
             }}
-            className="p-1.5 hover:bg-slate-100 text-blue-600 rounded-lg"
+            className="p-1.5 hover:bg-slate-100 text-blue-600 rounded-lg cursor-pointer"
             title="হাইপারলিংক যুক্ত করুন"
           >
             <Link2 className="w-3.5 h-3.5" />
           </button>
 
           <div className="h-4 w-[1px] bg-slate-200 mx-1" />
+
+          {/* 1-Click Phonetic Transliterate Button */}
+          <button
+            type="button"
+            onClick={handleConvertSelectionPhonetic}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-800 text-[11px] font-medium transition-colors cursor-pointer font-bangla"
+            title="বাংলিশ থেকে অভ্র বাংলায় রূপান্তর"
+          >
+            <Sparkles className="w-3 h-3 text-teal-600" />
+            <span>বাংলা রূপান্তর</span>
+          </button>
 
           {/* Universal Translate Selection Button */}
           <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-0.5 border border-slate-200">
@@ -271,7 +347,7 @@ export default function DocsEditor({
               type="button"
               disabled={isTranslating}
               onClick={handleTranslateSelection}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium shadow-2xs transition-all cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-medium shadow-2xs transition-all cursor-pointer font-bangla disabled:opacity-60"
             >
               {isTranslating ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -287,18 +363,29 @@ export default function DocsEditor({
       {/* Custom Context Menu */}
       {contextMenu.visible && (
         <div
-          className="fixed z-50 w-56 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 shadow-2xl p-1.5 text-xs text-slate-700 space-y-0.5 animate-in fade-in duration-100 ring-1 ring-black/5"
+          className="fixed z-50 w-56 rounded-2xl bg-white border border-slate-200 shadow-2xl p-1.5 text-xs text-slate-700 space-y-0.5 animate-in fade-in duration-100 ring-1 ring-black/5"
           style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
         >
           {contextMenu.selectedText && (
-            <button
-              type="button"
-              onClick={handleTranslateSelection}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold font-bangla text-left transition-colors"
-            >
-              <Globe className="w-3.5 h-3.5 text-emerald-600" />
-              <span>অনুবাদ করুন (Translate)</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleConvertSelectionPhonetic}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold font-bangla text-left transition-colors cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                <span>বাংলিশ ➔ বাংলায় রূপান্তর</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleTranslateSelection}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold font-bangla text-left transition-colors cursor-pointer"
+              >
+                <Globe className="w-3.5 h-3.5 text-emerald-600" />
+                <span>অনুবাদ করুন (Translate)</span>
+              </button>
+            </>
           )}
 
           <button
@@ -307,7 +394,7 @@ export default function DocsEditor({
               if (contextMenu.selectedText) navigator.clipboard.writeText(contextMenu.selectedText);
               setContextMenu(prev => ({ ...prev, visible: false }));
             }}
-            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-800 text-left"
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-800 text-left cursor-pointer"
           >
             <Copy className="w-3.5 h-3.5 text-slate-500" />
             <span>কপি করুন (Copy)</span>
@@ -319,7 +406,7 @@ export default function DocsEditor({
               execFormat('selectAll');
               setContextMenu(prev => ({ ...prev, visible: false }));
             }}
-            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-800 text-left"
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-100 text-slate-800 text-left cursor-pointer"
           >
             <Check className="w-3.5 h-3.5 text-slate-500" />
             <span>সব সিলেক্ট করুন (Select All)</span>
@@ -331,7 +418,7 @@ export default function DocsEditor({
               execFormat('removeFormat');
               setContextMenu(prev => ({ ...prev, visible: false }));
             }}
-            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-rose-50 text-rose-600 text-left"
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-rose-50 text-rose-600 text-left cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5 text-rose-500" />
             <span>ফরম্যাটিং মুছুন (Clear Format)</span>
@@ -346,6 +433,7 @@ export default function DocsEditor({
           contentEditable
           suppressContentEditableWarning
           onInput={handleInput}
+          onKeyDown={handleKeyDown}
           className="prose max-w-none flex-1 outline-none text-slate-900 selection:bg-emerald-100 selection:text-emerald-900"
           style={{
             fontFamily: getFontFamilyStyle(),

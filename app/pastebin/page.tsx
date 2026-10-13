@@ -14,6 +14,7 @@ import HyperlinkModal from '@/components/pastebin/HyperlinkModal';
 import Toast from '@/components/pastebin/Toast';
 import { usePastebinStorage } from '@/hooks/usePastebinStorage';
 import { translateContent } from '@/lib/translatorService';
+import { transliterateText } from '@/lib/phoneticEngine';
 import { FontFamilyOption, WorkspaceMode } from '@/lib/pastebinTypes';
 import { Clock, AlignLeft, ShieldCheck } from 'lucide-react';
 
@@ -133,6 +134,56 @@ export default function PastebinPage() {
       setIsTranslating(false);
     }
   }, [activeTab, isTranslating, updateActiveTab, showToast]);
+
+  // 1-Click Banglish to Bangla Conversion using Avro Engine
+  const handleConvertPhonetic = useCallback(() => {
+    if (!activeTab) return;
+
+    if (activeTab.mode === 'text') {
+      const converted = transliterateText(activeTab.content);
+      updateActiveTab({ content: converted });
+      showToast('বাংলিশ টেক্সট সফলভাবে বাংলায় রূপান্তর হয়েছে!');
+    } else if (activeTab.mode === 'docs') {
+      if (typeof window !== 'undefined') {
+        const temp = document.createElement('div');
+        temp.innerHTML = activeTab.content;
+        const textNodes: Text[] = [];
+        const collectText = (node: Node) => {
+          if (node.nodeType === Node.TEXT_NODE && node.nodeValue && node.nodeValue.trim()) {
+            textNodes.push(node as Text);
+          } else {
+            node.childNodes.forEach(collectText);
+          }
+        };
+        collectText(temp);
+
+        for (const tNode of textNodes) {
+          if (tNode.nodeValue) {
+            tNode.nodeValue = transliterateText(tNode.nodeValue);
+          }
+        }
+
+        updateActiveTab({ content: temp.innerHTML });
+        showToast('ডকুমেন্ট সফলভাবে বাংলায় রূপান্তর হয়েছে!');
+      }
+    } else if (activeTab.mode === 'sheet' && activeTab.sheetData) {
+      const newCells: Record<string, string> = {};
+      for (const [k, v] of Object.entries(activeTab.sheetData.cells)) {
+        if (v.startsWith('=')) {
+          newCells[k] = v;
+        } else {
+          newCells[k] = transliterateText(v);
+        }
+      }
+      updateActiveTab({
+        sheetData: {
+          ...activeTab.sheetData,
+          cells: newCells,
+        },
+      });
+      showToast('শীট ডাটা সফলভাবে বাংলায় রূপান্তর হয়েছে!');
+    }
+  }, [activeTab, updateActiveTab, showToast]);
 
   // Translate specific selected text (for DocsEditor)
   const handleTranslateSelectedText = useCallback(async (selectedText: string, targetLang: string) => {
@@ -408,6 +459,7 @@ export default function PastebinPage() {
             onDeleteCol={handleDeleteCol}
             onInsertFormula={handleInsertFormula}
             onSheetCellFormat={handleSheetCellFormat}
+            onConvertPhonetic={handleConvertPhonetic}
             onTranslate={handleTranslate}
             isTranslating={isTranslating}
           />
@@ -424,6 +476,7 @@ export default function PastebinPage() {
                 showLineNumbers={showLineNumbers}
                 phoneticActive={state.phoneticActive}
                 onCursorChange={(line, col) => setCursorPos({ line, col })}
+                onTogglePhonetic={togglePhonetic}
               />
             )}
 
@@ -500,6 +553,7 @@ export default function PastebinPage() {
       <FloatingActions
         phoneticActive={state.phoneticActive}
         onTogglePhonetic={togglePhonetic}
+        onConvertPhonetic={handleConvertPhonetic}
         onTranslate={handleTranslate}
         isTranslating={isTranslating}
         onCopyContent={handleCopyContent}
