@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { SheetData, FontFamilyOption } from '@/lib/pastebinTypes';
 import { Download, Plus } from 'lucide-react';
-import { transliterateText } from '@/lib/phoneticEngine';
+import { transliterateText, transliterateWord } from '@/lib/phoneticEngine';
 
 interface SheetEditorProps {
   sheetData: SheetData;
@@ -25,6 +25,14 @@ export default function SheetEditor({
   const [selectedCell, setSelectedCell] = useState<string>('A1');
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
+
+  const activeSheetBufferRef = useRef<string>('');
+  const lastSheetReplacedLenRef = useRef<number>(0);
+
+  const resetSheetBuffer = () => {
+    activeSheetBufferRef.current = '';
+    lastSheetReplacedLenRef.current = 0;
+  };
 
   const numCols = sheetData.cols || 8;
   const numRows = sheetData.rows || 15;
@@ -294,14 +302,84 @@ export default function SheetEditor({
                         {isEditing ? (
                           <textarea
                             value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={commitCellEdit}
+                            onChange={(e) => {
+                              if (activeSheetBufferRef.current.length > 0) return;
+                              setEditValue(e.target.value);
+                            }}
+                            onBlur={() => {
+                              resetSheetBuffer();
+                              commitCellEdit();
+                            }}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' && !e.shiftKey) {
                                 e.preventDefault();
+                                resetSheetBuffer();
                                 commitCellEdit();
+                                return;
                               }
-                              if (e.key === 'Escape') setEditingCell(null);
+                              if (e.key === 'Escape') {
+                                resetSheetBuffer();
+                                setEditingCell(null);
+                                return;
+                              }
+
+                              if (phoneticActive && !editValue.startsWith('=')) {
+                                if (e.key === 'Backspace' && activeSheetBufferRef.current.length > 0) {
+                                  e.preventDefault();
+                                  const nextBuffer = activeSheetBufferRef.current.slice(0, -1);
+                                  activeSheetBufferRef.current = nextBuffer;
+                                  const target = e.currentTarget;
+                                  const cursorPos = target.selectionStart;
+                                  const replaceLen = lastSheetReplacedLenRef.current;
+                                  const startPos = Math.max(0, cursorPos - replaceLen);
+
+                                  if (nextBuffer.length > 0) {
+                                    const newBangla = transliterateWord(nextBuffer);
+                                    lastSheetReplacedLenRef.current = newBangla.length;
+                                    setEditValue(prev => prev.slice(0, startPos) + newBangla + prev.slice(cursorPos));
+                                  } else {
+                                    lastSheetReplacedLenRef.current = 0;
+                                    setEditValue(prev => prev.slice(0, startPos) + prev.slice(cursorPos));
+                                  }
+                                  return;
+                                }
+
+                                if (e.key === ' ' || e.key === '.' || e.key === ',' || e.key === '?' || e.key === '!') {
+                                  e.preventDefault();
+                                  const sep = e.key === '.' ? '।' : e.key;
+                                  const target = e.currentTarget;
+                                  const cursorPos = target.selectionStart;
+                                  const replaceLen = lastSheetReplacedLenRef.current;
+                                  const startPos = Math.max(0, cursorPos - replaceLen);
+
+                                  if (activeSheetBufferRef.current.length > 0) {
+                                    const finalBangla = transliterateWord(activeSheetBufferRef.current);
+                                    setEditValue(prev => prev.slice(0, startPos) + finalBangla + sep + prev.slice(cursorPos));
+                                  } else {
+                                    setEditValue(prev => prev.slice(0, cursorPos) + sep + prev.slice(cursorPos));
+                                  }
+                                  resetSheetBuffer();
+                                  return;
+                                }
+
+                                if (e.key.length === 1 && /^[a-zA-Z0-9`^:$~]$/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+                                  e.preventDefault();
+                                  const nextBuffer = activeSheetBufferRef.current + e.key;
+                                  activeSheetBufferRef.current = nextBuffer;
+                                  const newBangla = transliterateWord(nextBuffer);
+
+                                  const target = e.currentTarget;
+                                  const cursorPos = target.selectionStart;
+                                  const replaceLen = lastSheetReplacedLenRef.current;
+                                  const startPos = Math.max(0, cursorPos - replaceLen);
+
+                                  lastSheetReplacedLenRef.current = newBangla.length;
+                                  setEditValue(prev => prev.slice(0, startPos) + newBangla + prev.slice(cursorPos));
+                                  return;
+                                }
+
+                                resetSheetBuffer();
+                              }
                             }}
                             autoFocus
                             rows={Math.max(1, editValue.split('\n').length)}

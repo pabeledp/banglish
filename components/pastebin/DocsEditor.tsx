@@ -198,48 +198,91 @@ export default function DocsEditor({
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Handle Phonetic typing inside contentEditable
+  // Real-time Phonetic typing inside contentEditable
+  const activeDocBufferRef = useRef<string>('');
+  const lastDocReplacedLenRef = useRef<number>(0);
+
+  const resetDocBuffer = () => {
+    activeDocBufferRef.current = '';
+    lastDocReplacedLenRef.current = 0;
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (!phoneticActive) return;
 
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      resetDocBuffer();
+      return;
+    }
+
+    // 1. Backspace in active syllable
+    if (e.key === 'Backspace' && activeDocBufferRef.current.length > 0) {
+      e.preventDefault();
+      const nextBuffer = activeDocBufferRef.current.slice(0, -1);
+      activeDocBufferRef.current = nextBuffer;
+
+      for (let i = 0; i < lastDocReplacedLenRef.current; i++) {
+        document.execCommand('delete', false);
+      }
+
+      if (nextBuffer.length > 0) {
+        const newBangla = transliterateWord(nextBuffer);
+        document.execCommand('insertText', false, newBangla);
+        lastDocReplacedLenRef.current = newBangla.length;
+      } else {
+        lastDocReplacedLenRef.current = 0;
+      }
+      handleInput();
+      return;
+    }
+
+    // 2. Separators: Space, Enter, Punctuation
     if (
       e.key === ' ' ||
       e.key === 'Enter' ||
       e.key === '.' ||
       e.key === '?' ||
       e.key === '!' ||
-      e.key === ','
+      e.key === ',' ||
+      e.key === ';' ||
+      e.key === ':'
     ) {
-      const sel = window.getSelection();
-      if (!sel || !sel.isCollapsed || !sel.anchorNode) return;
+      e.preventDefault();
+      let sep = e.key;
+      if (e.key === '.') sep = '।';
+      else if (e.key === 'Enter') sep = '\n';
 
-      const node = sel.anchorNode;
-      if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent || '';
-        const offset = sel.anchorOffset;
-        const textBefore = text.slice(0, offset);
-
-        const match = textBefore.match(/([a-zA-Z0-9`^:$~]+)$/);
-        if (match && match[1] && /[a-zA-Z]/.test(match[1])) {
-          e.preventDefault();
-          const word = match[1];
-          const converted = transliterateWord(word);
-          const start = offset - word.length;
-          const sep = e.key === '.' ? '।' : (e.key === 'Enter' ? '\n' : e.key);
-
-          const newText = text.slice(0, start) + converted + sep + text.slice(offset);
-          node.textContent = newText;
-
-          const newRange = document.createRange();
-          newRange.setStart(node, start + converted.length + sep.length);
-          newRange.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(newRange);
-
-          handleInput();
-        }
-      }
+      document.execCommand('insertText', false, sep);
+      resetDocBuffer();
+      handleInput();
+      return;
     }
+
+    // 3. Navigation
+    if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End' || e.key === 'Escape') {
+      resetDocBuffer();
+      return;
+    }
+
+    // 4. Character typing (letters a-z, A-Z, 0-9, backtick `, ^, :, $, ~)
+    if (e.key.length === 1 && /^[a-zA-Z0-9`^:$~]$/.test(e.key)) {
+      e.preventDefault();
+
+      const nextBuffer = activeDocBufferRef.current + e.key;
+      activeDocBufferRef.current = nextBuffer;
+      const newBangla = transliterateWord(nextBuffer);
+
+      for (let i = 0; i < lastDocReplacedLenRef.current; i++) {
+        document.execCommand('delete', false);
+      }
+
+      document.execCommand('insertText', false, newBangla);
+      lastDocReplacedLenRef.current = newBangla.length;
+      handleInput();
+      return;
+    }
+
+    resetDocBuffer();
   };
 
   const getFontFamilyStyle = () => {

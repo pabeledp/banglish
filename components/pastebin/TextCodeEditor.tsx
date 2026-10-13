@@ -31,7 +31,11 @@ export default function TextCodeEditor({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lineNumbersRef = useRef<HTMLDivElement | null>(null);
   const [lineCount, setLineCount] = useState(1);
-  const [candidateWord, setCandidateWord] = useState<{ raw: string; converted: string } | null>(null);
+
+  // Real-time Phonetic Engine Buffers
+  const activeBufferRef = useRef<string>('');
+  const lastReplacedLenRef = useRef<number>(0);
+  const [liveCandidate, setLiveCandidate] = useState<{ raw: string; converted: string } | null>(null);
 
   // Synchronize line count
   useEffect(() => {
@@ -46,8 +50,8 @@ export default function TextCodeEditor({
     }
   };
 
-  // Cursor position tracking & candidate preview
-  const updateCursorAndCandidate = () => {
+  // Cursor position tracking
+  const updateCursorPos = () => {
     if (!textareaRef.current) return;
     const pos = textareaRef.current.selectionStart || 0;
     const textBefore = content.substring(0, pos);
@@ -55,32 +59,87 @@ export default function TextCodeEditor({
     const line = lines.length;
     const col = lines[lines.length - 1].length + 1;
     onCursorChange?.(line, col);
-
-    if (phoneticActive) {
-      const match = textBefore.match(/([a-zA-Z0-9`^:$~]+)$/);
-      if (match && match[1] && /[a-zA-Z]/.test(match[1])) {
-        const raw = match[1];
-        const converted = transliterateWord(raw);
-        setCandidateWord({ raw, converted });
-      } else {
-        setCandidateWord(null);
-      }
-    } else {
-      setCandidateWord(null);
-    }
   };
 
-  // Handle KeyDown for Space / Enter / Tab / Punctuation instant transliteration
+  // Reset active phonetic syllable buffer on click / navigation
+  const resetBuffer = () => {
+    activeBufferRef.current = '';
+    lastReplacedLenRef.current = 0;
+    setLiveCandidate(null);
+  };
+
+  // Real-time KeyDown Interceptor for 100% In-Browser Phonetic Typing
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Universal Avro Shortcut Ctrl+M
+    // Universal Avro Shortcut Ctrl+M or Cmd+M to toggle phonetic mode
     if (e.key === 'm' && (e.ctrlKey || e.metaKey) && !e.altKey) {
       e.preventDefault();
+      resetBuffer();
       onTogglePhonetic?.();
       return;
     }
 
     if (!phoneticActive) return;
 
+    // Ignore commands with Ctrl / Meta (Cmd) / Alt (like Cmd+C, Cmd+V, Cmd+Z, etc.)
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      resetBuffer();
+      return;
+    }
+
+    const el = textareaRef.current;
+    if (!el) return;
+
+    // 1. Backspace handling within active syllable
+    if (e.key === 'Backspace') {
+      if (activeBufferRef.current.length > 0) {
+        e.preventDefault();
+        const nextBuffer = activeBufferRef.current.slice(0, -1);
+        activeBufferRef.current = nextBuffer;
+
+        const cursorPos = el.selectionStart;
+        const replaceLen = lastReplacedLenRef.current;
+        const startPos = Math.max(0, cursorPos - replaceLen);
+        const endPos = cursorPos;
+        const currentText = el.value;
+
+        if (nextBuffer.length > 0) {
+          const newBangla = transliterateWord(nextBuffer);
+          lastReplacedLenRef.current = newBangla.length;
+          const nextText = currentText.slice(0, startPos) + newBangla + currentText.slice(endPos);
+          onChange(nextText);
+          setLiveCandidate({ raw: nextBuffer, converted: newBangla });
+
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              const newPos = startPos + newBangla.length;
+              textareaRef.current.selectionStart = newPos;
+              textareaRef.current.selectionEnd = newPos;
+              updateCursorPos();
+            }
+          });
+        } else {
+          lastReplacedLenRef.current = 0;
+          setLiveCandidate(null);
+          const nextText = currentText.slice(0, startPos) + currentText.slice(endPos);
+          onChange(nextText);
+
+          requestAnimationFrame(() => {
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = startPos;
+              textareaRef.current.selectionEnd = startPos;
+              updateCursorPos();
+            }
+          });
+        }
+        return;
+      } else {
+        // Normal backspace, reset buffer
+        resetBuffer();
+        return;
+      }
+    }
+
+    // 2. Delimiter keys: Space, Enter, Tab, Punctuation
     if (
       e.key === ' ' ||
       e.key === 'Enter' ||
@@ -90,86 +149,123 @@ export default function TextCodeEditor({
       e.key === '!' ||
       e.key === ',' ||
       e.key === ';' ||
-      e.key === ':'
+      e.key === ':' ||
+      e.key === '/' ||
+      e.key === '\\' ||
+      e.key === '(' ||
+      e.key === ')' ||
+      e.key === '[' ||
+      e.key === ']' ||
+      e.key === '{' ||
+      e.key === '}' ||
+      e.key === '"' ||
+      e.key === "'"
     ) {
-      const el = textareaRef.current;
-      if (!el) return;
+      e.preventDefault();
 
-      const cursor = el.selectionStart;
-      const text = el.value;
-      const textBefore = text.slice(0, cursor);
+      let sep = e.key;
+      if (e.key === '.') sep = '।';
+      else if (e.key === 'Enter') sep = '\n';
+      else if (e.key === 'Tab') sep = '  ';
 
-      // Extract the word token before cursor
-      const match = textBefore.match(/([a-zA-Z0-9`^:$~]+)$/);
-      if (match && match[1] && /[a-zA-Z]/.test(match[1])) {
-        e.preventDefault();
-        const lastWord = match[1];
-        const converted = transliterateWord(lastWord);
-        const startPos = cursor - lastWord.length;
+      const cursorPos = el.selectionStart;
+      const currentText = el.value;
 
-        let sep = e.key;
-        if (e.key === '.') sep = '।';
-        else if (e.key === 'Enter') sep = '\n';
-        else if (e.key === 'Tab') sep = '  ';
+      // If there is an active buffer, commit the final word before separator
+      if (activeBufferRef.current.length > 0) {
+        const finalBangla = transliterateWord(activeBufferRef.current);
+        const replaceLen = lastReplacedLenRef.current;
+        const startPos = Math.max(0, cursorPos - replaceLen);
+        const endPos = cursorPos;
 
-        const newText = text.slice(0, startPos) + converted + sep + text.slice(cursor);
-        onChange(newText);
-        setCandidateWord(null);
+        const nextText = currentText.slice(0, startPos) + finalBangla + sep + currentText.slice(endPos);
+        onChange(nextText);
+        resetBuffer();
 
-        const newCursor = startPos + converted.length + sep.length;
+        const newPos = startPos + finalBangla.length + sep.length;
         requestAnimationFrame(() => {
           if (textareaRef.current) {
-            textareaRef.current.selectionStart = newCursor;
-            textareaRef.current.selectionEnd = newCursor;
-            updateCursorAndCandidate();
+            textareaRef.current.selectionStart = newPos;
+            textareaRef.current.selectionEnd = newPos;
+            updateCursorPos();
+          }
+        });
+      } else {
+        // Plain separator insertion
+        const nextText = currentText.slice(0, cursorPos) + sep + currentText.slice(cursorPos);
+        onChange(nextText);
+        resetBuffer();
+
+        const newPos = cursorPos + sep.length;
+        requestAnimationFrame(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = newPos;
+            textareaRef.current.selectionEnd = newPos;
+            updateCursorPos();
           }
         });
       }
-    }
-  };
-
-  // Handle onChange fallback (handles mobile keyboards, IME, autocomplete)
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newRaw = e.target.value;
-    const cursor = e.target.selectionStart;
-
-    if (!phoneticActive) {
-      onChange(newRaw);
       return;
     }
 
-    const lastChar = newRaw[cursor - 1];
-    if (lastChar && /[\s.,;!?।\n\t]/.test(lastChar)) {
-      const textBefore = newRaw.slice(0, cursor - 1);
-      const match = textBefore.match(/([a-zA-Z0-9`^:$~]+)$/);
-      if (match && match[1] && /[a-zA-Z]/.test(match[1])) {
-        const lastWord = match[1];
-        const converted = transliterateWord(lastWord);
-        const startPos = (cursor - 1) - lastWord.length;
-        const sep = lastChar === '.' ? '।' : lastChar;
-
-        const transformed = newRaw.slice(0, startPos) + converted + sep + newRaw.slice(cursor);
-        onChange(transformed);
-        setCandidateWord(null);
-
-        const nextCursor = startPos + converted.length + sep.length;
-        requestAnimationFrame(() => {
-          if (textareaRef.current) {
-            textareaRef.current.selectionStart = nextCursor;
-            textareaRef.current.selectionEnd = nextCursor;
-            updateCursorAndCandidate();
-          }
-        });
-        return;
-      }
+    // 3. Navigation / Arrow keys: reset active buffer
+    if (
+      e.key.startsWith('Arrow') ||
+      e.key === 'Home' ||
+      e.key === 'End' ||
+      e.key === 'PageUp' ||
+      e.key === 'PageDown' ||
+      e.key === 'Escape'
+    ) {
+      resetBuffer();
+      return;
     }
 
-    onChange(newRaw);
-    setTimeout(updateCursorAndCandidate, 0);
+    // 4. Character typing (letters a-z, A-Z, 0-9, backtick `, ^, :, $, ~)
+    if (e.key.length === 1 && /^[a-zA-Z0-9`^:$~]$/.test(e.key)) {
+      e.preventDefault();
+
+      const nextBuffer = activeBufferRef.current + e.key;
+      activeBufferRef.current = nextBuffer;
+
+      const newBangla = transliterateWord(nextBuffer);
+      const cursorPos = el.selectionStart;
+      const replaceLen = lastReplacedLenRef.current;
+      const startPos = Math.max(0, cursorPos - replaceLen);
+      const endPos = cursorPos;
+      const currentText = el.value;
+
+      const nextText = currentText.slice(0, startPos) + newBangla + currentText.slice(endPos);
+      lastReplacedLenRef.current = newBangla.length;
+      onChange(nextText);
+      setLiveCandidate({ raw: nextBuffer, converted: newBangla });
+
+      const newPos = startPos + newBangla.length;
+      requestAnimationFrame(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = newPos;
+          textareaRef.current.selectionEnd = newPos;
+          updateCursorPos();
+        }
+      });
+      return;
+    }
+
+    // For any unhandled key, reset buffer
+    resetBuffer();
+  };
+
+  // Handle onChange fallback (handles mobile browsers, soft keyboards, composition)
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    // If active buffer is already managing keydown, skip duplicate updates
+    if (activeBufferRef.current.length > 0) return;
+    onChange(e.target.value);
+    setTimeout(updateCursorPos, 0);
   };
 
   // Handle Paste when phonetic mode is active
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    resetBuffer();
     if (!phoneticActive) return;
     const pastedText = e.clipboardData.getData('text/plain');
     if (!pastedText) return;
@@ -191,7 +287,7 @@ export default function TextCodeEditor({
           const nextCursor = cursor + converted.length;
           textareaRef.current.selectionStart = nextCursor;
           textareaRef.current.selectionEnd = nextCursor;
-          updateCursorAndCandidate();
+          updateCursorPos();
         }
       });
     }
@@ -247,12 +343,15 @@ export default function TextCodeEditor({
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
-          onKeyUp={updateCursorAndCandidate}
-          onClick={updateCursorAndCandidate}
+          onClick={() => {
+            resetBuffer();
+            updateCursorPos();
+          }}
+          onKeyUp={updateCursorPos}
           onScroll={handleScroll}
           placeholder={
             phoneticActive
-              ? "বাংলিশ ফোনেটিক চালু আছে... যেমন: 'amra banglay gan gai' টাইপ করে Space চাপুন..."
+              ? "বাংলিশ ফোনেটিক চালু আছে... আপনার কীবোর্ড পরিবর্তন না করেই সরাসরি ইংরেজিতে টাইপ করুন (যেমন: 'amra' লিখলেই সরাসরি 'আমরা' হয়ে যাবে)..."
               : "এখানে আপনার টেক্সট বা কোড লিখুন..."
           }
           className={`flex-1 w-full h-full p-4 sm:p-5 bg-white text-slate-900 outline-none resize-none leading-relaxed transition-all placeholder:text-slate-400 ${
@@ -269,14 +368,13 @@ export default function TextCodeEditor({
           autoCorrect="off"
         />
 
-        {/* Live Phonetic Candidate Helper Badge */}
-        {phoneticActive && candidateWord && (
-          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700/95 text-white text-xs shadow-lg backdrop-blur-md animate-in fade-in duration-150">
+        {/* Live Active Syllable Indicator Pill */}
+        {phoneticActive && liveCandidate && (
+          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-800 text-white text-xs shadow-xl backdrop-blur-md animate-in fade-in duration-100 ring-1 ring-emerald-600">
             <Sparkles className="w-3.5 h-3.5 text-emerald-300 animate-pulse" />
-            <span className="font-mono text-emerald-200">{candidateWord.raw}</span>
+            <span className="font-mono text-emerald-200 font-medium">{liveCandidate.raw}</span>
             <span className="text-white/60">➔</span>
-            <span className="font-bangla font-semibold text-white">{candidateWord.converted}</span>
-            <span className="text-[10px] text-emerald-200/80 font-bangla pl-1">(Space চাপুন)</span>
+            <span className="font-bangla font-bold text-white text-sm">{liveCandidate.converted}</span>
           </div>
         )}
       </div>
