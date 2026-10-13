@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { SheetData, CellStyle, FontFamilyOption } from '@/lib/pastebinTypes';
-import { Plus, Trash2, Download, Table2, Calculator, Sparkles } from 'lucide-react';
+import { SheetData, FontFamilyOption } from '@/lib/pastebinTypes';
+import { Download } from 'lucide-react';
 import { transliterateText } from '@/lib/phoneticEngine';
 
 interface SheetEditorProps {
@@ -29,7 +29,6 @@ export default function SheetEditor({
   const numCols = sheetData.cols || 8;
   const numRows = sheetData.rows || 15;
 
-  // Generate column labels: A, B, C...
   const colHeaders = useMemo(() => {
     const headers: string[] = [];
     for (let i = 0; i < numCols; i++) {
@@ -44,7 +43,6 @@ export default function SheetEditor({
     return headers;
   }, [numCols]);
 
-  // Evaluates formula or raw content
   const evaluateCell = (cellKey: string, rawVal: string, visited: Set<string> = new Set()): string => {
     if (!rawVal || typeof rawVal !== 'string') return '';
     if (!rawVal.startsWith('=')) return rawVal;
@@ -55,7 +53,6 @@ export default function SheetEditor({
     const expr = rawVal.slice(1).trim();
 
     try {
-      // 1. =SUM(A1:A5)
       const sumMatch = expr.match(/^SUM\(([A-Z]+[0-9]+):([A-Z]+[0-9]+)\)$/i);
       if (sumMatch) {
         const rangeCells = getRangeCells(sumMatch[1].toUpperCase(), sumMatch[2].toUpperCase());
@@ -66,7 +63,6 @@ export default function SheetEditor({
         return String(sum);
       }
 
-      // 2. =AVERAGE(A1:A5) or =AVG(A1:A5)
       const avgMatch = expr.match(/^(?:AVERAGE|AVG)\(([A-Z]+[0-9]+):([A-Z]+[0-9]+)\)$/i);
       if (avgMatch) {
         const rangeCells = getRangeCells(avgMatch[1].toUpperCase(), avgMatch[2].toUpperCase());
@@ -82,7 +78,6 @@ export default function SheetEditor({
         return count > 0 ? (sum / count).toFixed(2) : '0';
       }
 
-      // 3. =COUNT(A1:A5)
       const countMatch = expr.match(/^COUNT\(([A-Z]+[0-9]+):([A-Z]+[0-9]+)\)$/i);
       if (countMatch) {
         const rangeCells = getRangeCells(countMatch[1].toUpperCase(), countMatch[2].toUpperCase());
@@ -93,14 +88,12 @@ export default function SheetEditor({
         return String(count);
       }
 
-      // 4. Arithmetic with cell references e.g. B2*C2 or A1+B1
       let parsedExpr = expr.replace(/([A-Z]+[0-9]+)/gi, (match) => {
         const refKey = match.toUpperCase();
         const refVal = parseFloat(evaluateCell(refKey, sheetData.cells[refKey] || '', new Set(visited)));
         return isNaN(refVal) ? '0' : String(refVal);
       });
 
-      // Safe calculation for simple math operations (+, -, *, /)
       if (/^[0-9+\-*/().\s]+$/.test(parsedExpr)) {
         // eslint-disable-next-line no-eval
         const result = Function(`"use strict"; return (${parsedExpr})`)();
@@ -113,7 +106,6 @@ export default function SheetEditor({
     }
   };
 
-  // Helper to expand range like A1:A4 into ['A1', 'A2', 'A3', 'A4']
   const getRangeCells = (start: string, end: string): string[] => {
     const startColMatch = start.match(/([A-Z]+)/);
     const startRowMatch = start.match(/([0-9]+)/);
@@ -141,19 +133,16 @@ export default function SheetEditor({
     return cells;
   };
 
-  // Select a cell
   const handleCellClick = (cellCoord: string) => {
     setSelectedCell(cellCoord);
     onActiveCellChange?.(cellCoord);
   };
 
-  // Start editing cell
   const handleCellDoubleClick = (cellCoord: string) => {
     setEditingCell(cellCoord);
     setEditValue(sheetData.cells[cellCoord] || '');
   };
 
-  // Save edited cell
   const commitCellEdit = () => {
     if (!editingCell) return;
 
@@ -173,19 +162,6 @@ export default function SheetEditor({
     setEditingCell(null);
   };
 
-  // Add / Delete Rows and Columns
-  const handleAddRow = () => onChange({ ...sheetData, rows: numRows + 1 });
-  const handleDeleteRow = () => {
-    if (numRows <= 2) return;
-    onChange({ ...sheetData, rows: numRows - 1 });
-  };
-  const handleAddCol = () => onChange({ ...sheetData, cols: numCols + 1 });
-  const handleDeleteCol = () => {
-    if (numCols <= 2) return;
-    onChange({ ...sheetData, cols: numCols - 1 });
-  };
-
-  // Export to CSV
   const exportToCSV = () => {
     const rows: string[] = [];
     for (let r = 1; r <= numRows; r++) {
@@ -204,41 +180,6 @@ export default function SheetEditor({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  // Paste handler for TSV/CSV from Excel or Google Sheets
-  const handlePaste = (e: React.ClipboardEvent) => {
-    const text = e.clipboardData.getData('text/plain');
-    if (!text || !selectedCell) return;
-
-    e.preventDefault();
-    const rows = text.split(/\r?\n/).filter(r => r.length > 0);
-    const startColMatch = selectedCell.match(/([A-Z]+)/);
-    const startRowMatch = selectedCell.match(/([0-9]+)/);
-    if (!startColMatch || !startRowMatch) return;
-
-    const startColIdx = colHeaders.indexOf(startColMatch[1]);
-    const startRow = parseInt(startRowMatch[1], 10);
-
-    const newCells = { ...sheetData.cells };
-
-    rows.forEach((rowStr, rIdx) => {
-      const cols = rowStr.split('\t');
-      cols.forEach((cellVal, cIdx) => {
-        const targetColIdx = startColIdx + cIdx;
-        const targetRow = startRow + rIdx;
-        if (targetColIdx < colHeaders.length) {
-          const targetKey = `${colHeaders[targetColIdx]}${targetRow}`;
-          newCells[targetKey] = cellVal.trim();
-        }
-      });
-    });
-
-    onChange({
-      ...sheetData,
-      rows: Math.max(sheetData.rows, startRow + rows.length),
-      cells: newCells,
-    });
   };
 
   const getFontFamilyStyle = () => {
@@ -261,16 +202,14 @@ export default function SheetEditor({
   const selectedCellRaw = sheetData.cells[selectedCell] || '';
 
   return (
-    <div 
-      className="relative flex-1 w-full h-full min-h-[550px] bg-[#090d16]/70 rounded-b-2xl border-x border-b border-gray-800/80 flex flex-col overflow-hidden"
-      onPaste={handlePaste}
-    >
+    <div className="relative flex-1 w-full min-h-[550px] sm:min-h-[620px] bg-white rounded-b-2xl border-x border-b border-slate-200/90 flex flex-col overflow-hidden">
+      
       {/* Formula Bar */}
-      <div className="flex items-center gap-2 px-4 py-2 bg-[#0b0f19] border-b border-gray-800/90 text-xs">
-        <div className="flex items-center gap-1 px-2.5 py-1 rounded bg-gray-950 border border-gray-800 text-cyan-400 font-mono font-bold min-w-[50px] text-center">
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-xs">
+        <div className="flex items-center justify-center px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-emerald-700 font-mono font-bold min-w-[50px] shadow-2xs">
           {selectedCell}
         </div>
-        <div className="text-gray-500 font-mono font-semibold">fx</div>
+        <div className="text-slate-400 font-mono font-semibold">fx</div>
         <input
           type="text"
           value={editingCell === selectedCell ? editValue : selectedCellRaw}
@@ -292,31 +231,31 @@ export default function SheetEditor({
             if (e.key === 'Enter') commitCellEdit();
           }}
           placeholder="সেল এর মান বা ফর্মুলা লিখুন (যেমন: =SUM(A1:A5) বা =B2*C2)..."
-          className="flex-1 px-3 py-1 rounded bg-gray-950 border border-gray-800 focus:border-cyan-500 text-gray-200 outline-none font-mono text-xs"
+          className="flex-1 px-3 py-1.5 rounded-lg bg-white border border-slate-200 focus:border-emerald-500 text-slate-800 outline-none font-sans text-xs shadow-2xs"
         />
         <button
           type="button"
           onClick={exportToCSV}
-          className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 font-medium transition-all"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 font-medium transition-all shadow-2xs cursor-pointer font-bangla"
           title="CSV ফাইল হিসেবে ডাউনলোড করুন"
         >
-          <Download className="w-3.5 h-3.5" />
+          <Download className="w-3.5 h-3.5 text-emerald-600" />
           <span className="hidden sm:inline">CSV এক্সপোর্ট</span>
         </button>
       </div>
 
-      {/* Spreadsheet Grid Canvas */}
-      <div className="flex-1 overflow-auto bg-[#0a0e1a]/80 select-none">
+      {/* Spreadsheet Grid */}
+      <div className="flex-1 overflow-auto bg-white select-none pb-28">
         <table className="border-collapse table-fixed w-full text-xs">
           <thead>
-            <tr className="bg-[#0f1422] sticky top-0 z-10 border-b border-gray-800">
-              <th className="w-12 p-2 border-r border-gray-800 text-gray-500 font-mono text-[11px] font-semibold text-center select-none bg-[#0f1422]">
+            <tr className="bg-slate-100/90 sticky top-0 z-10 border-b border-slate-200">
+              <th className="w-12 p-2 border-r border-slate-200 text-slate-500 font-mono text-[11px] font-semibold text-center select-none bg-slate-100">
                 #
               </th>
               {colHeaders.map(col => (
                 <th
                   key={col}
-                  className="min-w-[110px] w-32 p-2 border-r border-gray-800 text-gray-400 font-mono text-[11px] font-semibold text-center select-none"
+                  className="min-w-[110px] w-32 p-2 border-r border-slate-200 text-slate-700 font-mono text-[11px] font-semibold text-center select-none"
                 >
                   {col}
                 </th>
@@ -327,8 +266,8 @@ export default function SheetEditor({
             {Array.from({ length: numRows }).map((_, rIdx) => {
               const rowNum = rIdx + 1;
               return (
-                <tr key={rowNum} className="border-b border-gray-800/60 hover:bg-gray-900/20">
-                  <td className="w-12 p-1.5 border-r border-gray-800 text-gray-600 font-mono text-[10px] text-center select-none bg-[#0c101d] sticky left-0 z-0">
+                <tr key={rowNum} className="border-b border-slate-200/80 hover:bg-slate-50/60">
+                  <td className="w-12 p-1.5 border-r border-slate-200 text-slate-500 font-mono text-[10px] text-center select-none bg-slate-50 sticky left-0 z-0">
                     {rowNum}
                   </td>
                   {colHeaders.map(col => {
@@ -344,8 +283,8 @@ export default function SheetEditor({
                         key={cellKey}
                         onClick={() => handleCellClick(cellKey)}
                         onDoubleClick={() => handleCellDoubleClick(cellKey)}
-                        className={`p-0 border-r border-gray-800/60 relative cursor-cell transition-colors ${
-                          isSelected ? 'ring-2 ring-cyan-400 bg-cyan-950/20 z-10' : ''
+                        className={`p-0 border-r border-slate-200 relative cursor-cell transition-colors ${
+                          isSelected ? 'ring-2 ring-emerald-500 bg-emerald-50/40 z-10' : ''
                         }`}
                         style={{
                           backgroundColor: style.bg || undefined,
@@ -363,7 +302,7 @@ export default function SheetEditor({
                               if (e.key === 'Escape') setEditingCell(null);
                             }}
                             autoFocus
-                            className="w-full h-full px-2 py-1.5 bg-gray-950 text-white outline-none border border-cyan-400 font-sans"
+                            className="w-full h-full px-2 py-1.5 bg-white text-slate-900 outline-none border border-emerald-500 font-sans"
                             style={{
                               fontFamily: getFontFamilyStyle(),
                               fontSize: `${fontSize}px`,
@@ -371,7 +310,7 @@ export default function SheetEditor({
                           />
                         ) : (
                           <div
-                            className="px-2 py-1.5 truncate text-gray-200 select-text"
+                            className="px-2 py-1.5 truncate text-slate-800 select-text"
                             style={{
                               fontFamily: getFontFamilyStyle(),
                               fontSize: `${fontSize}px`,

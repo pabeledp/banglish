@@ -7,6 +7,7 @@ import {
   SUPPORTED_FONTS, 
   CODE_LANGUAGES 
 } from '@/lib/pastebinTypes';
+import { TARGET_LANGUAGES, TargetLanguage } from '@/lib/translatorService';
 import { 
   Bold, 
   Italic, 
@@ -18,21 +19,21 @@ import {
   AlignJustify, 
   List, 
   ListOrdered, 
-  CheckSquare, 
   Quote, 
   Code, 
   Minus, 
   Link2, 
   Image as ImageIcon, 
-  Sparkles, 
   Type, 
   WrapText, 
   Eraser, 
   Plus, 
   Trash2, 
-  FileSpreadsheet, 
   CaseSensitive, 
-  Hash 
+  Hash, 
+  Globe, 
+  Loader2,
+  Highlighter
 } from 'lucide-react';
 
 interface PastebinToolbarProps {
@@ -65,8 +66,9 @@ interface PastebinToolbarProps {
   onInsertFormula?: (formula: string) => void;
   onSheetCellFormat?: (property: 'bold' | 'italic' | 'align' | 'color' | 'bg', value?: string) => void;
 
-  // Global action
-  onConvertPhonetic?: () => void;
+  // Universal Translation Action
+  onTranslate?: (targetLangCode: string) => void;
+  isTranslating?: boolean;
 }
 
 export default function PastebinToolbar({
@@ -92,48 +94,41 @@ export default function PastebinToolbar({
   onDeleteCol,
   onInsertFormula,
   onSheetCellFormat,
-  onConvertPhonetic,
+  onTranslate,
+  isTranslating = false,
 }: PastebinToolbarProps) {
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showHighlightPicker, setShowHighlightPicker] = useState(false);
+  const [selectedTargetLang, setSelectedTargetLang] = useState<string>('bn');
   const [showCaseMenu, setShowCaseMenu] = useState(false);
   const [showFormulaMenu, setShowFormulaMenu] = useState(false);
-
-  const colors = [
-    { label: 'Default', value: '#f3f4f6' },
-    { label: 'Neon Blue', value: '#00f2fe' },
-    { label: 'Neon Green', value: '#10b981' },
-    { label: 'Amber', value: '#f59e0b' },
-    { label: 'Rose', value: '#f43f5e' },
-    { label: 'Purple', value: '#a855f7' },
-    { label: 'Muted Gray', value: '#9ca3af' },
-  ];
+  const [showHighlightMenu, setShowHighlightMenu] = useState(false);
 
   const highlightColors = [
-    { label: 'None', value: 'transparent' },
-    { label: 'Dark Cyan', value: 'rgba(0, 242, 254, 0.25)' },
-    { label: 'Dark Emerald', value: 'rgba(16, 185, 129, 0.25)' },
-    { label: 'Dark Amber', value: 'rgba(245, 158, 11, 0.25)' },
-    { label: 'Dark Rose', value: 'rgba(244, 63, 94, 0.25)' },
-    { label: 'Dark Violet', value: 'rgba(168, 85, 247, 0.25)' },
+    { name: 'হলুদ (Yellow)', color: '#fef08a', bgClass: 'bg-yellow-200' },
+    { name: 'সবুজ (Green)', color: '#bbf7d0', bgClass: 'bg-emerald-200' },
+    { name: 'নীল (Sky)', color: '#bae6fd', bgClass: 'bg-sky-200' },
+    { name: 'বেগুনি (Purple)', color: '#e9d5ff', bgClass: 'bg-purple-200' },
+    { name: 'গোলাপি (Pink)', color: '#fbcfe8', bgClass: 'bg-pink-200' },
+    { name: 'হাইলাইট মুছুন', color: 'transparent', bgClass: 'bg-white border border-slate-300' },
   ];
 
+  const currentLangObj = TARGET_LANGUAGES.find(l => l.code === selectedTargetLang) || TARGET_LANGUAGES[0];
+
   return (
-    <div className="w-full bg-[#0d1322]/95 border-b border-gray-800/90 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-gray-300 text-xs">
+    <div className="w-full bg-slate-50/90 border-b border-slate-200/90 px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-2.5 text-slate-700 text-xs">
       
-      {/* Left Formatting Group */}
+      {/* Left Formatting Controls */}
       <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         
-        {/* Font Family Picker Dropdown */}
-        <div className="flex items-center gap-1.5 bg-gray-950/70 border border-gray-800 rounded-lg px-2 py-1">
-          <Type className="w-3.5 h-3.5 text-cyan-400" />
+        {/* Font Family Picker */}
+        <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-2xs">
+          <Type className="w-3.5 h-3.5 text-emerald-600" />
           <select
             value={font}
             onChange={(e) => onFontChange(e.target.value as FontFamilyOption)}
-            className="bg-transparent text-gray-200 text-xs outline-none cursor-pointer pr-1"
+            className="bg-transparent text-slate-800 text-xs outline-none cursor-pointer pr-1 font-sans"
           >
             {SUPPORTED_FONTS.map(f => (
-              <option key={f.id} value={f.id} className="bg-gray-900 text-gray-100">
+              <option key={f.id} value={f.id} className="bg-white text-slate-800">
                 {f.name}
               </option>
             ))}
@@ -141,24 +136,24 @@ export default function PastebinToolbar({
         </div>
 
         {/* Font Size Picker */}
-        <div className="flex items-center gap-1 bg-gray-950/70 border border-gray-800 rounded-lg px-2 py-1">
-          <span className="text-[10px] text-gray-500 font-mono">Size</span>
+        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 shadow-2xs">
+          <span className="text-[10px] text-slate-400 font-mono">Size</span>
           <select
             value={fontSize}
             onChange={(e) => onFontSizeChange(Number(e.target.value))}
-            className="bg-transparent text-gray-200 text-xs outline-none cursor-pointer pr-1"
+            className="bg-transparent text-slate-800 text-xs outline-none cursor-pointer pr-1 font-mono"
           >
             {[12, 13, 14, 15, 16, 18, 20, 24, 28].map(sz => (
-              <option key={sz} value={sz} className="bg-gray-900 text-gray-100">
+              <option key={sz} value={sz} className="bg-white text-slate-800">
                 {sz}px
               </option>
             ))}
           </select>
         </div>
 
-        <div className="h-4 w-[1px] bg-gray-800 mx-0.5" />
+        <div className="h-4 w-[1px] bg-slate-300 mx-0.5" />
 
-        {/* ================= Mode-Specific Controls ================= */}
+        {/* Mode-Specific Controls */}
 
         {/* 1. TEXT / CODE MODE CONTROLS */}
         {mode === 'text' && (
@@ -169,8 +164,8 @@ export default function PastebinToolbar({
               onClick={onToggleLineNumbers}
               className={`p-1.5 rounded-lg border transition-all ${
                 showLineNumbers 
-                  ? 'bg-cyan-950/60 border-cyan-800/80 text-cyan-400' 
-                  : 'bg-gray-950/50 border-gray-800 text-gray-400 hover:text-white'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs' 
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
               }`}
               title="লাইন নাম্বার অন/অফ করুন"
             >
@@ -183,8 +178,8 @@ export default function PastebinToolbar({
               onClick={onToggleWordWrap}
               className={`p-1.5 rounded-lg border transition-all ${
                 wordWrap 
-                  ? 'bg-cyan-950/60 border-cyan-800/80 text-cyan-400' 
-                  : 'bg-gray-950/50 border-gray-800 text-gray-400 hover:text-white'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-2xs' 
+                  : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900'
               }`}
               title="ওয়ার্ড র‍্যাপ টগল করুন"
             >
@@ -195,10 +190,10 @@ export default function PastebinToolbar({
             <button
               type="button"
               onClick={onCleanWhitespace}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-950/50 hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white transition-all"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 transition-all shadow-2xs font-bangla"
               title="অতিরিক্ত স্পেস ও খালি লাইন পরিষ্কার করুন"
             >
-              <Eraser className="w-3.5 h-3.5 text-amber-400" />
+              <Eraser className="w-3.5 h-3.5 text-amber-600" />
               <span className="hidden md:inline">ক্লিন স্পেস</span>
             </button>
 
@@ -207,35 +202,35 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => setShowCaseMenu(!showCaseMenu)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-950/50 hover:bg-gray-800 border border-gray-800 text-gray-300 hover:text-white transition-all"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 transition-all shadow-2xs"
                 title="কেস কনভার্ট"
               >
-                <CaseSensitive className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="hidden md:inline">Case</span>
+                <CaseSensitive className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="hidden md:inline font-mono">Case</span>
               </button>
 
               {showCaseMenu && (
                 <>
                   <div className="fixed inset-0 z-20" onClick={() => setShowCaseMenu(false)} />
-                  <div className="absolute left-0 top-full mt-1 w-32 rounded-lg bg-gray-900 border border-gray-700 shadow-xl p-1 z-30 space-y-0.5">
+                  <div className="absolute left-0 top-full mt-1 w-32 rounded-xl bg-white border border-slate-200 shadow-xl p-1 z-30 space-y-0.5">
                     <button
                       type="button"
                       onClick={() => { onTransformCase?.('upper'); setShowCaseMenu(false); }}
-                      className="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-xs text-gray-200"
+                      className="w-full text-left px-2 py-1.5 rounded hover:bg-emerald-50 text-xs text-slate-800 font-sans"
                     >
                       UPPERCASE
                     </button>
                     <button
                       type="button"
                       onClick={() => { onTransformCase?.('lower'); setShowCaseMenu(false); }}
-                      className="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-xs text-gray-200"
+                      className="w-full text-left px-2 py-1.5 rounded hover:bg-emerald-50 text-xs text-slate-800 font-sans"
                     >
                       lowercase
                     </button>
                     <button
                       type="button"
                       onClick={() => { onTransformCase?.('title'); setShowCaseMenu(false); }}
-                      className="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-xs text-gray-200"
+                      className="w-full text-left px-2 py-1.5 rounded hover:bg-emerald-50 text-xs text-slate-800 font-sans"
                     >
                       Title Case
                     </button>
@@ -245,15 +240,15 @@ export default function PastebinToolbar({
             </div>
 
             {/* Code Language Selector */}
-            <div className="flex items-center gap-1 bg-gray-950/70 border border-gray-800 rounded-lg px-2 py-1">
-              <Code className="w-3.5 h-3.5 text-emerald-400" />
+            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1.5 shadow-2xs">
+              <Code className="w-3.5 h-3.5 text-teal-600" />
               <select
                 value={codeLanguage}
                 onChange={(e) => onCodeLanguageChange?.(e.target.value)}
-                className="bg-transparent text-gray-200 text-xs outline-none cursor-pointer pr-1"
+                className="bg-transparent text-slate-800 text-xs outline-none cursor-pointer pr-1 font-mono"
               >
                 {CODE_LANGUAGES.map(lang => (
-                  <option key={lang.id} value={lang.id} className="bg-gray-900 text-gray-100">
+                  <option key={lang.id} value={lang.id} className="bg-white text-slate-800">
                     {lang.name}
                   </option>
                 ))}
@@ -265,24 +260,22 @@ export default function PastebinToolbar({
         {/* 2. DOCS MODE CONTROLS */}
         {mode === 'docs' && (
           <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
-            {/* Heading Level Selector */}
             <select
               onChange={(e) => onDocFormat?.('formatBlock', e.target.value)}
               defaultValue="p"
-              className="bg-gray-950/70 border border-gray-800 rounded-lg px-2 py-1 text-xs text-gray-200 outline-none cursor-pointer"
+              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 outline-none cursor-pointer shadow-2xs font-sans"
             >
-              <option value="p" className="bg-gray-900">Normal Text</option>
-              <option value="h1" className="bg-gray-900">Heading 1</option>
-              <option value="h2" className="bg-gray-900">Heading 2</option>
-              <option value="h3" className="bg-gray-900">Heading 3</option>
+              <option value="p">Normal Text</option>
+              <option value="h1">Heading 1</option>
+              <option value="h2">Heading 2</option>
+              <option value="h3">Heading 3</option>
             </select>
 
-            {/* Basic Inline Formats */}
-            <div className="flex items-center gap-0.5 bg-gray-950/70 border border-gray-800 rounded-lg p-0.5">
+            <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
               <button
                 type="button"
                 onClick={() => onDocFormat?.('bold')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="বোল্ড (Ctrl+B)"
               >
                 <Bold className="w-3.5 h-3.5" />
@@ -290,7 +283,7 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onDocFormat?.('italic')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="ইটালিক (Ctrl+I)"
               >
                 <Italic className="w-3.5 h-3.5" />
@@ -298,7 +291,7 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onDocFormat?.('underline')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="আন্ডারলাইন (Ctrl+U)"
               >
                 <Underline className="w-3.5 h-3.5" />
@@ -306,19 +299,55 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onDocFormat?.('strikeThrough')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="স্ট্রাইকথ্রু"
               >
                 <Strikethrough className="w-3.5 h-3.5" />
               </button>
+
+              {/* Text Highlighter Button */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowHighlightMenu(!showHighlightMenu)}
+                  className="p-1.5 hover:bg-slate-100 text-slate-700 rounded flex items-center gap-0.5"
+                  title="টেক্সট হাইলাইটার (Highlighter)"
+                >
+                  <Highlighter className="w-3.5 h-3.5 text-amber-500" />
+                </button>
+
+                {showHighlightMenu && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setShowHighlightMenu(false)} />
+                    <div className="absolute left-0 top-full mt-1.5 w-44 rounded-xl bg-white border border-slate-200 shadow-xl p-1.5 z-30 space-y-1 ring-1 ring-black/5">
+                      <div className="text-[10px] font-semibold text-slate-400 px-2 py-0.5 uppercase tracking-wider font-mono">
+                        হাইলাইটার রং
+                      </div>
+                      {highlightColors.map((hc) => (
+                        <button
+                          key={hc.name}
+                          type="button"
+                          onClick={() => {
+                            onDocFormat?.('hiliteColor', hc.color);
+                            setShowHighlightMenu(false);
+                          }}
+                          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-xs text-slate-700 text-left transition-colors font-bangla"
+                        >
+                          <span className={`w-3.5 h-3.5 rounded-full ${hc.bgClass}`} />
+                          <span>{hc.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
-            {/* Alignments */}
-            <div className="hidden md:flex items-center gap-0.5 bg-gray-950/70 border border-gray-800 rounded-lg p-0.5">
+            <div className="hidden md:flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
               <button
                 type="button"
                 onClick={() => onDocFormat?.('justifyLeft')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="বামে সারিবদ্ধ"
               >
                 <AlignLeft className="w-3.5 h-3.5" />
@@ -326,7 +355,7 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onDocFormat?.('justifyCenter')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="মাঝখানে সারিবদ্ধ"
               >
                 <AlignCenter className="w-3.5 h-3.5" />
@@ -334,7 +363,7 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onDocFormat?.('justifyRight')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="ডানে সারিবদ্ধ"
               >
                 <AlignRight className="w-3.5 h-3.5" />
@@ -342,19 +371,18 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onDocFormat?.('justifyFull')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="উভয়পাশে সমান"
               >
                 <AlignJustify className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            {/* Lists & Quotes */}
-            <div className="flex items-center gap-0.5 bg-gray-950/70 border border-gray-800 rounded-lg p-0.5">
+            <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
               <button
                 type="button"
                 onClick={() => onDocFormat?.('insertUnorderedList')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="বুলেট লিস্ট"
               >
                 <List className="w-3.5 h-3.5" />
@@ -362,15 +390,15 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onDocFormat?.('insertOrderedList')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="নাম্বার লিস্ট"
               >
                 <ListOrdered className="w-3.5 h-3.5" />
               </button>
               <button
                 type="button"
-                onClick={() => onDocFormat?.('insertHTML', '<blockquote>💡 Quote block...</blockquote><p></p>')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                onClick={() => onDocFormat?.('insertHTML', '<blockquote>💡 Quote...</blockquote><p></p>')}
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="কোটেশন ব্লক"
               >
                 <Quote className="w-3.5 h-3.5" />
@@ -378,29 +406,28 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onDocFormat?.('insertHorizontalRule')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="ডিভাইডার দাগ"
               >
                 <Minus className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            {/* Insert Link & Image */}
             <button
               type="button"
               onClick={onInsertLink}
-              className="p-1.5 bg-gray-950/70 hover:bg-gray-800 border border-gray-800 rounded-lg text-gray-300 hover:text-white"
+              className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 shadow-2xs"
               title="লিংক যুক্ত করুন"
             >
-              <Link2 className="w-3.5 h-3.5 text-blue-400" />
+              <Link2 className="w-3.5 h-3.5 text-blue-600" />
             </button>
             <button
               type="button"
               onClick={onInsertImage}
-              className="p-1.5 bg-gray-950/70 hover:bg-gray-800 border border-gray-800 rounded-lg text-gray-300 hover:text-white"
+              className="p-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-700 shadow-2xs"
               title="ছবি যুক্ত করুন"
             >
-              <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+              <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
             </button>
           </div>
         )}
@@ -408,54 +435,51 @@ export default function PastebinToolbar({
         {/* 3. SHEET MODE CONTROLS */}
         {mode === 'sheet' && (
           <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
-            {/* Add / Delete Row */}
-            <div className="flex items-center gap-1 bg-gray-950/70 border border-gray-800 rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
               <button
                 type="button"
                 onClick={onAddRow}
-                className="flex items-center gap-1 px-2 py-1 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
-                title="নতুন সারি (Row) যোগ করুন"
+                className="flex items-center gap-1 px-2 py-1 hover:bg-slate-100 text-slate-700 rounded"
+                title="নতুন সারি যোগ করুন"
               >
-                <Plus className="w-3 h-3 text-emerald-400" />
+                <Plus className="w-3 h-3 text-emerald-600" />
                 <span>+ Row</span>
               </button>
               <button
                 type="button"
                 onClick={onDeleteRow}
-                className="p-1 hover:bg-gray-800 text-gray-400 hover:text-rose-400 rounded"
+                className="p-1 hover:bg-slate-100 text-slate-500 hover:text-rose-600 rounded"
                 title="শেষ সারি মুছুন"
               >
                 <Trash2 className="w-3 h-3" />
               </button>
             </div>
 
-            {/* Add / Delete Column */}
-            <div className="flex items-center gap-1 bg-gray-950/70 border border-gray-800 rounded-lg p-0.5">
+            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
               <button
                 type="button"
                 onClick={onAddCol}
-                className="flex items-center gap-1 px-2 py-1 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
-                title="নতুন কলাম (Column) যোগ করুন"
+                className="flex items-center gap-1 px-2 py-1 hover:bg-slate-100 text-slate-700 rounded"
+                title="নতুন কলাম যোগ করুন"
               >
-                <Plus className="w-3 h-3 text-cyan-400" />
+                <Plus className="w-3 h-3 text-teal-600" />
                 <span>+ Col</span>
               </button>
               <button
                 type="button"
                 onClick={onDeleteCol}
-                className="p-1 hover:bg-gray-800 text-gray-400 hover:text-rose-400 rounded"
+                className="p-1 hover:bg-slate-100 text-slate-500 hover:text-rose-600 rounded"
                 title="শেষ কলাম মুছুন"
               >
                 <Trash2 className="w-3 h-3" />
               </button>
             </div>
 
-            {/* Cell Styling */}
-            <div className="flex items-center gap-0.5 bg-gray-950/70 border border-gray-800 rounded-lg p-0.5">
+            <div className="flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
               <button
                 type="button"
                 onClick={() => onSheetCellFormat?.('bold')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="সেল বোল্ড করুন"
               >
                 <Bold className="w-3.5 h-3.5" />
@@ -463,7 +487,7 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onSheetCellFormat?.('italic')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="সেল ইটালিক করুন"
               >
                 <Italic className="w-3.5 h-3.5" />
@@ -471,7 +495,7 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onSheetCellFormat?.('align', 'left')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="বামে এলাইন"
               >
                 <AlignLeft className="w-3.5 h-3.5" />
@@ -479,7 +503,7 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onSheetCellFormat?.('align', 'center')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="মাঝখানে এলাইন"
               >
                 <AlignCenter className="w-3.5 h-3.5" />
@@ -487,61 +511,60 @@ export default function PastebinToolbar({
               <button
                 type="button"
                 onClick={() => onSheetCellFormat?.('align', 'right')}
-                className="p-1.5 hover:bg-gray-800 text-gray-300 hover:text-white rounded"
+                className="p-1.5 hover:bg-slate-100 text-slate-700 rounded"
                 title="ডানে এলাইন"
               >
                 <AlignRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            {/* Quick Formulas */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setShowFormulaMenu(!showFormulaMenu)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-950/40 hover:bg-amber-900/60 border border-amber-800/60 text-amber-300 transition-all font-mono"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 transition-all font-mono shadow-2xs"
                 title="ফর্মুলা যুক্ত করুন"
               >
                 <span>fx</span>
-                <span className="hidden sm:inline">ফর্মুলা</span>
+                <span className="hidden sm:inline font-bangla">ফর্মুলা</span>
               </button>
 
               {showFormulaMenu && (
                 <>
                   <div className="fixed inset-0 z-20" onClick={() => setShowFormulaMenu(false)} />
-                  <div className="absolute left-0 top-full mt-1 w-44 rounded-lg bg-gray-900 border border-gray-700 shadow-xl p-1 z-30 space-y-0.5">
+                  <div className="absolute left-0 top-full mt-1 w-44 rounded-xl bg-white border border-slate-200 shadow-xl p-1 z-30 space-y-0.5">
                     <button
                       type="button"
                       onClick={() => { onInsertFormula?.('=SUM('); setShowFormulaMenu(false); }}
-                      className="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-xs text-emerald-400 font-mono"
+                      className="w-full text-left px-2 py-1 rounded hover:bg-emerald-50 text-xs text-emerald-700 font-mono"
                     >
                       =SUM(...) — যোগফল
                     </button>
                     <button
                       type="button"
                       onClick={() => { onInsertFormula?.('=AVERAGE('); setShowFormulaMenu(false); }}
-                      className="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-xs text-cyan-400 font-mono"
+                      className="w-full text-left px-2 py-1 rounded hover:bg-emerald-50 text-xs text-teal-700 font-mono"
                     >
                       =AVERAGE(...) — গড়
                     </button>
                     <button
                       type="button"
                       onClick={() => { onInsertFormula?.('=COUNT('); setShowFormulaMenu(false); }}
-                      className="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-xs text-yellow-400 font-mono"
+                      className="w-full text-left px-2 py-1 rounded hover:bg-emerald-50 text-xs text-amber-700 font-mono"
                     >
                       =COUNT(...) — সংখ্যা
                     </button>
                     <button
                       type="button"
                       onClick={() => { onInsertFormula?.('=MAX('); setShowFormulaMenu(false); }}
-                      className="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-xs text-rose-400 font-mono"
+                      className="w-full text-left px-2 py-1 rounded hover:bg-emerald-50 text-xs text-rose-700 font-mono"
                     >
                       =MAX(...) — সর্বোচ্চ
                     </button>
                     <button
                       type="button"
                       onClick={() => { onInsertFormula?.('=MIN('); setShowFormulaMenu(false); }}
-                      className="w-full text-left px-2 py-1 rounded hover:bg-gray-800 text-xs text-purple-400 font-mono"
+                      className="w-full text-left px-2 py-1 rounded hover:bg-emerald-50 text-xs text-purple-700 font-mono"
                     >
                       =MIN(...) — সর্বনিম্ন
                     </button>
@@ -554,17 +577,41 @@ export default function PastebinToolbar({
 
       </div>
 
-      {/* Right: 1-Click Phonetic Transliteration Action */}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onConvertPhonetic}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-emerald-500/20 hover:from-cyan-500/30 hover:to-emerald-500/30 border border-cyan-500/40 text-cyan-300 hover:text-white transition-all shadow-[0_0_12px_rgba(0,242,254,0.15)] font-bangla font-semibold cursor-pointer"
-          title="বাংলিশ টেক্সটকে তাত্ক্ষণিকভাবে ইউনিকোড বাংলায় রূপান্তর করুন"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-          <span>বাংলিশ ➔ বাংলা রূপান্তর</span>
-        </button>
+      {/* Right: Universal "Translate to [Language]" Action */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
+        <div className="flex items-center bg-white border border-slate-200 rounded-xl p-0.5 shadow-2xs">
+          <span className="text-[11px] text-slate-500 font-sans font-medium pl-2 pr-1 flex items-center gap-1">
+            <Globe className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden sm:inline">Translate to:</span>
+          </span>
+          <select
+            value={selectedTargetLang}
+            onChange={(e) => setSelectedTargetLang(e.target.value)}
+            className="bg-transparent text-slate-800 text-xs outline-none cursor-pointer py-1 pr-1 font-sans font-medium"
+          >
+            {TARGET_LANGUAGES.map(lang => (
+              <option key={lang.code} value={lang.code} className="bg-white text-slate-800">
+                {lang.flag} {lang.nativeName} ({lang.name})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={isTranslating}
+            onClick={() => onTranslate?.(selectedTargetLang)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-xs transition-all cursor-pointer disabled:opacity-60"
+            title="যেকোনো ভাষা থেকে নির্বাচিত ভাষায় অনুবাদ করুন"
+          >
+            {isTranslating ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>অনুবাদ হচ্ছে...</span>
+              </>
+            ) : (
+              <span>অনুবাদ করুন</span>
+            )}
+          </button>
+        </div>
       </div>
 
     </div>

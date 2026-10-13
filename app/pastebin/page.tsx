@@ -10,11 +10,12 @@ import SheetEditor from '@/components/pastebin/SheetEditor';
 import FloatingActions from '@/components/pastebin/FloatingActions';
 import ExportModal from '@/components/pastebin/ExportModal';
 import ClearConfirmModal from '@/components/pastebin/ClearConfirmModal';
+import HyperlinkModal from '@/components/pastebin/HyperlinkModal';
 import Toast from '@/components/pastebin/Toast';
 import { usePastebinStorage } from '@/hooks/usePastebinStorage';
-import { transliterateText } from '@/lib/phoneticEngine';
+import { translateContent } from '@/lib/translatorService';
 import { FontFamilyOption, WorkspaceMode } from '@/lib/pastebinTypes';
-import { Clock, AlignLeft, Sparkles, Database } from 'lucide-react';
+import { Clock, AlignLeft, ShieldCheck } from 'lucide-react';
 
 export default function PastebinPage() {
   const {
@@ -28,8 +29,6 @@ export default function PastebinPage() {
     removeTab,
     renameTab,
     togglePhonetic,
-    setLanguageMode,
-    setTabMode,
     clearActiveTabContent,
   } = usePastebinStorage();
 
@@ -39,7 +38,10 @@ export default function PastebinPage() {
   const [activeCellCoord, setActiveCellCoord] = useState('A1');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [initialLinkText, setInitialLinkText] = useState('');
   const [copied, setCopied] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = useCallback((msg: string) => {
@@ -73,43 +75,69 @@ export default function PastebinPage() {
     return { words, chars, readingTime };
   }, [activeTab]);
 
-  // Transliterate entire content of current tab from Banglish to Bangla
-  const handleConvertPhonetic = useCallback(() => {
-    if (!activeTab) return;
+  // Universal Translation (Auto-detects source, translates to target language)
+  const handleTranslate = useCallback(async (targetLangCode: string) => {
+    if (!activeTab || isTranslating) return;
 
-    if (activeTab.mode === 'text') {
-      const converted = transliterateText(activeTab.content);
-      updateActiveTab({ content: converted });
-      showToast('টেক্সট সফলভাবে ইউনিকোড বাংলায় রূপান্তরিত হয়েছে!');
-    } else if (activeTab.mode === 'docs') {
-      if (typeof window !== 'undefined') {
-        const temp = document.createElement('div');
-        temp.innerHTML = activeTab.content;
-        const walkAndTransliterate = (node: Node) => {
-          if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
-            node.nodeValue = transliterateText(node.nodeValue);
-          } else {
-            node.childNodes.forEach(walkAndTransliterate);
+    setIsTranslating(true);
+    showToast('অনুবাদ হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...');
+
+    try {
+      if (activeTab.mode === 'text') {
+        const translated = await translateContent(activeTab.content, targetLangCode);
+        updateActiveTab({ content: translated });
+        showToast('সফলভাবে অনুবাদ সম্পন্ন হয়েছে!');
+      } else if (activeTab.mode === 'docs') {
+        if (typeof window !== 'undefined') {
+          const temp = document.createElement('div');
+          temp.innerHTML = activeTab.content;
+          const textNodes: Text[] = [];
+          const collectText = (node: Node) => {
+            if (node.nodeType === Node.TEXT_NODE && node.nodeValue && node.nodeValue.trim()) {
+              textNodes.push(node as Text);
+            } else {
+              node.childNodes.forEach(collectText);
+            }
+          };
+          collectText(temp);
+
+          for (const tNode of textNodes) {
+            if (tNode.nodeValue) {
+              tNode.nodeValue = await translateContent(tNode.nodeValue, targetLangCode);
+            }
           }
-        };
-        walkAndTransliterate(temp);
-        updateActiveTab({ content: temp.innerHTML });
-        showToast('ডকুমেন্ট সফলভাবে ইউনিকোড বাংলায় রূপান্তরিত হয়েছে!');
+
+          updateActiveTab({ content: temp.innerHTML });
+          showToast('ডকুমেন্ট সফলভাবে অনুবাদ সম্পন্ন হয়েছে!');
+        }
+      } else if (activeTab.mode === 'sheet' && activeTab.sheetData) {
+        const newCells: Record<string, string> = {};
+        for (const [k, v] of Object.entries(activeTab.sheetData.cells)) {
+          if (v.startsWith('=')) {
+            newCells[k] = v;
+          } else {
+            newCells[k] = await translateContent(v, targetLangCode);
+          }
+        }
+        updateActiveTab({
+          sheetData: {
+            ...activeTab.sheetData,
+            cells: newCells,
+          },
+        });
+        showToast('শীট ডাটা সফলভাবে অনুবাদ সম্পন্ন হয়েছে!');
       }
-    } else if (activeTab.mode === 'sheet' && activeTab.sheetData) {
-      const newCells: Record<string, string> = {};
-      Object.entries(activeTab.sheetData.cells).forEach(([k, v]) => {
-        newCells[k] = v.startsWith('=') ? v : transliterateText(v);
-      });
-      updateActiveTab({
-        sheetData: {
-          ...activeTab.sheetData,
-          cells: newCells,
-        },
-      });
-      showToast('স্প্রেডশীট ডাটা সফলভাবে বাংলায় রূপান্তরিত হয়েছে!');
+    } catch {
+      showToast('অনুবাদে সমস্যা হয়েছে, পুনরায় চেষ্টা করুন।');
+    } finally {
+      setIsTranslating(false);
     }
-  }, [activeTab, updateActiveTab, showToast]);
+  }, [activeTab, isTranslating, updateActiveTab, showToast]);
+
+  // Translate specific selected text (for DocsEditor)
+  const handleTranslateSelectedText = useCallback(async (selectedText: string, targetLang: string) => {
+    return await translateContent(selectedText, targetLang);
+  }, []);
 
   // Copy full content to clipboard
   const handleCopyContent = useCallback(async () => {
@@ -179,16 +207,25 @@ export default function PastebinPage() {
     document.execCommand(command, false, value);
   };
 
+  // Insert image placeholder
   const handleInsertImage = () => {
-    const url = prompt('ছবির সরাসরি URL লিংক দিন:');
+    const url = prompt('ছবির সরাসরি ইমেজ লিঙ্ক (URL) দিন:');
     if (url) {
       document.execCommand('insertImage', false, url);
     }
   };
 
-  const handleInsertLink = () => {
-    const url = prompt('হাইপারলিংক URL দিন:');
-    if (url) {
+  // Open custom Hyperlink modal
+  const handleOpenLinkModal = (selectedText?: string) => {
+    setInitialLinkText(selectedText || '');
+    setIsLinkModalOpen(true);
+  };
+
+  // Insert link from custom Hyperlink modal
+  const handleInsertLink = (url: string, text?: string) => {
+    if (text) {
+      document.execCommand('insertHTML', false, `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-emerald-600 underline font-semibold">${text}</a>`);
+    } else {
       document.execCommand('createLink', false, url);
     }
   };
@@ -279,9 +316,9 @@ export default function PastebinPage() {
 
   if (!isLoaded || !activeTab) {
     return (
-      <div className="min-h-screen bg-[#090d16] flex items-center justify-center text-gray-400 font-mono text-sm">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-600 font-mono text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-5 h-5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
           <span>Banglish Workspace লোড হচ্ছে...</span>
         </div>
       </div>
@@ -289,31 +326,55 @@ export default function PastebinPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#090d16] text-[#f3f4f6] font-sans antialiased selection:bg-cyan-500/30 selection:text-cyan-100 relative overflow-x-hidden">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-emerald-50/40 via-white to-teal-50/30 text-slate-800 font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900 relative overflow-x-hidden pb-36 sm:pb-40">
       
-      {/* Ambient Neon Glow Orbs */}
-      <div className="fixed -top-40 right-10 w-[500px] h-[500px] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none -z-10" />
-      <div className="fixed top-1/2 -left-40 w-[550px] h-[550px] bg-emerald-500/10 rounded-full blur-[140px] pointer-events-none -z-10" />
+      {/* Background Grid Pattern */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-grid-pattern" aria-hidden="true" />
 
-      {/* 1. Header Bar */}
+      {/* Ambient Floating Bangla Typography Glyphs */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none" aria-hidden="true">
+        <span className="absolute top-28 left-[5%] text-7xl sm:text-9xl font-bangla font-bold text-emerald-900/5 blur-[2.5px] float-glyph-1">অ</span>
+        <span className="absolute top-[48%] left-[2%] text-6xl sm:text-8xl font-bangla font-bold text-teal-900/5 blur-[3px] float-glyph-2">আ</span>
+        <span className="absolute top-20 right-[12%] text-7xl sm:text-9xl font-bangla font-bold text-emerald-900/5 blur-[3px] float-glyph-3">ক</span>
+        <span className="absolute bottom-28 left-[15%] text-7xl sm:text-9xl font-bangla font-bold text-emerald-900/5 blur-[3px] float-glyph-2">ব</span>
+        <span className="absolute bottom-16 right-[20%] text-7xl sm:text-9xl font-bangla font-bold text-teal-900/5 blur-[3px] float-glyph-3">শ</span>
+      </div>
+
+      {/* 1. Light-Themed Header Bar */}
       <PastebinHeader
-        mode={activeTab.mode}
-        onModeChange={setTabMode}
         phoneticActive={state.phoneticActive}
         onTogglePhonetic={togglePhonetic}
-        language={activeTab.language}
-        onLanguageChange={setLanguageMode}
         saveStatus={saveStatus}
         lastSavedAt={state.lastSavedAt}
+        onOpenExportModal={() => setIsExportModalOpen(true)}
+        onAddNewNote={() => addTab('text')}
       />
 
       {/* Workspace Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-2 sm:px-6 lg:px-8 py-3 sm:py-6 flex flex-col">
+      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-7 flex flex-col">
         
-        {/* Glass Container Card */}
-        <div className="flex-1 flex flex-col rounded-2xl bg-[rgba(17,24,39,0.6)] backdrop-blur-md border border-gray-800/80 shadow-2xl overflow-hidden">
+        {/* White Glass Container Card (Mac Simulator Style) */}
+        <div className="flex-1 flex flex-col rounded-2xl sm:rounded-3xl bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-2xl shadow-emerald-950/10 overflow-hidden">
           
-          {/* 2. Multi-Tab Management Bar */}
+          {/* Simulator Top Dots Bar */}
+          <div className="bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 px-4 sm:px-6 py-3 border-b border-slate-200 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-rose-400 inline-block shadow-2xs"></span>
+              <span className="w-3 h-3 rounded-full bg-amber-400 inline-block shadow-2xs"></span>
+              <span className="w-3 h-3 rounded-full bg-emerald-400 inline-block shadow-2xs"></span>
+              <span className="text-xs font-semibold text-slate-600 font-mono ml-2 hidden sm:inline">Banglish Smart Editor</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bangla text-slate-500 hidden sm:inline">
+                {activeTab.mode === 'text' ? 'টেক্সট ও কোড খাতা' : activeTab.mode === 'docs' ? 'রিচ ডক ক্যানভাস' : 'স্প্রেডশীট টেবিল'}
+              </span>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                100% Offline Save
+              </span>
+            </div>
+          </div>
+
+          {/* 2. Multi-Tab Management Bar (Internal Modes) */}
           <TabsBar
             tabs={state.tabs}
             activeTabId={state.activeTabId}
@@ -323,7 +384,7 @@ export default function PastebinPage() {
             onRenameTab={renameTab}
           />
 
-          {/* 3. Dynamic Sub-Toolbar */}
+          {/* 3. Sub-Toolbar with Universal Translate & Highlighter */}
           <PastebinToolbar
             mode={activeTab.mode}
             font={activeTab.font}
@@ -340,18 +401,19 @@ export default function PastebinPage() {
             onTransformCase={handleTransformCase}
             onDocFormat={handleDocFormat}
             onInsertImage={handleInsertImage}
-            onInsertLink={handleInsertLink}
+            onInsertLink={() => handleOpenLinkModal()}
             onAddRow={handleAddRow}
             onDeleteRow={handleDeleteRow}
             onAddCol={handleAddCol}
             onDeleteCol={handleDeleteCol}
             onInsertFormula={handleInsertFormula}
             onSheetCellFormat={handleSheetCellFormat}
-            onConvertPhonetic={handleConvertPhonetic}
+            onTranslate={handleTranslate}
+            isTranslating={isTranslating}
           />
 
-          {/* 4. Main Canvas Editor Area */}
-          <div className="flex-1 flex flex-col min-h-[500px]">
+          {/* 4. Main Canvas Editor Area (Unrestricted Height & Smooth Scroll) */}
+          <div className="flex-1 flex flex-col min-h-[550px] sm:min-h-[620px]">
             {activeTab.mode === 'text' && (
               <TextCodeEditor
                 content={activeTab.content}
@@ -372,6 +434,8 @@ export default function PastebinPage() {
                 font={activeTab.font}
                 fontSize={activeTab.fontSize}
                 phoneticActive={state.phoneticActive}
+                onTranslateSelected={handleTranslateSelectedText}
+                onOpenLinkModal={handleOpenLinkModal}
               />
             )}
 
@@ -387,29 +451,29 @@ export default function PastebinPage() {
             )}
           </div>
 
-          {/* 5. Footer / Status Bar */}
-          <footer className="w-full bg-[#0b0f19]/95 border-t border-gray-800/80 px-4 py-2 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 font-mono">
+          {/* 5. Light-Themed Footer / Status Bar */}
+          <footer className="w-full bg-slate-50 border-t border-slate-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 font-mono">
             
             {/* Left Stats */}
             <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <AlignLeft className="w-3.5 h-3.5 text-cyan-400" />
+              <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                <AlignLeft className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{stats.words} Words</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span>{stats.chars} Characters</span>
               </div>
-              <div className="hidden sm:flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="hidden sm:flex items-center gap-1.5 text-slate-500">
+                <Clock className="w-3.5 h-3.5 text-teal-600" />
                 <span>~{stats.readingTime} min read</span>
               </div>
               {activeTab.mode === 'text' && (
-                <div className="text-gray-500">
+                <div className="text-slate-500 font-medium">
                   Ln {cursorPos.line}, Col {cursorPos.col}
                 </div>
               )}
               {activeTab.mode === 'sheet' && (
-                <div className="text-cyan-400 font-bold">
+                <div className="text-emerald-700 font-bold">
                   Cell: {activeCellCoord}
                 </div>
               )}
@@ -417,12 +481,12 @@ export default function PastebinPage() {
 
             {/* Right Status */}
             <div className="flex items-center gap-3">
-              <span className="text-[11px] text-gray-500 font-bangla hidden md:inline">
+              <span className="text-[11px] text-slate-500 font-bangla hidden md:inline">
                 স্বয়ংক্রিয়ভাবে লোকাল স্টোরেজে সংরক্ষিত
               </span>
-              <div className="flex items-center gap-1 text-emerald-400 text-[11px]">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Active Sync</span>
+              <div className="flex items-center gap-1 text-emerald-700 font-medium text-[11px]">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Active Auto-Sync</span>
               </div>
             </div>
 
@@ -436,7 +500,8 @@ export default function PastebinPage() {
       <FloatingActions
         phoneticActive={state.phoneticActive}
         onTogglePhonetic={togglePhonetic}
-        onConvertPhonetic={handleConvertPhonetic}
+        onTranslate={handleTranslate}
+        isTranslating={isTranslating}
         onCopyContent={handleCopyContent}
         onOpenExportModal={() => setIsExportModalOpen(true)}
         onOpenClearModal={() => setIsClearModalOpen(true)}
@@ -455,6 +520,13 @@ export default function PastebinPage() {
         isOpen={isClearModalOpen}
         onClose={() => setIsClearModalOpen(false)}
         onConfirm={clearActiveTabContent}
+      />
+
+      <HyperlinkModal
+        isOpen={isLinkModalOpen}
+        onClose={() => setIsLinkModalOpen(false)}
+        onInsert={handleInsertLink}
+        initialText={initialLinkText}
       />
 
       {toastMessage && (
