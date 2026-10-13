@@ -122,58 +122,105 @@ export function usePastebinStorage() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'dirty'>('saved');
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isDirtyRef = useRef(false);
+  const latestStateRef = useRef<PastebinState>(state);
 
-  // Load from LocalStorage on mount
+  // Keep latestStateRef updated
+  useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
+
+  // Synchronous persist helper
+  const persistState = useCallback((stateToSave: PastebinState) => {
+    try {
+      const serialized = JSON.stringify({
+        ...stateToSave,
+        lastSavedAt: Date.now(),
+      });
+      localStorage.setItem(STORAGE_KEY, serialized);
+      localStorage.setItem('banglish_pastebin_backup', serialized);
+      sessionStorage.setItem(STORAGE_KEY, serialized);
+      setSaveStatus('saved');
+    } catch (e) {
+      console.error('Failed to save pastebin state:', e);
+      setSaveStatus('dirty');
+    }
+  }, []);
+
+  // Load from LocalStorage (or backup / sessionStorage) on mount
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(STORAGE_KEY) || 
+                    localStorage.getItem('banglish_pastebin_backup') || 
+                    sessionStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+          const validActiveId = parsed.tabs.some((t: any) => t.id === parsed.activeTabId)
+            ? parsed.activeTabId
+            : parsed.tabs[0].id;
           setState({
             ...parsed,
+            activeTabId: validActiveId,
             lastSavedAt: parsed.lastSavedAt || Date.now(),
           });
         }
       }
     } catch (e) {
-      console.warn('Failed to load pastebin state from localStorage:', e);
+      console.warn('Failed to load pastebin state from storage:', e);
     } finally {
       setIsLoaded(true);
     }
   }, []);
 
-  // Save to LocalStorage whenever state changes
+  // Save to storage whenever user modifies state
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !isDirtyRef.current) return;
 
     setSaveStatus('saving');
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
     saveTimeoutRef.current = setTimeout(() => {
-      try {
-        const stateToSave = {
-          ...state,
-          lastSavedAt: Date.now(),
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-        setSaveStatus('saved');
-      } catch (e) {
-        console.error('Failed to auto-save pastebin state:', e);
-        setSaveStatus('dirty');
-      }
-    }, 350);
+      persistState(state);
+    }, 100);
 
     return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        // Flush immediately on unmount/re-render so no drafts are ever lost!
+        persistState(latestStateRef.current);
+      }
     };
-  }, [state, isLoaded]);
+  }, [state, isLoaded, persistState]);
+
+  // Window/Tab lifecycle listeners: flush immediately before user leaves or switches tab
+  useEffect(() => {
+    const handleFlush = () => {
+      if (isLoaded && isDirtyRef.current && latestStateRef.current) {
+        persistState(latestStateRef.current);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleFlush);
+    window.addEventListener('pagehide', handleFlush);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') handleFlush();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleFlush);
+      window.removeEventListener('pagehide', handleFlush);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [isLoaded, persistState]);
 
   // Get active tab
   const activeTab = state.tabs.find(t => t.id === state.activeTabId) || state.tabs[0];
 
   // Update active tab data
   const updateActiveTab = useCallback((partial: Partial<PastebinTab>) => {
+    isDirtyRef.current = true;
     setState(prev => {
       const activeIdx = prev.tabs.findIndex(t => t.id === prev.activeTabId);
       if (activeIdx === -1) return prev;
@@ -196,11 +243,13 @@ export function usePastebinStorage() {
 
   // Set active tab ID
   const setActiveTab = useCallback((tabId: string) => {
+    isDirtyRef.current = true;
     setState(prev => ({ ...prev, activeTabId: tabId }));
   }, []);
 
   // Add a new tab
   const addTab = useCallback((mode: WorkspaceMode = 'text', customTitle?: string) => {
+    isDirtyRef.current = true;
     const newId = `tab-${Date.now()}`;
     const defaultTitle = customTitle || (
       mode === 'text' ? `নোট ${state.tabs.length + 1}` :
@@ -239,6 +288,7 @@ export function usePastebinStorage() {
 
   // Remove a tab
   const removeTab = useCallback((tabId: string) => {
+    isDirtyRef.current = true;
     setState(prev => {
       if (prev.tabs.length <= 1) return prev; // Keep at least one tab
       const newTabs = prev.tabs.filter(t => t.id !== tabId);
@@ -254,6 +304,7 @@ export function usePastebinStorage() {
   // Rename a tab
   const renameTab = useCallback((tabId: string, newTitle: string) => {
     if (!newTitle.trim()) return;
+    isDirtyRef.current = true;
     setState(prev => ({
       ...prev,
       tabs: prev.tabs.map(t => t.id === tabId ? { ...t, title: newTitle.trim(), updatedAt: Date.now() } : t)
@@ -262,6 +313,7 @@ export function usePastebinStorage() {
 
   // Toggle phonetic status globally and update active tab font
   const togglePhonetic = useCallback(() => {
+    isDirtyRef.current = true;
     setState(prev => {
       const nextPhonetic = !prev.phoneticActive;
       const nextLang: LanguageMode = nextPhonetic ? 'bn' : 'en';
@@ -290,6 +342,7 @@ export function usePastebinStorage() {
 
   // Set explicit language mode
   const setLanguageMode = useCallback((lang: LanguageMode) => {
+    isDirtyRef.current = true;
     const isPhonetic = lang === 'bn';
     const font: FontFamilyOption = isPhonetic ? 'Hind Siliguri' : 'Poppins';
 

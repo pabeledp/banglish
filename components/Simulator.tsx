@@ -1,114 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-
-const wordDictionary: Record<string, string> = {
-  'amra': 'আমরা',
-  'valobasa': 'ভালোবাসা',
-  'valobasha': 'ভালোবাসা',
-  'bhalobasa': 'ভালোবাসা',
-  'bhalobasha': 'ভালোবাসা',
-  'khalobasa': 'ভালোবাসা',
-  'valo': 'ভালো',
-  'bhalo': 'ভালো',
-  'ami': 'আমি',
-  'tumi': 'তুমি',
-  'apni': 'আপনি',
-  'bangla': 'বাংলা',
-  'banglish': 'বাংলিশ',
-  'bangladesh': 'বাংলাদেশ',
-  'kemon': 'কেমন',
-  'acho': 'আছো',
-  'achen': 'আছেন',
-  'desh': 'দেশ',
-  'dhaka': 'ঢাকা',
-  'kormo': 'কর্ম',
-  'shundor': 'সুন্দর',
-  'sundor': 'সুন্দর',
-  'ruti': 'রুটি',
-  'dhonnobad': 'ধন্যবাদ',
-  'shagotom': 'স্বাগতম',
-  'gan': 'গান',
-  'gai': 'গাই',
-  'banglay': 'বাংলায়',
-  'khobor': 'খবর',
-  'manush': 'মানুষ',
-  'sobai': 'সবাই',
-  'bhai': 'ভাই',
-  'bondhu': 'বন্ধু',
-  'onek': 'অনেক',
-  'shobar': 'সবার',
-  'mukhe': 'মুখে',
-  'notun': 'নতুন',
-  'jonno': 'জন্য'
-};
+import { transliterateText } from '@/lib/phoneticEngine';
+import { getPhoneticCandidates } from '@/lib/banglishDictionary';
 
 export function transliteratePhonetic(text: string): string {
   if (!text) return '';
-
-  const words = text.split(/(\s+|[.,;!?৳।])/);
-  return words.map(chunk => {
-    if (!chunk || /^\s+$/.test(chunk)) return chunk;
-    if (chunk === '.') return '।';
-    if (chunk === '$') return '৳';
-
-    const lower = chunk.toLowerCase();
-    if (wordDictionary[lower]) {
-      return wordDictionary[lower];
-    }
-
-    let res = lower;
-    res = res.replace(/\./g, '।');
-    res = res.replace(/\$/g, '৳');
-
-    res = res.replace(/kkh/g, 'ক্ষ');
-    res = res.replace(/ng/g, 'ং');
-    res = res.replace(/kh/g, 'খ');
-    res = res.replace(/gh/g, 'ঘ');
-    res = res.replace(/ch/g, 'চ');
-    res = res.replace(/chh/g, 'ছ');
-    res = res.replace(/jh/g, 'ঝ');
-    res = res.replace(/th/g, 'থ');
-    res = res.replace(/dh/g, 'ধ');
-    res = res.replace(/ph/g, 'ফ');
-    res = res.replace(/bh/g, 'ভ');
-    res = res.replace(/v/g, 'ভ');
-    res = res.replace(/sh/g, 'শ');
-    res = res.replace(/rh/g, 'ঢ়');
-
-    res = res.replace(/k/g, 'ক');
-    res = res.replace(/g/g, 'গ');
-    res = res.replace(/j/g, 'জ');
-    res = res.replace(/t/g, 'ত');
-    res = res.replace(/d/g, 'দ');
-    res = res.replace(/n/g, 'ন');
-    res = res.replace(/p/g, 'প');
-    res = res.replace(/f/g, 'ফ');
-    res = res.replace(/b/g, 'ব');
-    res = res.replace(/m/g, 'ম');
-    res = res.replace(/r/g, 'র');
-    res = res.replace(/l/g, 'ল');
-    res = res.replace(/s/g, 'স');
-    res = res.replace(/h/g, 'হ');
-    res = res.replace(/y/g, 'য়');
-
-    res = res.replace(/aa/g, 'া');
-    res = res.replace(/a/g, 'া');
-    res = res.replace(/i/g, 'ি');
-    res = res.replace(/ee/g, 'ী');
-    res = res.replace(/u/g, 'ু');
-    res = res.replace(/oo/g, 'ূ');
-    res = res.replace(/e/g, 'ে');
-    res = res.replace(/o/g, 'ো');
-
-    if (res.startsWith('া')) res = 'আ' + res.slice(1);
-    else if (res.startsWith('ি')) res = 'ই' + res.slice(1);
-    else if (res.startsWith('ু')) res = 'উ' + res.slice(1);
-    else if (res.startsWith('ে')) res = 'এ' + res.slice(1);
-    else if (res.startsWith('ো')) res = 'ও' + res.slice(1);
-
-    return res;
-  }).join('');
+  return transliterateText(text);
 }
 
 const demoPhrases = [
@@ -124,10 +22,16 @@ export default function Simulator() {
   const [isAutoDemoRunning, setIsAutoDemoRunning] = useState(true);
   const [statusText, setStatusText] = useState('স্বয়ংক্রিয় টাইপিং ডেমো চলছে...');
   const [isUserActive, setIsUserActive] = useState(false);
+  const [selectedCandidateIndex, setSelectedCandidateIndex] = useState(0);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
   const autoDemoTimer = useRef<NodeJS.Timeout | null>(null);
   const phraseIndexRef = useRef(0);
+
+  // Compute active word token being typed
+  const activeMatch = inputText.match(/[a-zA-Z0-9`^:$~]+$/);
+  const activeToken = activeMatch ? activeMatch[0] : '';
+  const candidates = activeToken ? getPhoneticCandidates(activeToken) : [];
 
   // Auto-demo typing loop
   useEffect(() => {
@@ -167,6 +71,45 @@ export default function Simulator() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     userTakeOver();
     setInputText(e.target.value);
+    setSelectedCandidateIndex(0);
+  };
+
+  const selectCandidate = (cand: string) => {
+    userTakeOver();
+    if (!activeToken) return;
+    const tokenStart = inputText.length - activeToken.length;
+    const nextText = inputText.slice(0, tokenStart) + cand + ' ';
+    setInputText(nextText);
+    setSelectedCandidateIndex(0);
+    inputRef.current?.focus();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (candidates.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCandidateIndex(prev => (prev + 1) % candidates.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCandidateIndex(prev => (prev - 1 + candidates.length) % candidates.length);
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        selectCandidate(candidates[selectedCandidateIndex]);
+        return;
+      }
+      if (/^[1-9]$/.test(e.key) && (e.altKey || e.ctrlKey)) {
+        const num = parseInt(e.key, 10);
+        if (num >= 1 && num <= candidates.length) {
+          e.preventDefault();
+          selectCandidate(candidates[num - 1]);
+          return;
+        }
+      }
+    }
   };
 
   const handleClear = () => {
@@ -242,6 +185,7 @@ export default function Simulator() {
                   id="phonetic-input" 
                   value={inputText}
                   onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
                   onFocus={userTakeOver}
                   placeholder="Type in English (e.g. amra)..." 
                   className="w-full px-4 py-3.5 rounded-xl bg-slate-50/90 border border-slate-200 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-emerald-500/10 font-mono text-sm sm:text-base text-slate-800 transition-all"
@@ -251,6 +195,38 @@ export default function Simulator() {
                   abc
                 </div>
               </div>
+
+              {/* Real-time Phonetic Suggestion Pills */}
+              {candidates.length > 0 && (
+                <div className="pt-1.5 animate-in fade-in duration-150">
+                  <div className="flex items-center gap-1.5 flex-wrap bg-emerald-950/5 border border-emerald-800/15 p-2 rounded-xl">
+                    <span className="text-[11px] font-mono text-emerald-800 font-semibold flex items-center gap-1 mr-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      সাজেশন:
+                    </span>
+                    {candidates.map((cand, idx) => {
+                      const isSelected = idx === selectedCandidateIndex;
+                      return (
+                        <button
+                          key={`${cand}-${idx}`}
+                          type="button"
+                          onClick={() => selectCandidate(cand)}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bangla transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-600 text-white font-bold shadow-sm shadow-emerald-700/20 ring-1 ring-emerald-500 scale-[1.02]'
+                              : 'bg-white hover:bg-emerald-50 text-emerald-950 border border-slate-200 hover:border-emerald-300'
+                          }`}
+                        >
+                          <span className={`font-mono text-[10px] ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+                            {idx + 1}.
+                          </span>
+                          <span className="text-[13px]">{cand}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Live Bangla Transliterated Output Box */}

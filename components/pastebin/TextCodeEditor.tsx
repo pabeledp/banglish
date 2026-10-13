@@ -1,8 +1,8 @@
-'use client';
-
 import React, { useRef, useState, useEffect } from 'react';
 import { FontFamilyOption } from '@/lib/pastebinTypes';
 import { transliterateWord, transliterateText } from '@/lib/phoneticEngine';
+import { getPhoneticCandidates } from '@/lib/banglishDictionary';
+import CandidatePopup from '@/components/CandidatePopup';
 import { Sparkles } from 'lucide-react';
 
 interface TextCodeEditorProps {
@@ -32,9 +32,13 @@ export default function TextCodeEditor({
   const lineNumbersRef = useRef<HTMLDivElement | null>(null);
   const [lineCount, setLineCount] = useState(1);
 
-  // Real-time Phonetic Engine Buffers
+  // Real-time Phonetic Engine Buffers & Candidate Suggestions
   const activeBufferRef = useRef<string>('');
   const lastReplacedLenRef = useRef<number>(0);
+  const [candidates, setCandidates] = useState<string[]>([]);
+  const [selectedCandidateIndex, setSelectedCandidateIndex] = useState<number>(0);
+  const candidatesRef = useRef<string[]>([]);
+  const selectedIndexRef = useRef<number>(0);
   const [liveCandidate, setLiveCandidate] = useState<{ raw: string; converted: string } | null>(null);
 
   // Synchronize line count
@@ -65,7 +69,60 @@ export default function TextCodeEditor({
   const resetBuffer = () => {
     activeBufferRef.current = '';
     lastReplacedLenRef.current = 0;
+    candidatesRef.current = [];
+    selectedIndexRef.current = 0;
+    setCandidates([]);
+    setSelectedCandidateIndex(0);
     setLiveCandidate(null);
+  };
+
+  // Apply candidate preview without ending buffer
+  const applyCandidatePreview = (word: string) => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const cursorPos = el.selectionStart;
+    const replaceLen = lastReplacedLenRef.current;
+    const startPos = Math.max(0, cursorPos - replaceLen);
+    const endPos = cursorPos;
+    const currentText = el.value;
+
+    const nextText = currentText.slice(0, startPos) + word + currentText.slice(endPos);
+    lastReplacedLenRef.current = word.length;
+    onChange(nextText);
+    setLiveCandidate({ raw: activeBufferRef.current, converted: word });
+
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        const newPos = startPos + word.length;
+        textareaRef.current.selectionStart = newPos;
+        textareaRef.current.selectionEnd = newPos;
+        updateCursorPos();
+      }
+    });
+  };
+
+  // Commit selected candidate and optional separator
+  const commitCandidate = (word: string, sep: string = '') => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const cursorPos = el.selectionStart;
+    const replaceLen = lastReplacedLenRef.current;
+    const startPos = Math.max(0, cursorPos - replaceLen);
+    const endPos = cursorPos;
+    const currentText = el.value;
+
+    const nextText = currentText.slice(0, startPos) + word + sep + currentText.slice(endPos);
+    onChange(nextText);
+    resetBuffer();
+
+    requestAnimationFrame(() => {
+      if (textareaRef.current) {
+        const newPos = startPos + word.length + sep.length;
+        textareaRef.current.selectionStart = newPos;
+        textareaRef.current.selectionEnd = newPos;
+        updateCursorPos();
+      }
+    });
   };
 
   // Real-time KeyDown Interceptor for 100% In-Browser Phonetic Typing
@@ -89,6 +146,41 @@ export default function TextCodeEditor({
     const el = textareaRef.current;
     if (!el) return;
 
+    // 0. Active candidate list navigation with Arrow keys & Escape
+    if (candidatesRef.current.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextIdx = (selectedIndexRef.current + 1) % candidatesRef.current.length;
+        selectedIndexRef.current = nextIdx;
+        setSelectedCandidateIndex(nextIdx);
+        applyCandidatePreview(candidatesRef.current[nextIdx]);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const nextIdx = (selectedIndexRef.current - 1 + candidatesRef.current.length) % candidatesRef.current.length;
+        selectedIndexRef.current = nextIdx;
+        setSelectedCandidateIndex(nextIdx);
+        applyCandidatePreview(candidatesRef.current[nextIdx]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        resetBuffer();
+        return;
+      }
+      // Numeric selection keys 1-9 to immediately pick candidate
+      if (/^[1-9]$/.test(e.key)) {
+        const num = parseInt(e.key, 10);
+        if (num >= 1 && num <= candidatesRef.current.length) {
+          e.preventDefault();
+          const chosen = candidatesRef.current[num - 1];
+          commitCandidate(chosen, '');
+          return;
+        }
+      }
+    }
+
     // 1. Backspace handling within active syllable
     if (e.key === 'Backspace') {
       if (activeBufferRef.current.length > 0) {
@@ -103,7 +195,13 @@ export default function TextCodeEditor({
         const currentText = el.value;
 
         if (nextBuffer.length > 0) {
-          const newBangla = transliterateWord(nextBuffer);
+          const nextCands = getPhoneticCandidates(nextBuffer);
+          candidatesRef.current = nextCands;
+          selectedIndexRef.current = 0;
+          setCandidates(nextCands);
+          setSelectedCandidateIndex(0);
+
+          const newBangla = nextCands[0] || transliterateWord(nextBuffer);
           lastReplacedLenRef.current = newBangla.length;
           const nextText = currentText.slice(0, startPos) + newBangla + currentText.slice(endPos);
           onChange(nextText);
@@ -119,6 +217,10 @@ export default function TextCodeEditor({
           });
         } else {
           lastReplacedLenRef.current = 0;
+          candidatesRef.current = [];
+          selectedIndexRef.current = 0;
+          setCandidates([]);
+          setSelectedCandidateIndex(0);
           setLiveCandidate(null);
           const nextText = currentText.slice(0, startPos) + currentText.slice(endPos);
           onChange(nextText);
@@ -171,25 +273,13 @@ export default function TextCodeEditor({
       const cursorPos = el.selectionStart;
       const currentText = el.value;
 
-      // If there is an active buffer, commit the final word before separator
+      // If there is an active buffer, commit the chosen candidate before separator
       if (activeBufferRef.current.length > 0) {
-        const finalBangla = transliterateWord(activeBufferRef.current);
-        const replaceLen = lastReplacedLenRef.current;
-        const startPos = Math.max(0, cursorPos - replaceLen);
-        const endPos = cursorPos;
+        const chosen = (candidatesRef.current.length > 0 && candidatesRef.current[selectedIndexRef.current])
+          ? candidatesRef.current[selectedIndexRef.current]
+          : transliterateWord(activeBufferRef.current);
 
-        const nextText = currentText.slice(0, startPos) + finalBangla + sep + currentText.slice(endPos);
-        onChange(nextText);
-        resetBuffer();
-
-        const newPos = startPos + finalBangla.length + sep.length;
-        requestAnimationFrame(() => {
-          if (textareaRef.current) {
-            textareaRef.current.selectionStart = newPos;
-            textareaRef.current.selectionEnd = newPos;
-            updateCursorPos();
-          }
-        });
+        commitCandidate(chosen, sep);
       } else {
         // Plain separator insertion
         const nextText = currentText.slice(0, cursorPos) + sep + currentText.slice(cursorPos);
@@ -228,7 +318,13 @@ export default function TextCodeEditor({
       const nextBuffer = activeBufferRef.current + e.key;
       activeBufferRef.current = nextBuffer;
 
-      const newBangla = transliterateWord(nextBuffer);
+      const nextCands = getPhoneticCandidates(nextBuffer);
+      candidatesRef.current = nextCands;
+      selectedIndexRef.current = 0;
+      setCandidates(nextCands);
+      setSelectedCandidateIndex(0);
+
+      const newBangla = nextCands[0] || transliterateWord(nextBuffer);
       const cursorPos = el.selectionStart;
       const replaceLen = lastReplacedLenRef.current;
       const startPos = Math.max(0, cursorPos - replaceLen);
@@ -364,14 +460,21 @@ export default function TextCodeEditor({
           autoCorrect="off"
         />
 
-        {/* Live Active Syllable Indicator Pill */}
-        {phoneticActive && liveCandidate && (
-          <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-800 text-white text-xs shadow-xl backdrop-blur-md animate-in fade-in duration-100 ring-1 ring-emerald-600">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-300 animate-pulse" />
-            <span className="font-mono text-emerald-200 font-medium">{liveCandidate.raw}</span>
-            <span className="text-white/60">➔</span>
-            <span className="font-bangla font-bold text-white text-sm">{liveCandidate.converted}</span>
-          </div>
+        {/* Live Phonetic Candidate Suggestions Popup */}
+        {phoneticActive && candidates.length > 0 && (
+          <CandidatePopup
+            candidates={candidates}
+            selectedIndex={selectedCandidateIndex}
+            onSelectIndex={(idx) => {
+              selectedIndexRef.current = idx;
+              setSelectedCandidateIndex(idx);
+              applyCandidatePreview(candidates[idx]);
+            }}
+            onSelectCandidate={(cand) => {
+              commitCandidate(cand, '');
+            }}
+            className="absolute bottom-4 right-4 z-30"
+          />
         )}
       </div>
 

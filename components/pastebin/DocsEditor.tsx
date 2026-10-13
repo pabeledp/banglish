@@ -4,6 +4,8 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { FontFamilyOption } from '@/lib/pastebinTypes';
 import { TARGET_LANGUAGES } from '@/lib/translatorService';
 import { transliterateWord } from '@/lib/phoneticEngine';
+import { getPhoneticCandidates } from '@/lib/banglishDictionary';
+import CandidatePopup from '@/components/CandidatePopup';
 import { 
   Bold, 
   Italic, 
@@ -294,10 +296,36 @@ export default function DocsEditor({
   // Real-time Phonetic typing inside contentEditable
   const activeDocBufferRef = useRef<string>('');
   const lastDocReplacedLenRef = useRef<number>(0);
+  const [candidates, setCandidates] = useState<string[]>([]);
+  const [selectedCandidateIndex, setSelectedCandidateIndex] = useState(0);
+  const candidatesRef = useRef<string[]>([]);
+  const selectedIndexRef = useRef(0);
 
   const resetDocBuffer = () => {
     activeDocBufferRef.current = '';
     lastDocReplacedLenRef.current = 0;
+    candidatesRef.current = [];
+    selectedIndexRef.current = 0;
+    setCandidates([]);
+    setSelectedCandidateIndex(0);
+  };
+
+  const applyCandidatePreview = (word: string) => {
+    for (let i = 0; i < lastDocReplacedLenRef.current; i++) {
+      document.execCommand('delete', false);
+    }
+    document.execCommand('insertText', false, word);
+    lastDocReplacedLenRef.current = word.length;
+    handleInput();
+  };
+
+  const commitCandidate = (word: string, sep: string = '') => {
+    for (let i = 0; i < lastDocReplacedLenRef.current; i++) {
+      document.execCommand('delete', false);
+    }
+    document.execCommand('insertText', false, word + sep);
+    resetDocBuffer();
+    handleInput();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -306,6 +334,39 @@ export default function DocsEditor({
     if (e.ctrlKey || e.metaKey || e.altKey) {
       resetDocBuffer();
       return;
+    }
+
+    // 0. Active candidate navigation with Arrow keys & numeric selection 1-9
+    if (candidatesRef.current.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextIdx = (selectedIndexRef.current + 1) % candidatesRef.current.length;
+        selectedIndexRef.current = nextIdx;
+        setSelectedCandidateIndex(nextIdx);
+        applyCandidatePreview(candidatesRef.current[nextIdx]);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const nextIdx = (selectedIndexRef.current - 1 + candidatesRef.current.length) % candidatesRef.current.length;
+        selectedIndexRef.current = nextIdx;
+        setSelectedCandidateIndex(nextIdx);
+        applyCandidatePreview(candidatesRef.current[nextIdx]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        resetDocBuffer();
+        return;
+      }
+      if (/^[1-9]$/.test(e.key)) {
+        const num = parseInt(e.key, 10);
+        if (num >= 1 && num <= candidatesRef.current.length) {
+          e.preventDefault();
+          commitCandidate(candidatesRef.current[num - 1], '');
+          return;
+        }
+      }
     }
 
     // 1. Backspace in active syllable
@@ -319,11 +380,21 @@ export default function DocsEditor({
       }
 
       if (nextBuffer.length > 0) {
-        const newBangla = transliterateWord(nextBuffer);
+        const nextCands = getPhoneticCandidates(nextBuffer);
+        candidatesRef.current = nextCands;
+        selectedIndexRef.current = 0;
+        setCandidates(nextCands);
+        setSelectedCandidateIndex(0);
+
+        const newBangla = nextCands[0] || transliterateWord(nextBuffer);
         document.execCommand('insertText', false, newBangla);
         lastDocReplacedLenRef.current = newBangla.length;
       } else {
         lastDocReplacedLenRef.current = 0;
+        candidatesRef.current = [];
+        selectedIndexRef.current = 0;
+        setCandidates([]);
+        setSelectedCandidateIndex(0);
       }
       handleInput();
       return;
@@ -345,9 +416,16 @@ export default function DocsEditor({
       if (e.key === '.') sep = '।';
       else if (e.key === 'Enter') sep = '\n';
 
-      document.execCommand('insertText', false, sep);
-      resetDocBuffer();
-      handleInput();
+      if (activeDocBufferRef.current.length > 0) {
+        const chosen = (candidatesRef.current.length > 0 && candidatesRef.current[selectedIndexRef.current])
+          ? candidatesRef.current[selectedIndexRef.current]
+          : transliterateWord(activeDocBufferRef.current);
+        commitCandidate(chosen, sep);
+      } else {
+        document.execCommand('insertText', false, sep);
+        resetDocBuffer();
+        handleInput();
+      }
       return;
     }
 
@@ -363,7 +441,14 @@ export default function DocsEditor({
 
       const nextBuffer = activeDocBufferRef.current + e.key;
       activeDocBufferRef.current = nextBuffer;
-      const newBangla = transliterateWord(nextBuffer);
+
+      const nextCands = getPhoneticCandidates(nextBuffer);
+      candidatesRef.current = nextCands;
+      selectedIndexRef.current = 0;
+      setCandidates(nextCands);
+      setSelectedCandidateIndex(0);
+
+      const newBangla = nextCands[0] || transliterateWord(nextBuffer);
 
       for (let i = 0; i < lastDocReplacedLenRef.current; i++) {
         document.execCommand('delete', false);
@@ -593,6 +678,23 @@ export default function DocsEditor({
           }}
         />
       </div>
+
+      {/* Live Phonetic Candidate Suggestions Popup */}
+      {phoneticActive && candidates.length > 0 && (
+        <CandidatePopup
+          candidates={candidates}
+          selectedIndex={selectedCandidateIndex}
+          onSelectIndex={(idx) => {
+            selectedIndexRef.current = idx;
+            setSelectedCandidateIndex(idx);
+            applyCandidatePreview(candidates[idx]);
+          }}
+          onSelectCandidate={(cand) => {
+            commitCandidate(cand, '');
+          }}
+          className="fixed bottom-6 right-6 z-40"
+        />
+      )}
 
     </div>
   );
