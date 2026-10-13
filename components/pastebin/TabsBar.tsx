@@ -166,7 +166,7 @@ export default function TabsBar({
       </div>
 
       {/* Right controls: Add Tab Button with Safe Non-Clipped Dropdown */}
-      <div className="relative shrink-0 flex items-center gap-2" ref={addMenuRef}>
+      <div className="relative shrink-0 flex items-center" ref={addMenuRef}>
         <button
           type="button"
           onClick={() => setShowAddMenu(!showAddMenu)}
@@ -236,12 +236,6 @@ export default function TabsBar({
             </button>
           </div>
         )}
-
-        {/* Right helper text */}
-        <div className="hidden xl:flex items-center gap-1.5 text-[11px] text-slate-500 font-bangla pl-2 border-l border-slate-200">
-          <Sparkles className="w-3 h-3 text-emerald-600" />
-          <span>ডাবল ক্লিক করে নাম পরিবর্তন করুন</span>
-        </div>
       </div>
 
     </div>

@@ -349,11 +349,7 @@ export default function TextCodeEditor({
           }}
           onKeyUp={updateCursorPos}
           onScroll={handleScroll}
-          placeholder={
-            phoneticActive
-              ? "বাংলিশ ফোনেটিক চালু আছে... আপনার কীবোর্ড পরিবর্তন না করেই সরাসরি ইংরেজিতে টাইপ করুন (যেমন: 'amra' লিখলেই সরাসরি 'আমরা' হয়ে যাবে)..."
-              : "এখানে আপনার টেক্সট বা কোড লিখুন..."
-          }
+          placeholder={phoneticActive ? "এখানে লিখুন..." : "Write here..."}
           className={`flex-1 w-full h-full p-4 sm:p-5 bg-white text-slate-900 outline-none resize-none leading-relaxed transition-all placeholder:text-slate-400 ${
             wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto'
           }`}

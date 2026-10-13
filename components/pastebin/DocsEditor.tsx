@@ -176,9 +176,69 @@ export default function DocsEditor({
     };
   }, []);
 
-  const execFormat = (command: string, value: string = '') => {
-    document.execCommand(command, false, value);
+  const isSelectionHighlighted = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return false;
+
+    const cmdVal = document.queryCommandValue('hiliteColor') || document.queryCommandValue('backColor');
+    if (cmdVal && cmdVal !== 'transparent' && cmdVal !== 'rgba(0, 0, 0, 0)' && cmdVal !== 'rgb(255, 255, 255)') {
+      return true;
+    }
+
+    let node: Node | null = selection.anchorNode;
+    while (node && node !== editorRef.current) {
+      if (node instanceof HTMLElement) {
+        const bg = window.getComputedStyle(node).backgroundColor;
+        if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'rgb(255, 255, 255)') {
+          return true;
+        }
+      }
+      node = node.parentNode;
+    }
+    return false;
+  };
+
+  const toggleHighlight = (color: string = '#fef08a') => {
+    const isHigh = isSelectionHighlighted();
+    if (isHigh || color === 'transparent') {
+      // Unhighlight cleanly
+      document.execCommand('hiliteColor', false, 'transparent');
+      document.execCommand('backColor', false, 'transparent');
+
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && editorRef.current) {
+        const spans = editorRef.current.querySelectorAll('span, mark');
+        spans.forEach((el) => {
+          if (sel.containsNode(el, true)) {
+            (el as HTMLElement).style.backgroundColor = '';
+            if (el.tagName.toLowerCase() === 'mark') {
+              const parent = el.parentNode;
+              while (el.firstChild) parent?.insertBefore(el.firstChild, el);
+              parent?.removeChild(el);
+            }
+          }
+        });
+      }
+    } else {
+      document.execCommand('hiliteColor', false, color);
+    }
     handleInput();
+  };
+
+  const execFormat = (command: string, value: string = '') => {
+    if (command === 'toggleHighlight') {
+      toggleHighlight(value || '#fef08a');
+    } else if (command === 'hiliteColor') {
+      if (value === 'transparent') {
+        toggleHighlight('transparent');
+      } else {
+        document.execCommand('hiliteColor', false, value);
+        handleInput();
+      }
+    } else {
+      document.execCommand(command, false, value);
+      handleInput();
+    }
   };
 
   // Translate selected text into target language
@@ -341,7 +401,7 @@ export default function DocsEditor({
 
   return (
     <div 
-      className="relative flex-1 w-full min-h-[550px] sm:min-h-[620px] bg-slate-50/50 rounded-b-2xl border-x border-b border-slate-200/90 p-4 sm:p-8 pb-32 flex justify-center overflow-y-auto"
+      className="relative flex-1 w-full min-h-[550px] sm:min-h-[620px] bg-slate-50/50 rounded-b-2xl border-x border-b border-slate-200/90 p-2.5 sm:p-6 lg:p-8 pb-32 flex justify-center overflow-y-auto"
       onContextMenu={handleContextMenu}
     >
       {/* Floating Selection Toolbar */}
@@ -350,7 +410,7 @@ export default function DocsEditor({
           ref={floatingToolbarRef}
           onMouseEnter={() => { isInteractingWithToolbarRef.current = true; }}
           onMouseLeave={() => { isInteractingWithToolbarRef.current = false; }}
-          className="fixed z-50 flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 shadow-2xl shadow-slate-900/15 animate-in fade-in zoom-in-95 duration-150"
+          className="fixed z-50 flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200 shadow-2xl shadow-slate-900/15 animate-in fade-in zoom-in-95 duration-150 max-w-[calc(100vw-24px)] overflow-x-auto"
           style={{ top: `${floatingToolbar.y}px`, left: `${floatingToolbar.x}px` }}
         >
           <button
@@ -379,9 +439,9 @@ export default function DocsEditor({
           </button>
           <button
             type="button"
-            onClick={() => execFormat('hiliteColor', '#fef08a')}
+            onClick={() => toggleHighlight('#fef08a')}
             className="p-1.5 hover:bg-slate-100 text-amber-500 rounded-lg cursor-pointer"
-            title="হাইলাইটার (Highlighter)"
+            title="হাইলাইটার / আনহাইলাইটার (Toggle Highlight)"
           >
             <Highlighter className="w-3.5 h-3.5" />
           </button>
@@ -517,14 +577,15 @@ export default function DocsEditor({
       )}
 
       {/* Main Document Paper Canvas */}
-      <div className="w-full max-w-4xl bg-white rounded-2xl border border-slate-200/90 p-6 sm:p-12 shadow-sm min-h-[600px] flex flex-col">
+      <div className="w-full max-w-4xl bg-white rounded-2xl border border-slate-200/90 p-4 sm:p-8 lg:p-12 shadow-sm min-h-[600px] flex flex-col">
         <div
           ref={editorRef}
           contentEditable
           suppressContentEditableWarning
           onInput={handleInput}
           onKeyDown={handleKeyDown}
-          className="prose max-w-none flex-1 outline-none text-slate-900 selection:bg-emerald-100 selection:text-emerald-900"
+          data-placeholder={phoneticActive ? "এখানে লিখুন..." : "Write here..."}
+          className="prose max-w-none flex-1 outline-none text-slate-900 selection:bg-emerald-100 selection:text-emerald-900 empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none"
           style={{
             fontFamily: getFontFamilyStyle(),
             fontSize: `${fontSize}px`,

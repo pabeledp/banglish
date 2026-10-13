@@ -8,7 +8,6 @@ import TextCodeEditor from '@/components/pastebin/TextCodeEditor';
 import DocsEditor from '@/components/pastebin/DocsEditor';
 import SheetEditor from '@/components/pastebin/SheetEditor';
 import FloatingActions from '@/components/pastebin/FloatingActions';
-import ExportModal from '@/components/pastebin/ExportModal';
 import ClearConfirmModal from '@/components/pastebin/ClearConfirmModal';
 import HyperlinkModal from '@/components/pastebin/HyperlinkModal';
 import Toast from '@/components/pastebin/Toast';
@@ -16,7 +15,7 @@ import { usePastebinStorage } from '@/hooks/usePastebinStorage';
 import { translateContent } from '@/lib/translatorService';
 import { transliterateText } from '@/lib/phoneticEngine';
 import { FontFamilyOption, WorkspaceMode } from '@/lib/pastebinTypes';
-import { Clock, AlignLeft, ShieldCheck } from 'lucide-react';
+import { Clock, AlignLeft } from 'lucide-react';
 
 export default function PastebinPage() {
   const {
@@ -37,7 +36,7 @@ export default function PastebinPage() {
   const [showLineNumbers, setShowLineNumbers] = useState(true);
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   const [activeCellCoord, setActiveCellCoord] = useState('A1');
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [selectedCellRange, setSelectedCellRange] = useState<string[]>(['A1']);
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [initialLinkText, setInitialLinkText] = useState('');
@@ -255,7 +254,25 @@ export default function PastebinPage() {
 
   // Docs command handler
   const handleDocFormat = (command: string, value: string = '') => {
-    document.execCommand(command, false, value);
+    if (command === 'toggleHighlight') {
+      const cmdVal = document.queryCommandValue('hiliteColor') || document.queryCommandValue('backColor');
+      const isHigh = Boolean(cmdVal && cmdVal !== 'transparent' && cmdVal !== 'rgba(0, 0, 0, 0)' && cmdVal !== 'rgb(255, 255, 255)');
+      if (isHigh) {
+        document.execCommand('hiliteColor', false, 'transparent');
+        document.execCommand('backColor', false, 'transparent');
+      } else {
+        document.execCommand('hiliteColor', false, value || '#fef08a');
+      }
+    } else if (command === 'hiliteColor') {
+      if (value === 'transparent') {
+        document.execCommand('hiliteColor', false, 'transparent');
+        document.execCommand('backColor', false, 'transparent');
+      } else {
+        document.execCommand('hiliteColor', false, value);
+      }
+    } else {
+      document.execCommand(command, false, value);
+    }
   };
 
   // Insert image placeholder
@@ -345,28 +362,30 @@ export default function PastebinPage() {
     val?: string
   ) => {
     if (!activeTab?.sheetData) return;
-    const currentStyle = activeTab.sheetData.styles[activeCellCoord] || {};
-    let newStyle = { ...currentStyle };
+    const targetCells = selectedCellRange.length > 0 ? selectedCellRange : [activeCellCoord];
+    const newStyles = { ...activeTab.sheetData.styles };
 
-    if (prop === 'bold') newStyle.bold = !currentStyle.bold;
-    if (prop === 'italic') newStyle.italic = !currentStyle.italic;
-    if (prop === 'align' && (val === 'left' || val === 'center' || val === 'right')) {
-      newStyle.align = val;
-    }
-    if (prop === 'color') {
-      newStyle.color = val === 'transparent' ? undefined : val;
-    }
-    if (prop === 'bg') {
-      newStyle.bg = val === 'transparent' ? undefined : val;
+    for (const cell of targetCells) {
+      const currentStyle = newStyles[cell] || {};
+      let next = { ...currentStyle };
+      if (prop === 'bold') next.bold = !currentStyle.bold;
+      if (prop === 'italic') next.italic = !currentStyle.italic;
+      if (prop === 'align' && (val === 'left' || val === 'center' || val === 'right')) {
+        next.align = val;
+      }
+      if (prop === 'color') {
+        next.color = val === 'transparent' ? undefined : val;
+      }
+      if (prop === 'bg') {
+        next.bg = val === 'transparent' ? undefined : val;
+      }
+      newStyles[cell] = next;
     }
 
     updateActiveTab({
       sheetData: {
         ...activeTab.sheetData,
-        styles: {
-          ...activeTab.sheetData.styles,
-          [activeCellCoord]: newStyle,
-        },
+        styles: newStyles,
       },
     });
   };
@@ -403,12 +422,11 @@ export default function PastebinPage() {
         onTogglePhonetic={togglePhonetic}
         saveStatus={saveStatus}
         lastSavedAt={state.lastSavedAt}
-        onOpenExportModal={() => setIsExportModalOpen(true)}
         onAddNewNote={() => addTab('text')}
       />
 
       {/* Workspace Container */}
-      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-7 flex flex-col">
+      <main className="relative z-10 flex-1 max-w-7xl w-full mx-auto px-2 sm:px-6 lg:px-8 py-3 sm:py-6 flex flex-col">
         
         {/* White Glass Container Card (Mac Simulator Style) */}
         <div className="flex-1 flex flex-col rounded-2xl sm:rounded-3xl bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-2xl shadow-emerald-950/10 overflow-hidden">
@@ -502,7 +520,10 @@ export default function PastebinPage() {
                 font={activeTab.font}
                 fontSize={activeTab.fontSize}
                 phoneticActive={state.phoneticActive}
-                onActiveCellChange={(coord) => setActiveCellCoord(coord)}
+                onActiveCellChange={(coord, range) => {
+                  setActiveCellCoord(coord);
+                  setSelectedCellRange(range && range.length > 0 ? range : [coord]);
+                }}
               />
             )}
           </div>
@@ -535,17 +556,6 @@ export default function PastebinPage() {
               )}
             </div>
 
-            {/* Right Status */}
-            <div className="flex items-center gap-3">
-              <span className="text-[11px] text-slate-500 font-bangla hidden md:inline">
-                স্বয়ংক্রিয়ভাবে লোকাল স্টোরেজে সংরক্ষিত
-              </span>
-              <div className="flex items-center gap-1 text-emerald-700 font-medium text-[11px]">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Active Auto-Sync</span>
-              </div>
-            </div>
-
           </footer>
 
         </div>
@@ -557,17 +567,8 @@ export default function PastebinPage() {
         onTranslate={handleTranslate}
         isTranslating={isTranslating}
         onCopyContent={handleCopyContent}
-        onOpenExportModal={() => setIsExportModalOpen(true)}
         onOpenClearModal={() => setIsClearModalOpen(true)}
         copied={copied}
-      />
-
-      {/* Modals & Toast */}
-      <ExportModal
-        isOpen={isExportModalOpen}
-        onClose={() => setIsExportModalOpen(false)}
-        activeTab={activeTab}
-        onNotify={showToast}
       />
 
       <ClearConfirmModal

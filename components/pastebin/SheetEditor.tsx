@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { SheetData, FontFamilyOption } from '@/lib/pastebinTypes';
 import { Download, Plus } from 'lucide-react';
 import { transliterateText, transliterateWord } from '@/lib/phoneticEngine';
@@ -11,7 +11,7 @@ interface SheetEditorProps {
   font: FontFamilyOption;
   fontSize: number;
   phoneticActive: boolean;
-  onActiveCellChange?: (cellCoord: string) => void;
+  onActiveCellChange?: (cellCoord: string, selectedRange?: string[]) => void;
 }
 
 export default function SheetEditor({
@@ -23,6 +23,8 @@ export default function SheetEditor({
   onActiveCellChange,
 }: SheetEditorProps) {
   const [selectedCell, setSelectedCell] = useState<string>('A1');
+  const [selectionRange, setSelectionRange] = useState<{ start: string; end: string }>({ start: 'A1', end: 'A1' });
+  const isDraggingRef = useRef(false);
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
 
@@ -141,9 +143,37 @@ export default function SheetEditor({
     return cells;
   };
 
-  const handleCellClick = (cellCoord: string) => {
+  const selectedCellsSet = useMemo(() => {
+    return new Set(getRangeCells(selectionRange.start, selectionRange.end));
+  }, [selectionRange, colHeaders]);
+
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      if (isDraggingRef.current) {
+        isDraggingRef.current = false;
+        if (onActiveCellChange) {
+          const cells = getRangeCells(selectionRange.start, selectionRange.end);
+          onActiveCellChange(selectedCell, cells);
+        }
+      }
+    };
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, [selectionRange, selectedCell, onActiveCellChange]);
+
+  const handleCellMouseDown = (cellCoord: string, e: React.MouseEvent) => {
+    if (editingCell) return;
+    if (e.button !== 0) return;
+    isDraggingRef.current = true;
     setSelectedCell(cellCoord);
-    onActiveCellChange?.(cellCoord);
+    setSelectionRange({ start: cellCoord, end: cellCoord });
+    onActiveCellChange?.(cellCoord, [cellCoord]);
+  };
+
+  const handleCellMouseEnter = (cellCoord: string) => {
+    if (isDraggingRef.current && !editingCell) {
+      setSelectionRange(prev => ({ ...prev, end: cellCoord }));
+    }
   };
 
   const handleCellDoubleClick = (cellCoord: string) => {
@@ -282,17 +312,23 @@ export default function SheetEditor({
                     const cellKey = `${col}${rowNum}`;
                     const rawVal = sheetData.cells[cellKey] || '';
                     const displayVal = evaluateCell(cellKey, rawVal);
-                    const isSelected = selectedCell === cellKey;
+                    const isAnchorSelected = selectedCell === cellKey;
+                    const isInRange = selectedCellsSet.has(cellKey);
                     const isEditing = editingCell === cellKey;
                     const style = sheetData.styles[cellKey] || {};
 
                     return (
                       <td
                         key={cellKey}
-                        onClick={() => handleCellClick(cellKey)}
+                        onMouseDown={(e) => handleCellMouseDown(cellKey, e)}
+                        onMouseEnter={() => handleCellMouseEnter(cellKey)}
                         onDoubleClick={() => handleCellDoubleClick(cellKey)}
-                        className={`p-0 border-r border-slate-200 relative cursor-cell transition-colors min-w-[120px] align-top ${
-                          isSelected ? 'ring-2 ring-emerald-500 bg-emerald-50/40 z-10' : ''
+                        className={`p-0 border-r border-slate-200 relative cursor-cell transition-colors min-w-[100px] sm:min-w-[120px] align-top select-none ${
+                          isAnchorSelected
+                            ? 'ring-2 ring-emerald-500 bg-emerald-50/60 z-20'
+                            : isInRange
+                            ? 'bg-emerald-100/50 ring-1 ring-inset ring-emerald-400/70 z-10'
+                            : ''
                         }`}
                         style={{
                           backgroundColor: style.bg || undefined,
@@ -391,7 +427,7 @@ export default function SheetEditor({
                           />
                         ) : (
                           <div
-                            className="px-2 py-1.5 min-h-[36px] break-words whitespace-pre-wrap text-slate-800 select-text leading-relaxed"
+                            className="px-2 py-1.5 min-h-[36px] break-words whitespace-pre-wrap text-slate-800 select-none leading-relaxed"
                             style={{
                               fontFamily: getFontFamilyStyle(),
                               fontSize: `${fontSize}px`,

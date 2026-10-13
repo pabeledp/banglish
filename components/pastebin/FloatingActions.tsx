@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Copy, 
-  Download, 
   Trash2, 
   Check, 
   Globe, 
@@ -16,7 +15,6 @@ interface FloatingActionsProps {
   onTranslate: (targetLangCode: string) => void;
   isTranslating?: boolean;
   onCopyContent: () => void;
-  onOpenExportModal: () => void;
   onOpenClearModal: () => void;
   copied: boolean;
 }
@@ -25,7 +23,6 @@ export default function FloatingActions({
   onTranslate,
   isTranslating = false,
   onCopyContent,
-  onOpenExportModal,
   onOpenClearModal,
   copied,
 }: FloatingActionsProps) {
@@ -53,7 +50,7 @@ export default function FloatingActions({
   const selectedLangObj = TARGET_LANGUAGES.find(l => l.code === targetLang) || TARGET_LANGUAGES[0];
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl shadow-slate-900/10 select-none animate-in slide-in-from-bottom-6 duration-200">
+    <div className="fixed bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-2xl bg-white/95 backdrop-blur-2xl border border-slate-200/90 shadow-2xl shadow-slate-900/10 select-none animate-in slide-in-from-bottom-6 duration-200 max-w-[calc(100vw-16px)]">
       
       {/* 1. Universal "Translate to" Action with Clean Dropdown */}
       <div className="relative" ref={langPickerRef}>
@@ -138,18 +135,7 @@ export default function FloatingActions({
         )}
       </button>
 
-      {/* 3. Download / Export Modal Trigger */}
-      <button
-        type="button"
-        onClick={onOpenExportModal}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-xs font-medium transition-all cursor-pointer font-bangla"
-        title="ফাইল ডাউনলোড ও এক্সপোর্ট"
-      >
-        <Download className="w-3.5 h-3.5 text-emerald-600" />
-        <span className="hidden sm:inline">এক্সপোর্ট</span>
-      </button>
-
-      {/* 4. Clear Canvas Button */}
+      {/* 3. Clear Canvas Button */}
       <button
         type="button"
         onClick={onOpenClearModal}

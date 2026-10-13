@@ -32,7 +32,8 @@ import {
   Hash, 
   Highlighter,
   PaintBucket,
-  Baseline
+  Baseline,
+  ChevronDown
 } from 'lucide-react';
 
 interface PastebinToolbarProps {
@@ -164,10 +165,10 @@ export default function PastebinToolbar({
   ];
 
   return (
-    <div className="w-full bg-slate-50/90 border-b border-slate-200/90 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2.5 text-slate-700 text-xs relative z-20">
+    <div className="w-full bg-slate-50/90 border-b border-slate-200/90 px-2.5 sm:px-6 py-2 flex items-center justify-between gap-2 text-slate-700 text-xs relative z-20 overflow-x-auto scrollbar-none">
       
       {/* Left Formatting Controls */}
-      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         
         {/* Font Family Picker */}
         <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 shadow-2xs">
@@ -350,15 +351,23 @@ export default function PastebinToolbar({
                 <Strikethrough className="w-3.5 h-3.5" />
               </button>
 
-              {/* Text Highlighter Button */}
-              <div className="relative" ref={highlightMenuRef}>
+              {/* Text Highlighter Button with 1-Click Toggle & Dropdown */}
+              <div className="relative flex items-center" ref={highlightMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => onDocFormat?.('toggleHighlight', '#fef08a')}
+                  className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-l cursor-pointer"
+                  title="টেক্সট হাইলাইট / আনহাইলাইট করুন (Toggle Highlight)"
+                >
+                  <Highlighter className="w-3.5 h-3.5 text-amber-500" />
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowHighlightMenu(!showHighlightMenu)}
-                  className="p-1.5 hover:bg-slate-100 text-slate-700 rounded flex items-center gap-0.5"
-                  title="টেক্সট হাইলাইটার (Highlighter)"
+                  className="p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-r border-l border-slate-200 cursor-pointer"
+                  title="হাইলাইটার রং নির্বাচন"
                 >
-                  <Highlighter className="w-3.5 h-3.5 text-amber-500" />
+                  <ChevronDown className="w-2.5 h-2.5" />
                 </button>
 
                 {showHighlightMenu && (
@@ -374,7 +383,7 @@ export default function PastebinToolbar({
                           onDocFormat?.('hiliteColor', hc.color);
                           setShowHighlightMenu(false);
                         }}
-                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-xs text-slate-700 text-left transition-colors font-bangla"
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-100 text-xs text-slate-700 text-left transition-colors font-bangla cursor-pointer"
                       >
                         <span className={`w-3.5 h-3.5 rounded-full ${hc.bgClass}`} />
                         <span>{hc.name}</span>
