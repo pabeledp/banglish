@@ -13,7 +13,10 @@ module.exports = {
       fontFamily: {
         bangla: ['"Hind Siliguri"', 'sans-serif'],
         sans: ['"Plus Jakarta Sans"', '"Hind Siliguri"', 'sans-serif'],
+        poppins: ['"Poppins"', '"Plus Jakarta Sans"', 'sans-serif'],
+        inter: ['"Inter"', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'monospace'],
+        fira: ['"Fira Code"', '"JetBrains Mono"', 'monospace'],
         arabic: ['"Amiri"', '"Noto Sans Arabic"', 'serif'],
       },
       colors: {
