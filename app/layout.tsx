@@ -35,14 +35,28 @@ export const metadata: Metadata = {
     siteName: 'Banglish',
     images: [
       {
-        url: '/assets/banglish-og-preview.png',
-        width: 1200,
-        height: 630,
-        alt: 'Banglish — Best Avro Alternative',
+        url: 'https://banglish.bd/assets/banglish-og-preview.png',
+        width: 1024,
+        height: 390,
+        type: 'image/png',
+        alt: 'Banglish — macOS ও Windows-এর জন্য দ্রুততম, নিখুঁত ও সম্পূর্ণ ফ্রি বাংলা টাইপিং সফটওয়্যার',
+      },
+      {
+        url: 'https://banglish.bd/assets/banglish-og-preview.webp',
+        width: 1024,
+        height: 390,
+        type: 'image/webp',
+        alt: 'Banglish — macOS ও Windows-এর জন্য দ্রুততম, নিখুঁত ও সম্পূর্ণ ফ্রি বাংলা টাইপিং সফটওয়্যার',
       },
     ],
     locale: 'bn_BD',
     type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Banglish — Best Avro & iAvro Alternative for macOS & Windows',
+    description: 'Download Banglish, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard with Tri-lingual Dictionary.',
+    images: ['https://banglish.bd/assets/banglish-og-preview.png'],
   },
   icons: {
     icon: [
