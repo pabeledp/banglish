@@ -12,7 +12,7 @@ import {
   downloadBlobAsFile,
   copyBlobToClipboard
 } from '@/lib/stickerEngine';
-import { BANGLA_FONTS, BanglaFontOption, loadCustomFontFile } from '@/lib/cardFonts';
+import { BANGLA_FONTS, ALL_FONTS, BanglaFontOption, loadCustomFontFile } from '@/lib/cardFonts';
 import RgbColorPicker from '@/components/RgbColorPicker';
 import CandidatePopup from '@/components/CandidatePopup';
 import { getPhoneticCandidates } from '@/lib/banglishDictionary';
@@ -132,8 +132,13 @@ export default function TextToPNGConverterPage() {
   const [isQualityDropdownOpen, setIsQualityDropdownOpen] = useState(false);
   const qualityDropdownRef = useRef<HTMLDivElement | null>(null);
 
-  // Custom Font upload
-  const [availableFonts, setAvailableFonts] = useState<BanglaFontOption[]>(BANGLA_FONTS);
+  // Custom & Standard Fonts (Bangla + Arabic Calligraphy & Quranic)
+  const [availableFonts, setAvailableFonts] = useState<BanglaFontOption[]>(ALL_FONTS);
+
+  // Text Canvas Drag Position State
+  const [textOffset, setTextOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDraggingText, setIsDraggingText] = useState(false);
+  const dragStartRef = useRef<{ clientX: number; clientY: number; initialOffsetX: number; initialOffsetY: number } | null>(null);
 
   // Phonetic typing state
   const [isPhoneticActive, setIsPhoneticActive] = useState(true);
@@ -229,6 +234,56 @@ export default function TextToPNGConverterPage() {
       localStorage.setItem('banglish_sticker_logo_op', op.toString());
     } catch {}
   };
+
+  // --- Text Dragging Logic on Canvas Preview ---
+  const handleStartDrag = (clientX: number, clientY: number) => {
+    dragStartRef.current = {
+      clientX,
+      clientY,
+      initialOffsetX: textOffset.x,
+      initialOffsetY: textOffset.y
+    };
+    setIsDraggingText(true);
+  };
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent | TouchEvent) => {
+      if (!dragStartRef.current || !previewCanvasRef.current) return;
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+      const rect = previewCanvasRef.current.getBoundingClientRect();
+      const canvas = previewCanvasRef.current;
+      const scaleFactor = rect.width > 0 ? (canvas.width / rect.width) : 1;
+
+      const deltaX = (clientX - dragStartRef.current.clientX) * scaleFactor;
+      const deltaY = (clientY - dragStartRef.current.clientY) * scaleFactor;
+
+      setTextOffset({
+        x: Math.round(dragStartRef.current.initialOffsetX + deltaX),
+        y: Math.round(dragStartRef.current.initialOffsetY + deltaY)
+      });
+    };
+
+    const handleEnd = () => {
+      if (dragStartRef.current) {
+        dragStartRef.current = null;
+        setIsDraggingText(false);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleEnd);
+    };
+  }, [textOffset]);
 
   // Refs
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -357,6 +412,8 @@ export default function TextToPNGConverterPage() {
       lineGap,
       lineGaps,
       letterSpacing: globalLetterSpacing,
+      textOffsetX: textOffset.x,
+      textOffsetY: textOffset.y,
       logo: logoImageEl ? {
         image: logoImageEl,
         position: logoPosition,
@@ -377,6 +434,7 @@ export default function TextToPNGConverterPage() {
     lineGap,
     lineGaps,
     globalLetterSpacing,
+    textOffset,
     logoImageEl,
     logoPosition,
     logoSize,
@@ -705,6 +763,8 @@ export default function TextToPNGConverterPage() {
         lineGap,
         lineGaps,
         letterSpacing: globalLetterSpacing,
+        textOffsetX: textOffset.x,
+        textOffsetY: textOffset.y,
         logo: logoImageEl ? {
           image: logoImageEl,
           position: logoPosition,
@@ -746,6 +806,8 @@ export default function TextToPNGConverterPage() {
         lineGap,
         lineGaps,
         letterSpacing: globalLetterSpacing,
+        textOffsetX: textOffset.x,
+        textOffsetY: textOffset.y,
         logo: logoImageEl ? {
           image: logoImageEl,
           position: logoPosition,
@@ -823,11 +885,29 @@ export default function TextToPNGConverterPage() {
               onChange={(e) => applyFormattingToRange(e.target.value)}
               className="w-full bg-slate-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
             >
-              {availableFonts.map((f) => (
-                <option key={f.id} value={f.family}>
-                  {f.bnName} ({f.name})
-                </option>
-              ))}
+              <optgroup label="বাংলা ফন্ট (Bangla Fonts)">
+                {availableFonts.filter(f => f.script === 'bangla').map((f) => (
+                  <option key={f.id} value={f.family}>
+                    {f.bnName} ({f.name})
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="আরবি ও কুরআনিক ফন্ট (Arabic & Quranic)">
+                {availableFonts.filter(f => f.script === 'arabic').map((f) => (
+                  <option key={f.id} value={f.family}>
+                    {f.bnName} ({f.name})
+                  </option>
+                ))}
+              </optgroup>
+              {availableFonts.some(f => f.isCustom) && (
+                <optgroup label="কাস্টম ফন্ট (Custom Uploaded)">
+                  {availableFonts.filter(f => f.isCustom).map((f) => (
+                    <option key={f.id} value={f.family}>
+                      {f.bnName} ({f.name})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
@@ -1030,21 +1110,29 @@ export default function TextToPNGConverterPage() {
       )}
 
       {/* Header */}
-      <header className="border-b border-emerald-100/80 bg-white/80 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-3">
+      <header className="border-b border-emerald-100/80 bg-white/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-8 py-3 flex items-center justify-between shadow-xs">
+        <div className="flex items-center gap-3 sm:gap-4">
           <Link
             href="/"
-            className="flex items-center gap-2 text-slate-600 hover:text-emerald-700 transition-colors text-xs font-semibold"
+            className="flex items-center gap-2.5 sm:gap-3 group focus:outline-none focus:ring-2 focus:ring-emerald-500/20 rounded-xl p-1"
+            title="Banglish হোমপেজে যান"
           >
-            <span className="p-1 rounded-lg bg-emerald-50 border border-emerald-200/60 text-emerald-800">←</span>
-            <span>হোমে ফিরুন</span>
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100/80 p-1.5 flex items-center justify-center border border-emerald-200/60 shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:rotate-1">
+              <img src="/assets/banglish-logo-192.png" alt="Banglish Logo" className="w-full h-full object-contain" />
+            </div>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1">
+                <span className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-sans">Banglish</span>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              </div>
+              <span className="text-[11px] font-medium text-emerald-700 tracking-wider font-bangla -mt-1">বাংলায় লিখি বিজয়ের সুর</span>
+            </div>
           </Link>
-          <span className="text-slate-300">|</span>
-          <div className="flex items-center gap-2">
-            <span className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 font-sans flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-400"></span>
-              TextToPNGConverter
-            </span>
+
+          <span className="text-slate-300 hidden md:inline">|</span>
+          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/60 text-emerald-800 text-xs font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            TextToPNGConverter
           </div>
         </div>
 
@@ -1248,8 +1336,8 @@ export default function TextToPNGConverterPage() {
               <span>ব্যাকগ্রাউন্ড থিম নির্বাচন করুন (Background)</span>
             </h3>
 
-            {/* The 3 Background Options */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* The 4 Background Options */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {/* Option 1: Transparent */}
               <button
                 type="button"
@@ -1292,11 +1380,11 @@ export default function TextToPNGConverterPage() {
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900">ব্যাংলিশ থিম কার্ড</span>
+                    <span className="text-sm font-bold text-slate-900">ব্যাংলিশ থিম</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">1:1 Square</span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    লো-ট্রান্সপারেন্সি গ্রিড, ওয়াটারমার্ক ও ড্রপলেট সহ সিগনেচার থিম
+                    লো-ট্রান্সপারেন্সি গ্রিড ও বাংলা অক্ষরের ওয়াটারমার্ক সিগনেচার
                   </p>
                 </div>
                 <div className="mt-3 w-full h-8 rounded-lg bg-gradient-to-br from-[#f9fdfa] via-white to-[#f2faf5] border border-emerald-200 relative overflow-hidden flex items-center justify-center">
@@ -1304,7 +1392,35 @@ export default function TextToPNGConverterPage() {
                 </div>
               </button>
 
-              {/* Option 3: Dark Aurora Glass */}
+              {/* Option 3: Islamic Quote (1:1 Mosque & Minaret) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setBgTheme('islamic-quote');
+                  setStrokeWidth(0);
+                  setGlobalColor('#1e293b');
+                }}
+                className={`p-3.5 rounded-2xl text-left border-2 transition-all flex flex-col justify-between ${
+                  bgTheme === 'islamic-quote'
+                    ? 'border-emerald-500 bg-emerald-50/50 shadow-md ring-2 ring-emerald-500/20'
+                    : 'border-slate-200 bg-white hover:border-emerald-200'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-900">ইসলামিক কোট</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold">1:1 Quote</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    মসজিদের মিনার ও গম্বুজ ব্যাকগ্রাউন্ড (কুরআনিক আয়াত ও বাণী)
+                  </p>
+                </div>
+                <div className="mt-3 w-full h-8 rounded-lg border border-amber-200 relative overflow-hidden flex items-center justify-center bg-[#faf7f2]">
+                  <img src="/assets/islamic-quote-bg.webp" alt="Islamic BG" className="w-full h-full object-cover object-bottom" />
+                </div>
+              </button>
+
+              {/* Option 4: Dark Aurora Glass */}
               <button
                 type="button"
                 onClick={() => {
@@ -1320,7 +1436,7 @@ export default function TextToPNGConverterPage() {
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900">ডার্ক অরোরা গ্লাস</span>
+                    <span className="text-sm font-bold text-slate-900">ডার্ক অরোরা</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-900 text-emerald-400 font-mono">1:1 Dark</span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
@@ -1349,11 +1465,29 @@ export default function TextToPNGConverterPage() {
                     }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                   >
-                    {availableFonts.map((f) => (
-                      <option key={f.id} value={f.family}>
-                        {f.bnName} ({f.name})
-                      </option>
-                    ))}
+                    <optgroup label="বাংলা ফন্ট (Bangla Fonts)">
+                      {availableFonts.filter(f => f.script === 'bangla').map((f) => (
+                        <option key={f.id} value={f.family}>
+                          {f.bnName} ({f.name})
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="আরবি ও কুরআনিক ফন্ট (Arabic & Quranic)">
+                      {availableFonts.filter(f => f.script === 'arabic').map((f) => (
+                        <option key={f.id} value={f.family}>
+                          {f.bnName} ({f.name})
+                        </option>
+                      ))}
+                    </optgroup>
+                    {availableFonts.some(f => f.isCustom) && (
+                      <optgroup label="কাস্টম ফন্ট (Custom Uploaded)">
+                        {availableFonts.filter(f => f.isCustom).map((f) => (
+                          <option key={f.id} value={f.family}>
+                            {f.bnName} ({f.name})
+                          </option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
 
@@ -1537,9 +1671,6 @@ export default function TextToPNGConverterPage() {
                   ব্র্যান্ড লোগো যোগ করুন (Custom Logo)
                 </h3>
               </div>
-              <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                ডিভাইস ক্যাশে সেভ থাকবে
-              </span>
             </div>
 
             <input
@@ -1563,9 +1694,6 @@ export default function TextToPNGConverterPage() {
                 <p className="text-xs font-semibold text-slate-700">
                   এখানে ক্লিক করে লোগো আপলোড করুন (PNG / SVG / JPG)
                 </p>
-                <p className="text-[11px] text-slate-400">
-                  স্বয়ংক্রিয়ভাবে কার্ডের সেফ এরিয়ার ভেতরে নিখুঁতভাবে বসে যাবে
-                </p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -1581,7 +1709,6 @@ export default function TextToPNGConverterPage() {
                     </div>
                     <div>
                       <div className="text-xs font-bold text-slate-800">লোগো সক্রিয় আছে</div>
-                      <div className="text-[11px] text-emerald-600">ডিভাইস ক্যাশে সংরক্ষিত</div>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1602,30 +1729,22 @@ export default function TextToPNGConverterPage() {
                   </div>
                 </div>
 
-                {/* Corner Position Selectors */}
+                {/* Corner Position Selectors - Dropdown */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-slate-700">লোগোর পজিশন (Safe Area Corner)</label>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                    {[
-                      { pos: 'top-left', label: 'টপ লেফট' },
-                      { pos: 'top-center', label: 'টপ সেন্টার' },
-                      { pos: 'top-right', label: 'টপ রাইট' },
-                      { pos: 'bottom-left', label: 'বটম লেফট' },
-                      { pos: 'bottom-right', label: 'বটম রাইট' },
-                    ].map(({ pos, label }) => (
-                      <button
-                        key={pos}
-                        type="button"
-                        onClick={() => updateLogoPos(pos as LogoPosition)}
-                        className={`py-2 px-2 text-xs font-medium rounded-xl border transition text-center ${
-                          logoPosition === pos
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
-                            : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
+                  <div className="relative">
+                    <select
+                      value={logoPosition}
+                      onChange={(e) => updateLogoPos(e.target.value as LogoPosition)}
+                      className="w-full py-2.5 pl-3 pr-8 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
+                    >
+                      <option value="top-left">টপ লেফট (Top Left)</option>
+                      <option value="top-center">টপ সেন্টার (Top Center)</option>
+                      <option value="top-right">টপ রাইট (Top Right)</option>
+                      <option value="bottom-left">বটম লেফট (Bottom Left)</option>
+                      <option value="bottom-right">বটম রাইট (Bottom Right)</option>
+                    </select>
+                    <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
                 </div>
 
@@ -1678,17 +1797,52 @@ export default function TextToPNGConverterPage() {
                 </span>
               </div>
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                {bgTheme === 'transparent' ? 'ট্রান্সপারেন্ট' : bgTheme === 'banglish-theme' ? 'ব্যাংলিশ থিম (1:1)' : 'ডার্ক অরোরা (1:1)'}
+                {bgTheme === 'transparent'
+                  ? 'ট্রান্সপারেন্ট'
+                  : bgTheme === 'banglish-theme'
+                  ? 'ব্যাংলিশ থিম (1:1)'
+                  : bgTheme === 'islamic-quote'
+                  ? 'ইসলামিক কোট (1:1)'
+                  : 'ডার্ক অরোরা (1:1)'}
               </span>
             </div>
 
-            {/* Canvas Container */}
+            {/* Canvas Container with Direct Mouse/Touch Dragging */}
             <div className="w-full min-h-[320px] max-h-[460px] rounded-2xl overflow-hidden flex items-center justify-center p-3 relative border border-emerald-200/80 shadow-inner bg-[linear-gradient(45deg,#f1f5f9_25%,transparent_25%),linear-gradient(-45deg,#f1f5f9_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f1f5f9_75%),linear-gradient(-45deg,transparent_75%,#f1f5f9_75%)] bg-[size:16px_16px]">
               <canvas
                 ref={previewCanvasRef}
-                className="max-w-full max-h-[420px] object-contain drop-shadow-lg transition-transform rounded-xl"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleStartDrag(e.clientX, e.clientY);
+                }}
+                onTouchStart={(e) => {
+                  if (e.touches.length === 1) {
+                    handleStartDrag(e.touches[0].clientX, e.touches[0].clientY);
+                  }
+                }}
+                className={`max-w-full max-h-[420px] object-contain drop-shadow-lg rounded-xl select-none transition-shadow ${
+                  isDraggingText ? 'cursor-grabbing shadow-2xl scale-[1.01]' : 'cursor-grab hover:shadow-xl'
+                }`}
+                title="মাউস দিয়ে ড্র্যাগ করে টেক্সট যেকোনো পজিশনে বসান"
               />
             </div>
+
+            {/* Drag Position Indicator & Reset */}
+            {(textOffset.x !== 0 || textOffset.y !== 0) && (
+              <div className="flex items-center justify-between text-[11px] px-1 text-slate-500">
+                <span className="flex items-center gap-1.5 text-emerald-800 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  পজিশন: ({textOffset.x > 0 ? `+${textOffset.x}` : textOffset.x}px, {textOffset.y > 0 ? `+${textOffset.y}` : textOffset.y}px)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setTextOffset({ x: 0, y: 0 })}
+                  className="text-xs text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-md font-semibold transition"
+                >
+                  পজিশন রিসেট ↺
+                </button>
+              </div>
+            )}
 
             {/* Bottom Actions Row */}
             <div className="space-y-2.5 pt-2">

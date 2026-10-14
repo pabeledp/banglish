@@ -15,7 +15,7 @@ export interface TextSpan {
   lineGap?: number;
 }
 
-export type BackgroundTheme = 'transparent' | 'banglish-theme' | 'dark-aurora';
+export type BackgroundTheme = 'transparent' | 'banglish-theme' | 'islamic-quote' | 'dark-aurora';
 
 export type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center';
 
@@ -43,6 +43,8 @@ export interface StickerRenderOptions {
   lineGap?: number; // Global fallback line gap adjustment in px (-30 to +60)
   lineGaps?: Record<number, number>; // Line-wise line gap mapping
   letterSpacing?: number; // Global character gap in px (-6 to +30)
+  textOffsetX?: number; // Drag offset X in 1x px
+  textOffsetY?: number; // Drag offset Y in 1x px
   logo?: StickerLogoOptions;
   aspectRatio?: 'auto' | '1:1' | '16:9' | '9:16';
   cardWidth?: number;
@@ -140,6 +142,7 @@ function measureLines(
 }
 
 let cachedThemeImage: HTMLImageElement | null = null;
+let cachedIslamicQuoteImage: HTMLImageElement | null = null;
 
 export function getThemeImage(): HTMLImageElement | null {
   if (typeof window === 'undefined') return null;
@@ -148,6 +151,15 @@ export function getThemeImage(): HTMLImageElement | null {
     cachedThemeImage.src = '/assets/banglish-card-bg.jpg';
   }
   return cachedThemeImage;
+}
+
+export function getIslamicQuoteImage(): HTMLImageElement | null {
+  if (typeof window === 'undefined') return null;
+  if (!cachedIslamicQuoteImage) {
+    cachedIslamicQuoteImage = new Image();
+    cachedIslamicQuoteImage.src = '/assets/islamic-quote-bg.webp';
+  }
+  return cachedIslamicQuoteImage;
 }
 
 /**
@@ -231,6 +243,23 @@ export function drawBackground(
     ctx.stroke();
     ctx.restore();
 
+    return;
+  }
+
+  if (theme === 'islamic-quote') {
+    // Islamic Quote Theme: Beautiful Mosque & Minaret backdrop in 1:1 format
+    const img = getIslamicQuoteImage();
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, 0, 0, width, height);
+    } else {
+      // Soft aesthetic cream gradient fallback while image loads
+      const fallbackGrad = ctx.createLinearGradient(0, 0, width, height);
+      fallbackGrad.addColorStop(0, '#fdfbf7');
+      fallbackGrad.addColorStop(0.6, '#f9f5ed');
+      fallbackGrad.addColorStop(1, '#eee7da');
+      ctx.fillStyle = fallbackGrad;
+      ctx.fillRect(0, 0, width, height);
+    }
     return;
   }
 
@@ -387,11 +416,14 @@ export function renderSticker(
   }
 
   // 4. Calculate vertical start position (vertically centered if card has extra space)
+  const scaledOffsetX = Math.round((options.textOffsetX || 0) * scale);
+  const scaledOffsetY = Math.round((options.textOffsetY || 0) * scale);
+
   const availableContentHeight = canvas.height - scaledPadding * 2;
   let currentY =
-    totalTextHeight < availableContentHeight
+    (totalTextHeight < availableContentHeight
       ? (canvas.height - totalTextHeight) / 2
-      : scaledPadding + scaledStrokeWidth;
+      : scaledPadding + scaledStrokeWidth) + scaledOffsetY;
 
   // 5. Render Pass 1: Die-Cut Stroke / Outline (drawn first so it expands outward)
   if (scaledStrokeWidth > 0) {
@@ -411,12 +443,12 @@ export function renderSticker(
     let pass1Y = currentY;
     for (const mLine of measuredLines) {
       const lineBaselineY = pass1Y + mLine.lineHeight * 0.78;
-      let startX = scaledPadding + scaledStrokeWidth;
+      let startX = scaledPadding + scaledStrokeWidth + scaledOffsetX;
 
       if (align === 'center') {
-        startX = (canvas.width - mLine.totalWidth) / 2;
+        startX = (canvas.width - mLine.totalWidth) / 2 + scaledOffsetX;
       } else if (align === 'right') {
-        startX = canvas.width - scaledPadding - scaledStrokeWidth - mLine.totalWidth;
+        startX = canvas.width - scaledPadding - scaledStrokeWidth - mLine.totalWidth + scaledOffsetX;
       }
 
       let curX = startX;
@@ -458,12 +490,12 @@ export function renderSticker(
   let pass2Y = currentY;
   for (const mLine of measuredLines) {
     const lineBaselineY = pass2Y + mLine.lineHeight * 0.78;
-    let startX = scaledPadding + scaledStrokeWidth;
+    let startX = scaledPadding + scaledStrokeWidth + scaledOffsetX;
 
     if (align === 'center') {
-      startX = (canvas.width - mLine.totalWidth) / 2;
+      startX = (canvas.width - mLine.totalWidth) / 2 + scaledOffsetX;
     } else if (align === 'right') {
-      startX = canvas.width - scaledPadding - scaledStrokeWidth - mLine.totalWidth;
+      startX = canvas.width - scaledPadding - scaledStrokeWidth - mLine.totalWidth + scaledOffsetX;
     }
 
     let curX = startX;
