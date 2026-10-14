@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   TextSpan,
   BackgroundTheme,
+  LogoPosition,
   StickerRenderOptions,
   renderSticker,
   canvasToBlob,
@@ -42,6 +43,27 @@ const AlignRightIcon = () => (
   </svg>
 );
 
+const DownloadIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+const ChevronDownIcon = ({ className = "w-3 h-3" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
+
+const CopyIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+);
+
 interface StyledSegment {
   id: string;
   text: string;
@@ -50,6 +72,7 @@ interface StyledSegment {
   fontWeight: number;
   color: string;
   letterSpacing?: number;
+  lineGap?: number;
 }
 
 type QualityLevel = 'high' | 'medium' | 'low';
@@ -62,6 +85,7 @@ export default function TextToPNGConverterPage() {
   const [globalColor, setGlobalColor] = useState<string>('#0f172a');
   const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
   const [lineGap, setLineGap] = useState<number>(0);
+  const [lineGaps, setLineGaps] = useState<Record<number, number>>({});
   const [globalLetterSpacing, setGlobalLetterSpacing] = useState<number>(0);
 
   // Styled segments (Source of truth)
@@ -77,8 +101,13 @@ export default function TextToPNGConverterPage() {
     }
   ]);
 
-  // True Floating Popup State (position coordinates)
-  const [selectedRange, setSelectedRange] = useState<{ start: number; end: number; text: string } | null>(null);
+  // True Floating Popup State (position coordinates + lineIndex)
+  const [selectedRange, setSelectedRange] = useState<{
+    start: number;
+    end: number;
+    text: string;
+    lineIndex: number;
+  } | null>(null);
   const [floatingPos, setFloatingPos] = useState<{ x: number; y: number }>({ x: 80, y: 120 });
   const [isPopupOpen, setIsPopupOpen] = useState(false);
 
@@ -115,6 +144,91 @@ export default function TextToPNGConverterPage() {
   // Toast & processing
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Logo & Device Cache State (100% stored in local browser cache)
+  const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
+  const [logoImageEl, setLogoImageEl] = useState<HTMLImageElement | null>(null);
+  const [logoPosition, setLogoPosition] = useState<LogoPosition>('top-left');
+  const [logoSize, setLogoSize] = useState<number>(44);
+  const [logoOpacity, setLogoOpacity] = useState<number>(100);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Load cached logo from device storage on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cachedLogo = localStorage.getItem('banglish_sticker_logo');
+        const cachedPos = localStorage.getItem('banglish_sticker_logo_pos') as LogoPosition;
+        const cachedSize = localStorage.getItem('banglish_sticker_logo_size');
+        const cachedOp = localStorage.getItem('banglish_sticker_logo_op');
+        if (cachedLogo) {
+          setLogoDataUrl(cachedLogo);
+          const img = new Image();
+          img.src = cachedLogo;
+          img.onload = () => setLogoImageEl(img);
+        }
+        if (cachedPos) setLogoPosition(cachedPos);
+        if (cachedSize) setLogoSize(parseInt(cachedSize, 10));
+        if (cachedOp) setLogoOpacity(parseInt(cachedOp, 10));
+      } catch (e) {
+        console.error('Error loading logo from device cache', e);
+      }
+    }
+  }, []);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('লোগো ফাইলের সাইজ সর্বোচ্চ 5MB হতে পারবে।');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setLogoDataUrl(result);
+      try {
+        localStorage.setItem('banglish_sticker_logo', result);
+      } catch (err) {
+        console.warn('Could not cache full logo to localStorage', err);
+      }
+      const img = new Image();
+      img.src = result;
+      img.onload = () => setLogoImageEl(img);
+      showToast('🎉 লোগো যুক্ত হয়েছে ও ডিভাইসে সংরক্ষিত হয়েছে!');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoDataUrl(null);
+    setLogoImageEl(null);
+    try {
+      localStorage.removeItem('banglish_sticker_logo');
+    } catch {}
+    showToast('লোগো সরানো হয়েছে');
+  };
+
+  const updateLogoPos = (pos: LogoPosition) => {
+    setLogoPosition(pos);
+    try {
+      localStorage.setItem('banglish_sticker_logo_pos', pos);
+    } catch {}
+  };
+
+  const updateLogoSize = (size: number) => {
+    setLogoSize(size);
+    try {
+      localStorage.setItem('banglish_sticker_logo_size', size.toString());
+    } catch {}
+  };
+
+  const updateLogoOpacity = (op: number) => {
+    setLogoOpacity(op);
+    try {
+      localStorage.setItem('banglish_sticker_logo_op', op.toString());
+    } catch {}
+  };
 
   // Refs
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -208,7 +322,9 @@ export default function TextToPNGConverterPage() {
             fontFamily: seg.fontFamily,
             fontSize: seg.fontSize,
             fontWeight: seg.fontWeight,
-            color: seg.color
+            color: seg.color,
+            letterSpacing: seg.letterSpacing,
+            lineGap: lineGaps[lineIdx] ?? lineGap
           });
         }
       }
@@ -219,7 +335,7 @@ export default function TextToPNGConverterPage() {
     }
 
     return result;
-  }, [plainText, segments]);
+  }, [plainText, segments, lineGaps, lineGap]);
 
   // Render canvas whenever state changes
   useEffect(() => {
@@ -239,11 +355,33 @@ export default function TextToPNGConverterPage() {
       align,
       scale: 1, // 1x preview for fast 60fps
       lineGap,
-      letterSpacing: globalLetterSpacing
+      lineGaps,
+      letterSpacing: globalLetterSpacing,
+      logo: logoImageEl ? {
+        image: logoImageEl,
+        position: logoPosition,
+        size: logoSize,
+        opacity: logoOpacity / 100
+      } : undefined
     };
 
     renderSticker(canvas, options);
-  }, [structuredLines, bgTheme, strokeWidth, strokeColor, shadowBlur, shadowColor, align, lineGap, globalLetterSpacing]);
+  }, [
+    structuredLines,
+    bgTheme,
+    strokeWidth,
+    strokeColor,
+    shadowBlur,
+    shadowColor,
+    align,
+    lineGap,
+    lineGaps,
+    globalLetterSpacing,
+    logoImageEl,
+    logoPosition,
+    logoSize,
+    logoOpacity
+  ]);
 
   // Toast helper
   const showToast = (msg: string) => {
@@ -260,7 +398,11 @@ export default function TextToPNGConverterPage() {
     if (start !== end && start >= 0 && end <= el.value.length) {
       const selectedStr = el.value.slice(start, end).trim();
       if (selectedStr.length > 0) {
-        setSelectedRange({ start, end, text: selectedStr });
+        // Line-wise line index detection
+        const textBeforeSelection = el.value.slice(0, start);
+        const selectedLineIndex = textBeforeSelection.split('\n').length - 1;
+
+        setSelectedRange({ start, end, text: selectedStr, lineIndex: selectedLineIndex });
 
         // Calculate floating position directly near cursor, clamped to viewport
         const popupW = 340;
@@ -561,7 +703,14 @@ export default function TextToPNGConverterPage() {
         align,
         scale: scaleMultiplier,
         lineGap,
-        letterSpacing: globalLetterSpacing
+        lineGaps,
+        letterSpacing: globalLetterSpacing,
+        logo: logoImageEl ? {
+          image: logoImageEl,
+          position: logoPosition,
+          size: logoSize,
+          opacity: logoOpacity / 100
+        } : undefined
       };
       renderSticker(offscreen, options);
 
@@ -595,7 +744,14 @@ export default function TextToPNGConverterPage() {
         align,
         scale: 2, // 1024px HD for clipboard
         lineGap,
-        letterSpacing: globalLetterSpacing
+        lineGaps,
+        letterSpacing: globalLetterSpacing,
+        logo: logoImageEl ? {
+          image: logoImageEl,
+          position: logoPosition,
+          size: logoSize,
+          opacity: logoOpacity / 100
+        } : undefined
       };
       renderSticker(offscreen, options);
 
@@ -811,18 +967,25 @@ export default function TextToPNGConverterPage() {
               </div>
             </div>
 
-            {/* Line Gap */}
+            {/* Line Gap - strictly for THIS selected line */}
             <div className="space-y-1">
               <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                <span>লাইন গ্যাপ</span>
-                <span className="font-mono text-[11px] text-emerald-700">{lineGap}px</span>
+                <span>লাইন গ্যাপ {selectedRange.lineIndex !== undefined ? `(লাইন ${selectedRange.lineIndex + 1})` : ''}</span>
+                <span className="font-mono text-[11px] text-emerald-700">
+                  {selectedRange.lineIndex !== undefined ? (lineGaps[selectedRange.lineIndex] ?? 0) : lineGap}px
+                </span>
               </div>
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setLineGap(prev => Math.max(-30, prev - 2))}
+                  onClick={() => {
+                    const lIdx = selectedRange.lineIndex ?? 0;
+                    const cur = lineGaps[lIdx] ?? 0;
+                    const next = Math.max(-30, cur - 2);
+                    setLineGaps(prev => ({ ...prev, [lIdx]: next }));
+                  }}
                   className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
-                  title="লাইন গ্যাপ কমান"
+                  title="এই লাইনের গ্যাপ কমান"
                 >
                   -
                 </button>
@@ -831,15 +994,24 @@ export default function TextToPNGConverterPage() {
                   min="-30"
                   max="40"
                   step="1"
-                  value={lineGap}
-                  onChange={(e) => setLineGap(parseInt(e.target.value, 10))}
+                  value={selectedRange.lineIndex !== undefined ? (lineGaps[selectedRange.lineIndex] ?? 0) : lineGap}
+                  onChange={(e) => {
+                    const lIdx = selectedRange.lineIndex ?? 0;
+                    const next = parseInt(e.target.value, 10);
+                    setLineGaps(prev => ({ ...prev, [lIdx]: next }));
+                  }}
                   className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
                 />
                 <button
                   type="button"
-                  onClick={() => setLineGap(prev => Math.min(40, prev + 2))}
+                  onClick={() => {
+                    const lIdx = selectedRange.lineIndex ?? 0;
+                    const cur = lineGaps[lIdx] ?? 0;
+                    const next = Math.min(40, cur + 2);
+                    setLineGaps(prev => ({ ...prev, [lIdx]: next }));
+                  }}
                   className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
-                  title="লাইন গ্যাপ বাড়ান"
+                  title="এই লাইনের গ্যাপ বাড়ান"
                 >
                   +
                 </button>
@@ -885,7 +1057,7 @@ export default function TextToPNGConverterPage() {
             disabled={isProcessing}
             className="px-3.5 sm:px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-700 text-xs sm:text-sm font-semibold transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
           >
-            <span>📋</span>
+            <CopyIcon className="w-4 h-4 text-emerald-700" />
             <span>Copy Image</span>
           </button>
 
@@ -897,7 +1069,7 @@ export default function TextToPNGConverterPage() {
               disabled={isProcessing}
               className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm rounded-l-xl transition-all active:scale-95 flex items-center gap-1.5"
             >
-              <span>⬇️</span>
+              <DownloadIcon className="w-4 h-4" />
               <span>Download</span>
             </button>
             <button
@@ -906,7 +1078,7 @@ export default function TextToPNGConverterPage() {
               className="px-2.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs border-l border-emerald-500/40 rounded-r-xl transition-all flex items-center justify-center"
               title="কোয়ালিটি অপশন"
             >
-              <span className="text-[10px]">▼</span>
+              <ChevronDownIcon className="w-3.5 h-3.5" />
             </button>
 
             {/* Quality Dropdown Menu */}
@@ -1355,6 +1527,143 @@ export default function TextToPNGConverterPage() {
               </div>
             </div>
           </div>
+
+          {/* Card 3: Brand Logo (Custom Logo in Safe Area, Device Cached) */}
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-4">
+            <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                <h3 className="text-sm font-bold text-slate-800">
+                  ব্র্যান্ড লোগো যোগ করুন (Custom Logo)
+                </h3>
+              </div>
+              <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                ডিভাইস ক্যাশে সেভ থাকবে
+              </span>
+            </div>
+
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleLogoUpload}
+              className="hidden"
+            />
+
+            {!logoDataUrl ? (
+              <div
+                onClick={() => logoInputRef.current?.click()}
+                className="border-2 border-dashed border-emerald-200 hover:border-emerald-500 rounded-2xl p-6 text-center cursor-pointer transition-colors bg-emerald-50/30 hover:bg-emerald-50/60 flex flex-col items-center justify-center gap-2"
+              >
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <p className="text-xs font-semibold text-slate-700">
+                  এখানে ক্লিক করে লোগো আপলোড করুন (PNG / SVG / JPG)
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  স্বয়ংক্রিয়ভাবে কার্ডের সেফ এরিয়ার ভেতরে নিখুঁতভাবে বসে যাবে
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Uploaded Logo Info & Actions */}
+                <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200/70 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1 overflow-hidden shadow-sm">
+                      <img
+                        src={logoDataUrl}
+                        alt="Logo Preview"
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">লোগো সক্রিয় আছে</div>
+                      <div className="text-[11px] text-emerald-600">ডিভাইস ক্যাশে সংরক্ষিত</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => logoInputRef.current?.click()}
+                      className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-sm transition"
+                    >
+                      পরিবর্তন
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRemoveLogo}
+                      className="px-3 py-1.5 text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition"
+                    >
+                      মুছুন
+                    </button>
+                  </div>
+                </div>
+
+                {/* Corner Position Selectors */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-700">লোগোর পজিশন (Safe Area Corner)</label>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                    {[
+                      { pos: 'top-left', label: 'টপ লেফট' },
+                      { pos: 'top-center', label: 'টপ সেন্টার' },
+                      { pos: 'top-right', label: 'টপ রাইট' },
+                      { pos: 'bottom-left', label: 'বটম লেফট' },
+                      { pos: 'bottom-right', label: 'বটম রাইট' },
+                    ].map(({ pos, label }) => (
+                      <button
+                        key={pos}
+                        type="button"
+                        onClick={() => updateLogoPos(pos as LogoPosition)}
+                        className={`py-2 px-2 text-xs font-medium rounded-xl border transition text-center ${
+                          logoPosition === pos
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20'
+                            : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sliders for Size & Opacity */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-semibold text-slate-700">
+                      <span>লোগোর আকার (Size)</span>
+                      <span className="font-mono text-emerald-700">{logoSize}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="20"
+                      max="140"
+                      value={logoSize}
+                      onChange={(e) => updateLogoSize(parseInt(e.target.value, 10))}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-semibold text-slate-700">
+                      <span>স্বচ্ছতা (Opacity)</span>
+                      <span className="font-mono text-emerald-700">{logoOpacity}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="20"
+                      max="100"
+                      value={logoOpacity}
+                      onChange={(e) => updateLogoOpacity(parseInt(e.target.value, 10))}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Right Column: Sticky Live Preview & Actions (5 Cols) */}
@@ -1392,7 +1701,7 @@ export default function TextToPNGConverterPage() {
                     disabled={isProcessing}
                     className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm rounded-l-2xl transition-all active:scale-98 flex items-center justify-center gap-2"
                   >
-                    <span>⬇️</span>
+                    <DownloadIcon className="w-4 h-4" />
                     <span>Download</span>
                     <span className="text-[10px] font-normal opacity-80 font-mono">
                       ({downloadQuality === 'high' ? '2048px' : downloadQuality === 'low' ? '512px' : '1024px'})
@@ -1404,7 +1713,7 @@ export default function TextToPNGConverterPage() {
                     className="px-3 bg-emerald-700 hover:bg-emerald-600 text-white text-xs border-l border-emerald-500/40 rounded-r-2xl transition-all flex items-center justify-center"
                     title="কোয়ালিটি অপশন"
                   >
-                    <span className="text-[10px]">▼</span>
+                    <ChevronDownIcon className="w-3.5 h-3.5" />
                   </button>
 
                   {/* Quality Dropdown Menu */}
@@ -1460,7 +1769,7 @@ export default function TextToPNGConverterPage() {
                   disabled={isProcessing}
                   className="py-3 px-4 rounded-2xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-800 font-bold text-xs sm:text-sm transition-all active:scale-98 flex items-center justify-center gap-1.5 shadow-xs shrink-0"
                 >
-                  <span>📋</span>
+                  <CopyIcon className="w-4 h-4 text-emerald-700" />
                   <span>Copy Image</span>
                 </button>
               </div>

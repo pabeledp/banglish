@@ -12,9 +12,20 @@ export interface TextSpan {
   fontWeight: number;
   color: string;
   letterSpacing?: number;
+  lineGap?: number;
 }
 
 export type BackgroundTheme = 'transparent' | 'banglish-theme' | 'dark-aurora';
+
+export type LogoPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top-center';
+
+export interface StickerLogoOptions {
+  image: HTMLImageElement | null;
+  position: LogoPosition;
+  size: number; // width in px (aspect ratio preserved, default e.g. 48px)
+  opacity?: number; // 0.1 to 1.0 (default 1.0)
+  margin?: number; // safe area margin in px (default 32px)
+}
 
 export interface StickerRenderOptions {
   lines: TextSpan[][];
@@ -29,8 +40,10 @@ export interface StickerRenderOptions {
   padding: number;
   align: 'left' | 'center' | 'right';
   scale: number; // 1x, 2x (HD), 4x (Ultra HD 300 DPI)
-  lineGap?: number; // Line gap adjustment in px (-30 to +60)
+  lineGap?: number; // Global fallback line gap adjustment in px (-30 to +60)
+  lineGaps?: Record<number, number>; // Line-wise line gap mapping
   letterSpacing?: number; // Global character gap in px (-6 to +30)
+  logo?: StickerLogoOptions;
   aspectRatio?: 'auto' | '1:1' | '16:9' | '9:16';
   cardWidth?: number;
   cardHeight?: number;
@@ -57,13 +70,15 @@ function measureLines(
   lines: TextSpan[][],
   scale: number,
   globalLineGap: number = 0,
-  globalLetterSpacing: number = 0
+  globalLetterSpacing: number = 0,
+  lineGaps?: Record<number, number>
 ): { measuredLines: MeasuredLine[]; totalTextWidth: number; totalTextHeight: number } {
   const measuredLines: MeasuredLine[] = [];
   let totalTextWidth = 0;
   let totalTextHeight = 0;
 
-  for (const lineSpans of lines) {
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const lineSpans = lines[lineIdx];
     const lineMeasuredSpans: MeasuredSpan[] = [];
     let lineTotalWidth = 0;
     let maxFontSize = 32;
@@ -95,8 +110,21 @@ function measureLines(
       lineTotalWidth += spanWidth;
     }
 
-    const scaledLineGap = Math.round(globalLineGap * scale);
-    const lineHeight = Math.max(Math.round(maxFontSize * 0.6), Math.round(maxFontSize * 1.35) + scaledLineGap);
+    // Line-wise gap: priority to lineGaps[lineIdx], then span.lineGap, then globalLineGap
+    let thisLineGap = globalLineGap;
+    if (lineGaps && lineGaps[lineIdx] !== undefined) {
+      thisLineGap = lineGaps[lineIdx];
+    } else {
+      for (const span of lineSpans) {
+        if (span.lineGap !== undefined) {
+          thisLineGap = span.lineGap;
+          break;
+        }
+      }
+    }
+
+    const scaledLineGap = Math.round(thisLineGap * scale);
+    const lineHeight = Math.max(Math.round(maxFontSize * 0.5), Math.round(maxFontSize * 1.35) + scaledLineGap);
     totalTextHeight += lineHeight;
     if (lineTotalWidth > totalTextWidth) totalTextWidth = lineTotalWidth;
 
@@ -192,53 +220,6 @@ export function drawBackground(
     ctx.fillText('খ', width * 0.86, height * 0.78);
     ctx.restore();
 
-    // 4. Stylized 3D Glass Water Droplets (Top-Right & Bottom-Left)
-    // Top-Right Glass Droplet Blob
-    ctx.save();
-    ctx.beginPath();
-    const trX = width * 0.93;
-    const trY = height * 0.07;
-    const trR = width * 0.055;
-    ctx.arc(trX, trY, trR, 0, Math.PI * 2);
-    const dropGradTR = ctx.createLinearGradient(trX - trR, trY - trR, trX + trR, trY + trR);
-    dropGradTR.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
-    dropGradTR.addColorStop(0.5, 'rgba(255, 255, 255, 0.45)');
-    dropGradTR.addColorStop(1, 'rgba(6, 182, 212, 0.20)');
-    ctx.fillStyle = dropGradTR;
-    ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
-    ctx.lineWidth = Math.max(1, width * 0.002);
-    ctx.fill();
-    ctx.stroke();
-
-    // Specular Highlight
-    ctx.beginPath();
-    ctx.arc(trX - trR * 0.35, trY - trR * 0.35, trR * 0.25, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-    ctx.fill();
-
-    // Mini companion bead
-    ctx.beginPath();
-    ctx.arc(trX - trR * 0.95, trY + trR * 0.7, trR * 0.32, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(52, 211, 153, 0.28)';
-    ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
-    ctx.fill();
-    ctx.stroke();
-
-    // Bottom-Left Glass Droplet Blob
-    const blX = width * 0.07;
-    const blY = height * 0.94;
-    const blR = width * 0.045;
-    ctx.beginPath();
-    ctx.arc(blX, blY, blR, 0, Math.PI * 2);
-    const dropGradBL = ctx.createLinearGradient(blX - blR, blY - blR, blX + blR, blY + blR);
-    dropGradBL.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
-    dropGradBL.addColorStop(1, 'rgba(255, 255, 255, 0.4)');
-    ctx.fillStyle = dropGradBL;
-    ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
-    ctx.lineWidth = Math.max(1, width * 0.002);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
 
     // 5. Subtle Card Frame Border
     ctx.save();
@@ -340,6 +321,7 @@ export function renderSticker(
     align,
     scale,
     lineGap = 0,
+    lineGaps,
     letterSpacing = 0,
     aspectRatio,
     cardWidth,
@@ -349,7 +331,7 @@ export function renderSticker(
   // 1. Measure text
   const scaledPadding = Math.round(padding * scale);
   const scaledStrokeWidth = Math.round(strokeWidth * scale);
-  const { measuredLines, totalTextWidth, totalTextHeight } = measureLines(ctx, lines, scale, lineGap, letterSpacing);
+  const { measuredLines, totalTextWidth, totalTextHeight } = measureLines(ctx, lines, scale, lineGap, letterSpacing, lineGaps);
 
   // 2. Determine canvas dimensions
   let targetWidth = totalTextWidth + scaledPadding * 2 + scaledStrokeWidth * 2;
@@ -367,6 +349,42 @@ export function renderSticker(
 
   // 3. Draw Background
   drawBackground(ctx, canvas.width, canvas.height, bgTheme);
+
+  // 3.5. Draw Optional Brand/User Logo in Safe Area (if configured)
+  if (options.logo && options.logo.image && options.logo.image.complete && options.logo.image.naturalWidth > 0) {
+    const { image, position, size, opacity = 1, margin: customMargin } = options.logo;
+    const scaledLogoSize = Math.round(size * scale);
+    const aspect = image.naturalWidth / image.naturalHeight;
+    const drawW = scaledLogoSize;
+    const drawH = Math.round(scaledLogoSize / aspect);
+
+    const safeMargin = Math.round((customMargin !== undefined ? customMargin : 28) * scale);
+
+    let logoX = safeMargin;
+    let logoY = safeMargin;
+
+    if (position === 'top-left') {
+      logoX = safeMargin;
+      logoY = safeMargin;
+    } else if (position === 'top-right') {
+      logoX = canvas.width - safeMargin - drawW;
+      logoY = safeMargin;
+    } else if (position === 'top-center') {
+      logoX = Math.round((canvas.width - drawW) / 2);
+      logoY = safeMargin;
+    } else if (position === 'bottom-left') {
+      logoX = safeMargin;
+      logoY = canvas.height - safeMargin - drawH;
+    } else if (position === 'bottom-right') {
+      logoX = canvas.width - safeMargin - drawW;
+      logoY = canvas.height - safeMargin - drawH;
+    }
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0.05, Math.min(1, opacity));
+    ctx.drawImage(image, logoX, logoY, drawW, drawH);
+    ctx.restore();
+  }
 
   // 4. Calculate vertical start position (vertically centered if card has extra space)
   const availableContentHeight = canvas.height - scaledPadding * 2;
