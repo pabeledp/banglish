@@ -77,6 +77,45 @@ interface StyledSegment {
 
 type QualityLevel = 'high' | 'medium' | 'low';
 
+const updateLineMapOnTextChange = (
+  prevMap: Record<number, number>,
+  oldText: string,
+  newText: string,
+  cursorPos: number
+): Record<number, number> => {
+  const oldLines = oldText.split('\n');
+  const newLines = newText.split('\n');
+  if (oldLines.length === newLines.length) return prevMap;
+
+  const diff = newLines.length - oldLines.length;
+  const currentLine = newText.slice(0, cursorPos).split('\n').length - 1;
+
+  const nextMap: Record<number, number> = {};
+  if (diff > 0) {
+    // Newline(s) inserted
+    for (const [keyStr, val] of Object.entries(prevMap)) {
+      const k = parseInt(keyStr, 10);
+      if (k < currentLine) {
+        nextMap[k] = val;
+      } else {
+        nextMap[k + diff] = val;
+      }
+    }
+  } else {
+    // Newline(s) removed
+    const removedCount = -diff;
+    for (const [keyStr, val] of Object.entries(prevMap)) {
+      const k = parseInt(keyStr, 10);
+      if (k < currentLine) {
+        nextMap[k] = val;
+      } else if (k >= currentLine + removedCount) {
+        nextMap[k - removedCount] = val;
+      }
+    }
+  }
+  return nextMap;
+};
+
 export default function TextToPNGConverterPage() {
   // Global / Default Typography
   const [globalFont, setGlobalFont] = useState<string>(BANGLA_FONTS[0].family);
@@ -86,6 +125,7 @@ export default function TextToPNGConverterPage() {
   const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
   const [lineGap, setLineGap] = useState<number>(0);
   const [lineGaps, setLineGaps] = useState<Record<number, number>>({});
+  const [lineSizes, setLineSizes] = useState<Record<number, number>>({});
   const [globalLetterSpacing, setGlobalLetterSpacing] = useState<number>(0);
 
   // Styled segments (Source of truth)
@@ -371,11 +411,12 @@ export default function TextToPNGConverterPage() {
 
         if (overlapStart < overlapEnd) {
           const sliceInSeg = seg.text.slice(overlapStart - segStart, overlapEnd - segStart);
+          const effectiveSize = lineSizes[lineIdx] ?? seg.fontSize ?? globalFontSize;
           lineSpans.push({
             id: `${seg.id}-${lineIdx}`,
             text: sliceInSeg,
             fontFamily: seg.fontFamily,
-            fontSize: seg.fontSize,
+            fontSize: effectiveSize,
             fontWeight: seg.fontWeight,
             color: seg.color,
             letterSpacing: seg.letterSpacing,
@@ -390,7 +431,7 @@ export default function TextToPNGConverterPage() {
     }
 
     return result;
-  }, [plainText, segments, lineGaps, lineGap]);
+  }, [plainText, segments, lineGaps, lineSizes, lineGap, globalFontSize]);
 
   // Render canvas whenever state changes
   useEffect(() => {
@@ -481,7 +522,8 @@ export default function TextToPNGConverterPage() {
           const sEnd = offset + seg.text.length;
           if (start >= offset && start < sEnd) {
             setActiveFont(seg.fontFamily);
-            setActiveSize(seg.fontSize);
+            const lineWiseSize = lineSizes[selectedLineIndex] ?? seg.fontSize ?? globalFontSize;
+            setActiveSize(lineWiseSize);
             setActiveWeight(seg.fontWeight);
             setActiveColor(seg.color);
             setActiveSpacing(seg.letterSpacing ?? globalLetterSpacing);
@@ -539,7 +581,12 @@ export default function TextToPNGConverterPage() {
     const nextSpacing = newSpacing ?? activeSpacing;
 
     if (newFont) setActiveFont(newFont);
-    if (newSize) setActiveSize(newSize);
+    if (newSize) {
+      setActiveSize(newSize);
+      if (selectedRange && selectedRange.lineIndex !== undefined) {
+        setLineSizes(prev => ({ ...prev, [selectedRange.lineIndex]: newSize }));
+      }
+    }
     if (newWeight) setActiveWeight(newWeight);
     if (newColor) setActiveColor(newColor);
     if (newSpacing !== undefined) setActiveSpacing(nextSpacing);
@@ -596,6 +643,10 @@ export default function TextToPNGConverterPage() {
   // --- Phonetic Input with Spacebar Auto-Transliteration ---
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
+    const cursorPos = e.target.selectionStart;
+
+    setLineSizes(prev => updateLineMapOnTextChange(prev, plainText, val, cursorPos));
+    setLineGaps(prev => updateLineMapOnTextChange(prev, plainText, val, cursorPos));
 
     // Update plain text in segments
     setSegments([
@@ -621,7 +672,6 @@ export default function TextToPNGConverterPage() {
       return;
     }
 
-    const cursorPos = e.target.selectionStart;
     const textBefore = val.slice(0, cursorPos);
     const match = textBefore.match(/([a-zA-Z\^]+)$/);
 
@@ -644,6 +694,10 @@ export default function TextToPNGConverterPage() {
     const textBefore = plainText.slice(0, cursorPos - tokenLen);
     const textAfter = plainText.slice(cursorPos);
     const updated = textBefore + candidate + appendChar + textAfter;
+    const nextPos = textBefore.length + candidate.length + appendChar.length;
+
+    setLineSizes(prev => updateLineMapOnTextChange(prev, plainText, updated, nextPos));
+    setLineGaps(prev => updateLineMapOnTextChange(prev, plainText, updated, nextPos));
 
     setSegments([
       {
@@ -914,7 +968,7 @@ export default function TextToPNGConverterPage() {
           {/* 2. Font Size Slider */}
           <div className="space-y-1">
             <div className="flex justify-between text-xs font-bold text-slate-700">
-              <span>ফন্ট সাইজ (Size)</span>
+              <span>ফন্ট সাইজ {selectedRange?.lineIndex !== undefined ? `(লাইন ${selectedRange.lineIndex + 1})` : ''}</span>
               <span className="font-mono text-emerald-700">{activeSize}px</span>
             </div>
             <div className="flex items-center gap-2">
@@ -1296,8 +1350,8 @@ export default function TextToPNGConverterPage() {
               )}
             </div>
 
-            {/* Style Reset button if multi-segment */}
-            {segments.length > 1 && (
+            {/* Style Reset button if custom styles exist */}
+            {(segments.length > 1 || Object.keys(lineGaps).length > 0 || Object.keys(lineSizes).length > 0) && (
               <div className="flex items-center justify-end text-xs text-slate-500 pt-0.5">
                 <button
                   type="button"
@@ -1313,8 +1367,10 @@ export default function TextToPNGConverterPage() {
                         letterSpacing: globalLetterSpacing
                       }
                     ]);
+                    setLineSizes({});
+                    setLineGaps({});
                     setIsPopupOpen(false);
-                    showToast('সকল শব্দ ডিফল্ট স্টাইলে রিসেট হয়েছে!');
+                    showToast('সকল শব্দ ও লাইনের স্টাইল ডিফল্টে রিসেট হয়েছে!');
                   }}
                   className="text-amber-700 hover:underline font-semibold"
                 >
