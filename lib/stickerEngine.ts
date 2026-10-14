@@ -14,13 +14,12 @@ export interface TextSpan {
   letterSpacing?: number;
 }
 
-export type BackgroundTheme = 'transparent' | 'dark-aurora' | 'light-emerald' | 'custom-rgb';
+export type BackgroundTheme = 'transparent' | 'banglish-theme' | 'dark-aurora';
 
 export interface StickerRenderOptions {
   lines: TextSpan[][];
   bgTheme: BackgroundTheme;
-  customBgColor: string; // RGB / Hex / RGBA
-  customBgGradient?: { from: string; to: string; angle: number };
+  customBgColor?: string; // Optional
   strokeWidth: number; // 0 for none, 4-30 for sticker die-cut
   strokeColor: string; // RGB / Hex
   shadowBlur: number;
@@ -98,6 +97,17 @@ function measureLines(
   return { measuredLines, totalTextWidth, totalTextHeight };
 }
 
+let cachedThemeImage: HTMLImageElement | null = null;
+
+export function getThemeImage(): HTMLImageElement | null {
+  if (typeof window === 'undefined') return null;
+  if (!cachedThemeImage) {
+    cachedThemeImage = new Image();
+    cachedThemeImage.src = '/assets/banglish-card-bg.jpg';
+  }
+  return cachedThemeImage;
+}
+
 /**
  * Draw themed backgrounds onto canvas
  */
@@ -105,37 +115,36 @@ export function drawBackground(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
-  theme: BackgroundTheme,
-  customBgColor: string,
-  customBgGradient?: { from: string; to: string; angle: number }
+  theme: BackgroundTheme
 ) {
   if (theme === 'transparent') {
     ctx.clearRect(0, 0, width, height);
     return;
   }
 
-  if (theme === 'custom-rgb') {
-    if (customBgGradient) {
-      const angleRad = (customBgGradient.angle * Math.PI) / 180;
-      const x1 = width / 2 - (Math.cos(angleRad) * width) / 2;
-      const y1 = height / 2 - (Math.sin(angleRad) * height) / 2;
-      const x2 = width / 2 + (Math.cos(angleRad) * width) / 2;
-      const y2 = height / 2 + (Math.sin(angleRad) * height) / 2;
-
-      const grad = ctx.createLinearGradient(x1, y1, x2, y2);
-      grad.addColorStop(0, customBgGradient.from);
-      grad.addColorStop(1, customBgGradient.to);
-      ctx.fillStyle = grad;
+  if (theme === 'banglish-theme') {
+    const img = getThemeImage();
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, 0, 0, width, height);
     } else {
-      ctx.fillStyle = customBgColor;
+      // Clean fallback if image is still loading
+      const baseGrad = ctx.createLinearGradient(0, 0, width, height);
+      baseGrad.addColorStop(0, '#f0fdf4');
+      baseGrad.addColorStop(0.5, '#ffffff');
+      baseGrad.addColorStop(1, '#f0fdfa');
+      ctx.fillStyle = baseGrad;
+      ctx.fillRect(0, 0, width, height);
+      if (img && !img.complete) {
+        img.onload = () => {
+          // Image loaded into cache for next frame
+        };
+      }
     }
-    ctx.fillRect(0, 0, width, height);
     return;
   }
 
   if (theme === 'dark-aurora') {
     // Theme 1: Banglish Dark Aurora Glass
-    // Base dark slate gradient
     const baseGrad = ctx.createLinearGradient(0, 0, width, height);
     baseGrad.addColorStop(0, '#060a12');
     baseGrad.addColorStop(0.5, '#0b1120');
@@ -196,50 +205,6 @@ export function drawBackground(
 
     return;
   }
-
-  if (theme === 'light-emerald') {
-    // Theme 2: Banglish Clean Light Emerald
-    const baseGrad = ctx.createLinearGradient(0, 0, width, height);
-    baseGrad.addColorStop(0, '#f0fdf4'); // emerald-50
-    baseGrad.addColorStop(0.4, '#ffffff');
-    baseGrad.addColorStop(1, '#f0fdfa'); // teal-50
-    ctx.fillStyle = baseGrad;
-    ctx.fillRect(0, 0, width, height);
-
-    // Soft warm emerald ambient
-    const radLight = ctx.createRadialGradient(
-      width * 0.8,
-      height * 0.2,
-      20,
-      width * 0.8,
-      height * 0.2,
-      width * 0.7
-    );
-    radLight.addColorStop(0, 'rgba(52, 211, 153, 0.15)');
-    radLight.addColorStop(1, 'rgba(255, 255, 255, 0)');
-    ctx.fillStyle = radLight;
-    ctx.fillRect(0, 0, width, height);
-
-    // Editorial Card Frame
-    const inset = Math.max(12, Math.round(width * 0.02));
-    const cardW = width - inset * 2;
-    const cardH = height - inset * 2;
-    const cornerR = Math.min(24, Math.round(cardW * 0.04));
-
-    ctx.save();
-    ctx.beginPath();
-    ctx.roundRect(inset, inset, cardW, cardH, cornerR);
-    ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
-    ctx.lineWidth = Math.max(1.5, Math.round(width * 0.0025));
-    ctx.stroke();
-
-    // Subtle inner shadow
-    ctx.shadowColor = 'rgba(15, 23, 42, 0.04)';
-    ctx.shadowBlur = 16;
-    ctx.restore();
-
-    return;
-  }
 }
 
 /**
@@ -255,8 +220,6 @@ export function renderSticker(
   const {
     lines,
     bgTheme,
-    customBgColor,
-    customBgGradient,
     strokeWidth,
     strokeColor,
     shadowBlur,
@@ -301,7 +264,7 @@ export function renderSticker(
   canvas.height = Math.round(targetHeight);
 
   // 3. Draw Background
-  drawBackground(ctx, canvas.width, canvas.height, bgTheme, customBgColor, customBgGradient);
+  drawBackground(ctx, canvas.width, canvas.height, bgTheme);
 
   // 4. Calculate vertical start position (vertically centered if card has extra space)
   const availableContentHeight = canvas.height - scaledPadding * 2;
