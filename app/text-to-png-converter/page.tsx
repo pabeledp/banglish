@@ -17,6 +17,31 @@ import CandidatePopup from '@/components/CandidatePopup';
 import { getPhoneticCandidates } from '@/lib/banglishDictionary';
 import { transliterateWord } from '@/lib/phoneticEngine';
 
+// Clean SVG Icons for Alignment
+const AlignLeftIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="21" y1="6" x2="3" y2="6"/>
+    <line x1="15" y1="12" x2="3" y2="12"/>
+    <line x1="17" y1="18" x2="3" y2="18"/>
+  </svg>
+);
+
+const AlignCenterIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="6"/>
+    <line x1="21" y1="12" x2="3" y2="12"/>
+    <line x1="18" y1="18" x2="6" y2="18"/>
+  </svg>
+);
+
+const AlignRightIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="21" y1="6" x2="3" y2="6"/>
+    <line x1="21" y1="12" x2="9" y2="12"/>
+    <line x1="21" y1="18" x2="7" y2="18"/>
+  </svg>
+);
+
 interface StyledSegment {
   id: string;
   text: string;
@@ -36,7 +61,7 @@ export default function TextToPNGConverterPage() {
   const [globalColor, setGlobalColor] = useState<string>('#0f172a');
   const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
 
-  // Styled segments (Source of truth for formatted text)
+  // Styled segments (Source of truth)
   const [segments, setSegments] = useState<StyledSegment[]>([
     {
       id: 'seg-1',
@@ -48,8 +73,9 @@ export default function TextToPNGConverterPage() {
     }
   ]);
 
-  // Drag selection state & popup
+  // True Floating Popup State (position coordinates)
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number; text: string } | null>(null);
+  const [floatingPos, setFloatingPos] = useState<{ x: number; y: number }>({ x: 80, y: 120 });
   const [isPopupOpen, setIsPopupOpen] = useState(false);
 
   // Active formatting of selected text
@@ -180,10 +206,9 @@ export default function TextToPNGConverterPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // --- Drag Selection Handler ---
-  const handleSelection = () => {
-    if (!textareaRef.current) return;
-    const el = textareaRef.current;
+  // --- True Floating Popup Trigger on Mouse/Touch Drag Selection ---
+  const handleMouseUp = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget;
     const start = el.selectionStart;
     const end = el.selectionEnd;
 
@@ -191,6 +216,18 @@ export default function TextToPNGConverterPage() {
       const selectedStr = el.value.slice(start, end).trim();
       if (selectedStr.length > 0) {
         setSelectedRange({ start, end, text: selectedStr });
+
+        // Calculate floating position directly near cursor, clamped to viewport
+        const popupW = 340;
+        const popupH = 380;
+        const clientX = e.clientX || window.innerWidth / 2;
+        const clientY = e.clientY || 200;
+
+        const x = Math.min(Math.max(16, clientX - popupW / 2), window.innerWidth - popupW - 16);
+        // Position above the cursor if space permits, else below
+        const y = clientY - popupH - 15 > 20 ? clientY - popupH - 15 : clientY + 25;
+
+        setFloatingPos({ x, y });
         setIsPopupOpen(true);
 
         // Preload formatting of selected text
@@ -351,7 +388,7 @@ export default function TextToPNGConverterPage() {
     }, 10);
   };
 
-  // Auto-transliterate on Spacebar, Enter, or Tab
+  // Auto-transliterate on Spacebar, Enter, or Tab without switching OS language
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (isPhoneticActive && activePhoneticToken) {
       if (e.key === ' ' || e.key === 'Spacebar') {
@@ -494,10 +531,159 @@ export default function TextToPNGConverterPage() {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-white to-teal-50/40 text-slate-800 flex flex-col font-sans selection:bg-emerald-200 selection:text-emerald-950">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[110] animate-in fade-in slide-in-from-top-4 duration-200">
           <div className="bg-emerald-800 text-white font-medium text-xs sm:text-sm px-4 py-2.5 rounded-full shadow-xl shadow-emerald-950/20 flex items-center gap-2 border border-emerald-500/40">
             <span>{toastMessage}</span>
           </div>
+        </div>
+      )}
+
+      {/* --- TRUE FLOATING POPUP TOOLBAR (Floats freely above selected words) --- */}
+      {isPopupOpen && selectedRange && (
+        <div
+          className="fixed z-[100] bg-white/95 backdrop-blur-2xl border-2 border-emerald-500/90 rounded-2xl shadow-2xl shadow-emerald-950/25 p-4 w-[330px] sm:w-[350px] animate-in fade-in zoom-in-95 duration-150 space-y-3.5 text-slate-800"
+          style={{
+            left: `${floatingPos.x}px`,
+            top: `${floatingPos.y}px`
+          }}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2">
+            <div className="flex items-center gap-2 truncate max-w-[260px]">
+              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse shrink-0"></span>
+              <span className="text-xs font-bold text-slate-700">সিলেক্টেড:</span>
+              <span className="text-xs font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-300 truncate">
+                "{selectedRange.text}"
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPopupOpen(false)}
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-emerald-100/50 text-xs font-bold"
+              title="বন্ধ করুন"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* 1. Font Dropdown */}
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
+              <span>ফন্ট (Font)</span>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-[10px] text-emerald-700 font-semibold hover:underline"
+              >
+                + কাস্টম TTF
+              </button>
+            </label>
+            <select
+              value={activeFont}
+              onChange={(e) => applyFormattingToRange(e.target.value)}
+              className="w-full bg-slate-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+            >
+              {availableFonts.map((f) => (
+                <option key={f.id} value={f.family}>
+                  {f.bnName} ({f.name})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. Font Size Slider */}
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs font-bold text-slate-700">
+              <span>ফন্ট সাইজ (Size)</span>
+              <span className="font-mono text-emerald-700">{activeSize}px</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => applyFormattingToRange(undefined, Math.max(16, activeSize - 4))}
+                className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold"
+              >
+                A-
+              </button>
+              <input
+                type="range"
+                min="16"
+                max="140"
+                value={activeSize}
+                onChange={(e) => applyFormattingToRange(undefined, parseInt(e.target.value, 10))}
+                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+              <button
+                type="button"
+                onClick={() => applyFormattingToRange(undefined, Math.min(140, activeSize + 4))}
+                className="px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold"
+              >
+                A+
+              </button>
+            </div>
+          </div>
+
+          {/* 3. Font Weight Dropdown (As requested: "font weight ekhaneo dropdown system hobe") */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">ফন্ট ওয়েইট (Weight)</label>
+              <select
+                value={activeWeight}
+                onChange={(e) => applyFormattingToRange(undefined, undefined, parseInt(e.target.value, 10))}
+                className="w-full bg-slate-50 border border-emerald-200 rounded-xl px-2.5 py-1.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+              >
+                <option value={300}>হালকা (Light 300)</option>
+                <option value={400}>সাধারণ (Regular 400)</option>
+                <option value={600}>সেমি-বোল্ড (SemiBold 600)</option>
+                <option value={700}>বোল্ড (Bold 700)</option>
+                <option value={800}>অতিরিক্ত বোল্ড (Black 800)</option>
+              </select>
+            </div>
+
+            {/* 4. Alignment with Clean Universal SVG Icons */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700">অ্যালাইনমেন্ট</label>
+              <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-emerald-200">
+                <button
+                  type="button"
+                  onClick={() => applyFormattingToRange(undefined, undefined, undefined, undefined, 'left')}
+                  className={`flex-1 py-1 flex items-center justify-center rounded-lg transition-all ${
+                    align === 'left' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                  }`}
+                  title="Align Left"
+                >
+                  <AlignLeftIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyFormattingToRange(undefined, undefined, undefined, undefined, 'center')}
+                  className={`flex-1 py-1 flex items-center justify-center rounded-lg transition-all ${
+                    align === 'center' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                  }`}
+                  title="Align Center"
+                >
+                  <AlignCenterIcon />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyFormattingToRange(undefined, undefined, undefined, undefined, 'right')}
+                  className={`flex-1 py-1 flex items-center justify-center rounded-lg transition-all ${
+                    align === 'right' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                  }`}
+                  title="Align Right"
+                >
+                  <AlignRightIcon />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. True RGB Color Selector */}
+          <RgbColorPicker
+            label="সিলেক্টেড লেখার রঙ (RGB Color Selector)"
+            value={activeColor}
+            onChange={(color) => applyFormattingToRange(undefined, undefined, undefined, color)}
+          />
         </div>
       )}
 
@@ -548,7 +734,7 @@ export default function TextToPNGConverterPage() {
               type="button"
               onClick={() => setIsQualityDropdownOpen(!isQualityDropdownOpen)}
               className="px-2.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs border-l border-emerald-500/40 rounded-r-xl transition-all flex items-center justify-center"
-              title="কোয়ালিটি নির্বাচন করুন"
+              title="কোয়ালিটি অপশন"
             >
               <span className="text-[10px]">▼</span>
             </button>
@@ -609,10 +795,10 @@ export default function TextToPNGConverterPage() {
 
       {/* Main Studio Grid */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Text Input, Selection Toolbar & Options (7 Cols) */}
+        {/* Left Column: Text Input & Options (7 Cols) */}
         <div className="lg:col-span-7 space-y-6">
-          {/* Card 1: Text Box with Inline Drag Selection & Floating Phonetics */}
-          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-4">
+          {/* Card 1: Text Box with Drag-Selection Notice & Phonetic Support */}
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-3.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
@@ -651,10 +837,13 @@ export default function TextToPNGConverterPage() {
                 ref={textareaRef}
                 value={plainText}
                 onChange={handleTextareaChange}
-                onSelect={handleSelection}
-                onMouseUp={handleSelection}
-                onTouchEnd={handleSelection}
-                onKeyUp={handleSelection}
+                onMouseUp={handleMouseUp}
+                onTouchEnd={(e) => {
+                  const touch = e.changedTouches[0];
+                  if (touch) {
+                    handleMouseUp({ clientX: touch.clientX, clientY: touch.clientY, currentTarget: textareaRef.current } as any);
+                  }
+                }}
                 onKeyDown={handleKeyDown}
                 rows={4}
                 placeholder="এখানে লিখুন বা বাংলিশে টাইপ করুন (যেমন: amra, cader, valobasha লিখে স্পেস চাপুন)..."
@@ -674,9 +863,9 @@ export default function TextToPNGConverterPage() {
               )}
             </div>
 
-            {/* Helper Advice */}
+            {/* Helper advice */}
             <div className="flex items-center justify-between text-xs text-slate-500 pt-0.5">
-              <span>💡 লেখার যেকোনো শব্দ মাউস দিয়ে drag করে সিলেক্ট করলেই নিচে স্টাইল টুলবার ওপেন হবে।</span>
+              <span>💡 লেখার যেকোনো শব্দ মাউস দিয়ে drag করে সিলেক্ট করলেই ফ্লোটিং পপআপ ভেসে উঠবে।</span>
               {segments.length > 1 && (
                 <button
                   type="button"
@@ -700,139 +889,6 @@ export default function TextToPNGConverterPage() {
                 </button>
               )}
             </div>
-
-            {/* --- SELECTION FORMATTING POPUP TOOLBAR (Clean, docked & never cuts off or goes inside other cards) --- */}
-            {isPopupOpen && selectedRange && (
-              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/80 border-2 border-emerald-500 shadow-lg space-y-3.5 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2">
-                  <div className="flex items-center gap-2 truncate max-w-[280px]">
-                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
-                    <span className="text-xs font-bold text-slate-700">সিলেক্টেড অংশ:</span>
-                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-300 truncate">
-                      "{selectedRange.text}"
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsPopupOpen(false)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-emerald-100/50 text-xs font-bold"
-                  >
-                    ✕ বন্ধ করুন
-                  </button>
-                </div>
-
-                {/* Font Dropdown & Size Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Font Dropdown */}
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">ফন্ট নির্বাচন করুন (Font)</label>
-                    <select
-                      value={activeFont}
-                      onChange={(e) => applyFormattingToRange(e.target.value)}
-                      className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                    >
-                      {availableFonts.map((f) => (
-                        <option key={f.id} value={f.family}>
-                          {f.bnName} ({f.name})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Size Slider */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs font-bold text-slate-700">
-                      <span>ফন্ট সাইজ (Size)</span>
-                      <span className="font-mono text-emerald-700">{activeSize}px</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => applyFormattingToRange(undefined, Math.max(16, activeSize - 4))}
-                        className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold"
-                      >
-                        A-
-                      </button>
-                      <input
-                        type="range"
-                        min="16"
-                        max="140"
-                        value={activeSize}
-                        onChange={(e) => applyFormattingToRange(undefined, parseInt(e.target.value, 10))}
-                        className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => applyFormattingToRange(undefined, Math.min(140, activeSize + 4))}
-                        className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold"
-                      >
-                        A+
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Font Weight & Alignment Controls Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  {/* Weight */}
-                  <div className="space-y-1">
-                    <span className="text-xs font-bold text-slate-700">ফন্ট ওয়েইট (Weight)</span>
-                    <div className="grid grid-cols-3 gap-1">
-                      {[
-                        { label: 'Light', weight: 300 },
-                        { label: 'Regular', weight: 400 },
-                        { label: 'Bold', weight: 700 }
-                      ].map((w) => (
-                        <button
-                          key={w.weight}
-                          type="button"
-                          onClick={() => applyFormattingToRange(undefined, undefined, w.weight)}
-                          className={`py-1.5 text-xs rounded-xl border font-semibold transition-all ${
-                            activeWeight === w.weight
-                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50'
-                          }`}
-                        >
-                          {w.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Alignment for Selected Words */}
-                  <div className="space-y-1">
-                    <span className="text-xs font-bold text-slate-700">অ্যালাইনমেন্ট (Alignment)</span>
-                    <div className="grid grid-cols-3 gap-1">
-                      {[
-                        { a: 'left' as const, label: 'বাম' },
-                        { a: 'center' as const, label: 'মাঝখানে' },
-                        { a: 'right' as const, label: 'ডান' }
-                      ].map((al) => (
-                        <button
-                          key={al.a}
-                          type="button"
-                          onClick={() => applyFormattingToRange(undefined, undefined, undefined, undefined, al.a)}
-                          className={`py-1.5 text-xs rounded-xl border font-semibold transition-all ${
-                            align === al.a
-                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50'
-                          }`}
-                        >
-                          {al.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* True RGB Color Selector for Selected Text */}
-                <RgbColorPicker
-                  label="সিলেক্টেড লেখার রঙ (RGB Color Selector)"
-                  value={activeColor}
-                  onChange={(color) => applyFormattingToRange(undefined, undefined, undefined, color)}
-                />
-              </div>
-            )}
           </div>
 
           {/* Hidden File Input for Custom Font Upload */}
@@ -940,17 +996,17 @@ export default function TextToPNGConverterPage() {
                 সকল শব্দের ডিফল্ট সেটিংস (Global Defaults):
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {/* Default Font Dropdown */}
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">ডিফল্ট ফন্ট (Default Font)</label>
+                  <label className="text-xs font-semibold text-slate-700">ডিফল্ট ফন্ট</label>
                   <select
                     value={globalFont}
                     onChange={(e) => {
                       setGlobalFont(e.target.value);
                       setSegments(prev => prev.map(s => ({ ...s, fontFamily: e.target.value })));
                     }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                   >
                     {availableFonts.map((f) => (
                       <option key={f.id} value={f.family}>
@@ -960,24 +1016,60 @@ export default function TextToPNGConverterPage() {
                   </select>
                 </div>
 
-                {/* Default Alignment */}
+                {/* Default Font Weight Dropdown */}
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">ডিফল্ট অ্যালাইনমেন্ট</label>
-                  <div className="grid grid-cols-3 gap-1">
-                    {(['left', 'center', 'right'] as const).map((a) => (
-                      <button
-                        key={a}
-                        type="button"
-                        onClick={() => setAlign(a)}
-                        className={`py-2 text-xs rounded-xl border font-semibold ${
-                          align === a
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-emerald-50'
-                        }`}
-                      >
-                        {a === 'left' ? 'বাম' : a === 'center' ? 'মাঝখানে' : 'ডান'}
-                      </button>
-                    ))}
+                  <label className="text-xs font-semibold text-slate-700">ডিফল্ট ওয়েইট</label>
+                  <select
+                    value={globalFontWeight}
+                    onChange={(e) => {
+                      const w = parseInt(e.target.value, 10);
+                      setGlobalFontWeight(w);
+                      setSegments(prev => prev.map(s => ({ ...s, fontWeight: w })));
+                    }}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                  >
+                    <option value={300}>হালকা (Light 300)</option>
+                    <option value={400}>সাধারণ (Regular 400)</option>
+                    <option value={600}>সেমি-বোল্ড (SemiBold 600)</option>
+                    <option value={700}>বোল্ড (Bold 700)</option>
+                    <option value={800}>অতিরিক্ত বোল্ড (Black 800)</option>
+                  </select>
+                </div>
+
+                {/* Default Alignment with Universal SVG Icons */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700">অ্যালাইনমেন্ট</label>
+                  <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setAlign('left')}
+                      className={`flex-1 py-1.5 flex items-center justify-center rounded-lg transition-all ${
+                        align === 'left' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                      }`}
+                      title="Align Left"
+                    >
+                      <AlignLeftIcon />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAlign('center')}
+                      className={`flex-1 py-1.5 flex items-center justify-center rounded-lg transition-all ${
+                        align === 'center' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                      }`}
+                      title="Align Center"
+                    >
+                      <AlignCenterIcon />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAlign('right')}
+                      className={`flex-1 py-1.5 flex items-center justify-center rounded-lg transition-all ${
+                        align === 'right' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                      }`}
+                      title="Align Right"
+                    >
+                      <AlignRightIcon />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1024,7 +1116,7 @@ export default function TextToPNGConverterPage() {
         {/* Right Column: Sticky Live Preview & Actions (5 Cols) */}
         <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-24">
           <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-4">
-            {/* Preview Header - Just "Preview" as requested */}
+            {/* Preview Header - Just "Preview" */}
             <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
