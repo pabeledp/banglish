@@ -850,9 +850,9 @@ export default function TextToPNGConverterPage() {
                 className="w-full bg-slate-50/70 border border-emerald-200/80 rounded-2xl p-4 text-base sm:text-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all resize-y shadow-inner"
               />
 
-              {/* Floating Phonetic Suggestions Popup */}
+              {/* Floating Phonetic Suggestions Popup (Pops downwards underneath the textarea) */}
               {isPhoneticActive && candidates.length > 0 && (
-                <div className="absolute left-2 bottom-full mb-1 z-50">
+                <div className="absolute left-2 top-full mt-1.5 z-[70]">
                   <CandidatePopup
                     candidates={candidates}
                     selectedIndex={selectedCandidateIndex}
