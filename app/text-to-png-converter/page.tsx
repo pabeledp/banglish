@@ -1333,7 +1333,7 @@ export default function TextToPNGConverterPage() {
                 }}
                 onKeyDown={handleKeyDown}
                 rows={4}
-                placeholder="এখানে লিখুন বা বাংলিশে টাইপ করুন (যেমন: amra, cader, valobasha লিখে স্পেস চাপুন)..."
+                placeholder="এখানে লিখুন..."
                 className="w-full bg-slate-50/70 border border-emerald-200/80 rounded-2xl p-4 text-base sm:text-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all resize-y shadow-inner"
               />
 
@@ -1417,9 +1417,6 @@ export default function TextToPNGConverterPage() {
                     <span className="text-sm font-bold text-slate-900">ট্রান্সপারেন্ট</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono">Transparent</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    কোনো ব্যাকগ্রাউন্ড থাকবে না (WhatsApp/Telegram স্টিকারের জন্য)
-                  </p>
                 </div>
                 <div className="mt-3 w-full h-8 rounded-lg bg-[linear-gradient(45deg,#cbd5e1_25%,transparent_25%),linear-gradient(-45deg,#cbd5e1_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#cbd5e1_75%),linear-gradient(-45deg,transparent_75%,#cbd5e1_75%)] bg-[size:10px_10px] border border-slate-300/80"></div>
               </button>
@@ -1443,9 +1440,6 @@ export default function TextToPNGConverterPage() {
                     <span className="text-sm font-bold text-slate-900">ব্যাংলিশ থিম</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">1:1 Square</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    লো-ট্রান্সপারেন্সি গ্রিড ও বাংলা অক্ষরের ওয়াটারমার্ক সিগনেচার
-                  </p>
                 </div>
                 <div className="mt-3 w-full h-8 rounded-lg bg-gradient-to-br from-[#f9fdfa] via-white to-[#f2faf5] border border-emerald-200 relative overflow-hidden flex items-center justify-center">
                   <span className="text-[11px] text-slate-400 font-bangla font-semibold">অ আ ক খ গ</span>
@@ -1471,9 +1465,6 @@ export default function TextToPNGConverterPage() {
                     <span className="text-sm font-bold text-slate-900">ইসলামিক কোট</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold">1:1 Quote</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    মসজিদের মিনার ও গম্বুজ ব্যাকগ্রাউন্ড (কুরআনিক আয়াত ও বাণী)
-                  </p>
                 </div>
                 <div className="mt-3 w-full h-8 rounded-lg border border-amber-200 relative overflow-hidden flex items-center justify-center bg-[#faf7f2]">
                   <img src="/assets/islamic-quote-bg.webp" alt="Islamic BG" className="w-full h-full object-cover object-bottom" />
@@ -1499,9 +1490,6 @@ export default function TextToPNGConverterPage() {
                     <span className="text-sm font-bold text-slate-900">ডার্ক অরোরা</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-900 text-emerald-400 font-mono">1:1 Dark</span>
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    গ্রাফাইট ব্যাকগ্রাউন্ড ও নিয়ন এমারেল্ড গ্লাস ফ্রেম
-                  </p>
                 </div>
                 <div className="mt-3 w-full h-8 rounded-lg bg-gradient-to-br from-[#060a12] via-[#0b1120] to-[#050811] border border-emerald-500/30"></div>
               </button>
