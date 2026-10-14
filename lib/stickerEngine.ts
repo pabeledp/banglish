@@ -123,23 +123,119 @@ export function drawBackground(
   }
 
   if (theme === 'banglish-theme') {
-    const img = getThemeImage();
-    if (img && img.complete && img.naturalWidth > 0) {
-      ctx.drawImage(img, 0, 0, width, height);
-    } else {
-      // Clean fallback if image is still loading
-      const baseGrad = ctx.createLinearGradient(0, 0, width, height);
-      baseGrad.addColorStop(0, '#f0fdf4');
-      baseGrad.addColorStop(0.5, '#ffffff');
-      baseGrad.addColorStop(1, '#f0fdfa');
-      ctx.fillStyle = baseGrad;
-      ctx.fillRect(0, 0, width, height);
-      if (img && !img.complete) {
-        img.onload = () => {
-          // Image loaded into cache for next frame
-        };
-      }
+    // Procedural Banglish Theme: 1:1 Square Card with soft ambient, subtle grids, and low-opacity Bangla letters
+    const baseGrad = ctx.createLinearGradient(0, 0, width, height);
+    baseGrad.addColorStop(0, '#f9fdfa');
+    baseGrad.addColorStop(0.5, '#ffffff');
+    baseGrad.addColorStop(1, '#f2faf5');
+    ctx.fillStyle = baseGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // 1. Soft Emerald Ambient Glows (Top-left & Bottom-right)
+    const radTL = ctx.createRadialGradient(width * 0.08, height * 0.08, 10, width * 0.08, height * 0.08, width * 0.65);
+    radTL.addColorStop(0, 'rgba(52, 211, 153, 0.16)');
+    radTL.addColorStop(0.6, 'rgba(52, 211, 153, 0.04)');
+    radTL.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = radTL;
+    ctx.fillRect(0, 0, width, height);
+
+    const radBR = ctx.createRadialGradient(width * 0.92, height * 0.92, 10, width * 0.92, height * 0.92, width * 0.6);
+    radBR.addColorStop(0, 'rgba(16, 185, 129, 0.14)');
+    radBR.addColorStop(0.6, 'rgba(16, 185, 129, 0.03)');
+    radBR.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = radBR;
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Subtle Grid Lines (Low Transparency)
+    const gridStep = Math.max(18, Math.round(width / 24));
+    ctx.save();
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.035)'; // Very subtle low transparency
+    ctx.lineWidth = Math.max(0.75, width * 0.001);
+
+    for (let x = gridStep; x < width; x += gridStep) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
     }
+    for (let y = gridStep; y < height; y += gridStep) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // 3. Bangla Alphabet Watermarks with Low Transparency ('অ', 'আ', 'ক', 'খ', 'গ')
+    ctx.save();
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.042)'; // Low transparency watermark
+    ctx.font = `600 ${Math.round(width * 0.11)}px 'Hind Siliguri', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillText('অ', width * 0.12, height * 0.16);
+    ctx.fillText('আ', width * 0.12, height * 0.76);
+    ctx.fillText('গ', width * 0.86, height * 0.26);
+    ctx.fillText('ক', width * 0.88, height * 0.53);
+    ctx.fillText('খ', width * 0.86, height * 0.78);
+    ctx.restore();
+
+    // 4. Stylized 3D Glass Water Droplets (Top-Right & Bottom-Left)
+    // Top-Right Glass Droplet Blob
+    ctx.save();
+    ctx.beginPath();
+    const trX = width * 0.93;
+    const trY = height * 0.07;
+    const trR = width * 0.055;
+    ctx.arc(trX, trY, trR, 0, Math.PI * 2);
+    const dropGradTR = ctx.createLinearGradient(trX - trR, trY - trR, trX + trR, trY + trR);
+    dropGradTR.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
+    dropGradTR.addColorStop(0.5, 'rgba(255, 255, 255, 0.45)');
+    dropGradTR.addColorStop(1, 'rgba(6, 182, 212, 0.20)');
+    ctx.fillStyle = dropGradTR;
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.35)';
+    ctx.lineWidth = Math.max(1, width * 0.002);
+    ctx.fill();
+    ctx.stroke();
+
+    // Specular Highlight
+    ctx.beginPath();
+    ctx.arc(trX - trR * 0.35, trY - trR * 0.35, trR * 0.25, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.fill();
+
+    // Mini companion bead
+    ctx.beginPath();
+    ctx.arc(trX - trR * 0.95, trY + trR * 0.7, trR * 0.32, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(52, 211, 153, 0.28)';
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
+    ctx.fill();
+    ctx.stroke();
+
+    // Bottom-Left Glass Droplet Blob
+    const blX = width * 0.07;
+    const blY = height * 0.94;
+    const blR = width * 0.045;
+    ctx.beginPath();
+    ctx.arc(blX, blY, blR, 0, Math.PI * 2);
+    const dropGradBL = ctx.createLinearGradient(blX - blR, blY - blR, blX + blR, blY + blR);
+    dropGradBL.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
+    dropGradBL.addColorStop(1, 'rgba(255, 255, 255, 0.4)');
+    ctx.fillStyle = dropGradBL;
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.3)';
+    ctx.lineWidth = Math.max(1, width * 0.002);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // 5. Subtle Card Frame Border
+    ctx.save();
+    const frameInset = Math.max(8, Math.round(width * 0.015));
+    ctx.beginPath();
+    ctx.roundRect(frameInset, frameInset, width - frameInset * 2, height - frameInset * 2, Math.min(28, width * 0.035));
+    ctx.strokeStyle = 'rgba(16, 185, 129, 0.18)';
+    ctx.lineWidth = Math.max(1.5, width * 0.0025);
+    ctx.stroke();
+    ctx.restore();
+
     return;
   }
 
@@ -243,21 +339,11 @@ export function renderSticker(
   let targetWidth = totalTextWidth + scaledPadding * 2 + scaledStrokeWidth * 2;
   let targetHeight = totalTextHeight + scaledPadding * 2 + scaledStrokeWidth * 2;
 
-  if (cardWidth && cardHeight) {
-    targetWidth = cardWidth * scale;
-    targetHeight = cardHeight * scale;
-  } else if (aspectRatio && aspectRatio !== 'auto') {
-    const minSize = Math.max(targetWidth, targetHeight, 512 * scale);
-    if (aspectRatio === '1:1') {
-      targetWidth = minSize;
-      targetHeight = minSize;
-    } else if (aspectRatio === '16:9') {
-      targetWidth = Math.max(minSize, (minSize * 16) / 9);
-      targetHeight = (targetWidth * 9) / 16;
-    } else if (aspectRatio === '9:16') {
-      targetHeight = Math.max(minSize, (minSize * 16) / 9);
-      targetWidth = (targetHeight * 9) / 16;
-    }
+  if (bgTheme !== 'transparent') {
+    // 1:1 Square Card Always (As requested: "1:1 e hobe only")
+    const squareSize = Math.max(targetWidth, targetHeight, 512 * scale);
+    targetWidth = squareSize;
+    targetHeight = squareSize;
   }
 
   canvas.width = Math.round(targetWidth);

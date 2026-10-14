@@ -12,9 +12,10 @@ import {
   copyBlobToClipboard
 } from '@/lib/stickerEngine';
 import { BANGLA_FONTS, BanglaFontOption, loadCustomFontFile } from '@/lib/cardFonts';
-import RgbColorPicker, { parseColorToRgb } from '@/components/RgbColorPicker';
+import RgbColorPicker from '@/components/RgbColorPicker';
 import CandidatePopup from '@/components/CandidatePopup';
 import { getPhoneticCandidates } from '@/lib/banglishDictionary';
+import { transliterateWord } from '@/lib/phoneticEngine';
 
 interface StyledSegment {
   id: string;
@@ -25,14 +26,17 @@ interface StyledSegment {
   color: string;
 }
 
+type QualityLevel = 'high' | 'medium' | 'low';
+
 export default function TextToPNGConverterPage() {
-  // Global defaults
+  // Global / Default Typography
   const [globalFont, setGlobalFont] = useState<string>(BANGLA_FONTS[0].family);
   const [globalFontSize, setGlobalFontSize] = useState<number>(56);
   const [globalFontWeight, setGlobalFontWeight] = useState<number>(600);
-  const [globalColor, setGlobalColor] = useState<string>('#0f172a'); // Slate 900 for light card
+  const [globalColor, setGlobalColor] = useState<string>('#0f172a');
+  const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
 
-  // Styled segments (the source of truth for the entire text)
+  // Styled segments (Source of truth for formatted text)
   const [segments, setSegments] = useState<StyledSegment[]>([
     {
       id: 'seg-1',
@@ -44,27 +48,29 @@ export default function TextToPNGConverterPage() {
     }
   ]);
 
-  // Drag selection state & floating popup
+  // Drag selection state & popup
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number; text: string } | null>(null);
-  const [popupPos, setPopupPos] = useState<{ top: number; left: number } | null>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
 
-  // Active formatting inside popup
+  // Active formatting of selected text
   const [activeFont, setActiveFont] = useState(BANGLA_FONTS[0].family);
   const [activeSize, setActiveSize] = useState(56);
   const [activeWeight, setActiveWeight] = useState(600);
   const [activeColor, setActiveColor] = useState('#059669');
 
-  // Background Theme: Only Transparent, Banglish Theme Card (uploaded image), and Dark Aurora Glass
+  // Background Theme: Only Transparent, Banglish Theme Card (1:1 procedural), and Dark Aurora Glass
   const [bgTheme, setBgTheme] = useState<BackgroundTheme>('banglish-theme');
 
-  // Outline / Die-cut styling
-  const [strokeWidth, setStrokeWidth] = useState(0); // Default 0 for cards, can be increased for stickers
+  // Sticker Die-cut Outline
+  const [strokeWidth, setStrokeWidth] = useState(0);
   const [strokeColor, setStrokeColor] = useState('#ffffff');
   const [shadowBlur, setShadowBlur] = useState(0);
   const [shadowColor, setShadowColor] = useState('rgba(0, 0, 0, 0.25)');
-  const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
-  const [scale, setScale] = useState(2); // 2x HD export by default
+
+  // Download Quality Dropdown state
+  const [downloadQuality, setDownloadQuality] = useState<QualityLevel>('medium');
+  const [isQualityDropdownOpen, setIsQualityDropdownOpen] = useState(false);
+  const qualityDropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Custom Font upload
   const [availableFonts, setAvailableFonts] = useState<BanglaFontOption[]>(BANGLA_FONTS);
@@ -83,12 +89,22 @@ export default function TextToPNGConverterPage() {
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Compute full plain text from segments
+  // Plain text representation
   const plainText = useMemo(() => {
     return segments.map(s => s.text).join('');
   }, [segments]);
+
+  // Close quality dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (qualityDropdownRef.current && !qualityDropdownRef.current.contains(event.target as Node)) {
+        setIsQualityDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Construct structured lines for the Canvas Sticker Engine
   const structuredLines = useMemo(() => {
@@ -102,11 +118,8 @@ export default function TextToPNGConverterPage() {
       const lineEnd = lineStart + lineStr.length;
       cumulativeCharIndex = lineEnd + 1; // +1 for the \n
 
-      if (lineStr.length === 0) {
-        continue;
-      }
+      if (lineStr.length === 0) continue;
 
-      // Map segments overlapping with this line
       const lineSpans: TextSpan[] = [];
       let segOffset = 0;
 
@@ -115,7 +128,6 @@ export default function TextToPNGConverterPage() {
         const segEnd = segStart + seg.text.length;
         segOffset = segEnd;
 
-        // Check overlap with current line
         const overlapStart = Math.max(lineStart, segStart);
         const overlapEnd = Math.min(lineEnd, segEnd);
 
@@ -156,7 +168,7 @@ export default function TextToPNGConverterPage() {
       shadowOffsetY: Math.round(shadowBlur * 0.25),
       padding: bgTheme === 'transparent' ? 36 : 60,
       align,
-      scale: 1 // 1x in live preview for smooth 60fps
+      scale: 1 // 1x preview for fast 60fps
     };
 
     renderSticker(canvas, options);
@@ -168,7 +180,7 @@ export default function TextToPNGConverterPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // --- Drag Selection & Floating Popup Handler ---
+  // --- Drag Selection Handler ---
   const handleSelection = () => {
     if (!textareaRef.current) return;
     const el = textareaRef.current;
@@ -179,20 +191,9 @@ export default function TextToPNGConverterPage() {
       const selectedStr = el.value.slice(start, end).trim();
       if (selectedStr.length > 0) {
         setSelectedRange({ start, end, text: selectedStr });
-
-        // Calculate position relative to container
-        const rect = el.getBoundingClientRect();
-        const containerRect = containerRef.current?.getBoundingClientRect() || { top: 0, left: 0 };
-
-        // Position popup centered above selection area
-        const top = rect.top - containerRect.top - 12;
-        const left = Math.min(Math.max(20, rect.left - containerRect.left + 40), rect.width - 200);
-
-        setPopupPos({ top: Math.max(10, top), left });
         setIsPopupOpen(true);
 
         // Preload formatting of selected text
-        // Find first overlapping segment
         let offset = 0;
         for (const seg of segments) {
           const sEnd = offset + seg.text.length;
@@ -205,11 +206,8 @@ export default function TextToPNGConverterPage() {
           }
           offset = sEnd;
         }
-        return;
       }
     }
-
-    // If selection collapsed, do not close immediately if user is clicking inside popup
   };
 
   // Apply formatting to selected range by splitting segments
@@ -217,8 +215,13 @@ export default function TextToPNGConverterPage() {
     newFont?: string,
     newSize?: number,
     newWeight?: number,
-    newColor?: string
+    newColor?: string,
+    newAlign?: 'left' | 'center' | 'right'
   ) => {
+    if (newAlign) {
+      setAlign(newAlign);
+    }
+
     if (!selectedRange) return;
     const { start, end } = selectedRange;
 
@@ -240,17 +243,14 @@ export default function TextToPNGConverterPage() {
       const segEnd = segStart + seg.text.length;
       curOffset = segEnd;
 
-      // Case 1: No overlap
       if (end <= segStart || start >= segEnd) {
         newSegments.push(seg);
         continue;
       }
 
-      // Case 2: Overlap exists - slice segment into up to 3 parts
       const beforeLength = Math.max(0, start - segStart);
       const afterStart = Math.min(seg.text.length, end - segStart);
 
-      // Part A: Before selection
       if (beforeLength > 0) {
         newSegments.push({
           ...seg,
@@ -259,7 +259,6 @@ export default function TextToPNGConverterPage() {
         });
       }
 
-      // Part B: The selected slice with new styling
       const selectedSlice = seg.text.slice(beforeLength, afterStart);
       if (selectedSlice.length > 0) {
         newSegments.push({
@@ -272,7 +271,6 @@ export default function TextToPNGConverterPage() {
         });
       }
 
-      // Part C: After selection
       if (afterStart < seg.text.length) {
         newSegments.push({
           ...seg,
@@ -285,11 +283,11 @@ export default function TextToPNGConverterPage() {
     setSegments(newSegments);
   };
 
-  // --- Phonetic Input Change Handler ---
+  // --- Phonetic Input with Spacebar Auto-Transliteration ---
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
 
-    // Direct replacement of plain text: single segment if plain edited, or preserve active formatting
+    // Update plain text in segments
     setSegments([
       {
         id: 'seg-root',
@@ -300,7 +298,6 @@ export default function TextToPNGConverterPage() {
         color: globalColor
       }
     ]);
-    setIsPopupOpen(false);
 
     if (!isPhoneticActive) {
       setCandidates([]);
@@ -324,12 +321,13 @@ export default function TextToPNGConverterPage() {
     }
   };
 
-  const handleSelectCandidate = (candidate: string) => {
-    if (!activePhoneticToken || !textareaRef.current) return;
+  const handleSelectCandidate = (candidate: string, appendChar: string = ' ') => {
+    if (!textareaRef.current) return;
     const cursorPos = textareaRef.current.selectionStart;
-    const textBefore = plainText.slice(0, cursorPos - activePhoneticToken.length);
+    const tokenLen = activePhoneticToken.length;
+    const textBefore = plainText.slice(0, cursorPos - tokenLen);
     const textAfter = plainText.slice(cursorPos);
-    const updated = textBefore + candidate + ' ' + textAfter;
+    const updated = textBefore + candidate + appendChar + textAfter;
 
     setSegments([
       {
@@ -343,33 +341,57 @@ export default function TextToPNGConverterPage() {
     ]);
     setCandidates([]);
     setActivePhoneticToken('');
+
     setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 50);
+      if (textareaRef.current) {
+        const nextPos = textBefore.length + candidate.length + appendChar.length;
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(nextPos, nextPos);
+      }
+    }, 10);
   };
 
+  // Auto-transliterate on Spacebar, Enter, or Tab
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (candidates.length > 0) {
+    if (isPhoneticActive && activePhoneticToken) {
+      if (e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        const chosen = candidates[selectedCandidateIndex] || transliterateWord(activePhoneticToken);
+        handleSelectCandidate(chosen, ' ');
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const chosen = candidates[selectedCandidateIndex] || transliterateWord(activePhoneticToken);
+        handleSelectCandidate(chosen, '\n');
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const chosen = candidates[selectedCandidateIndex] || transliterateWord(activePhoneticToken);
+        handleSelectCandidate(chosen, ' ');
+        return;
+      }
+
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedCandidateIndex(prev => (prev + 1) % candidates.length);
         return;
       }
+
       if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedCandidateIndex(prev => (prev - 1 + candidates.length) % candidates.length);
         return;
       }
-      if (e.key === 'Tab' || (e.key === 'Enter' && activePhoneticToken)) {
-        e.preventDefault();
-        handleSelectCandidate(candidates[selectedCandidateIndex]);
-        return;
-      }
+
       if (/^[1-9]$/.test(e.key) && (e.altKey || e.ctrlKey)) {
         const num = parseInt(e.key, 10);
         if (num >= 1 && num <= candidates.length) {
           e.preventDefault();
-          handleSelectCandidate(candidates[num - 1]);
+          handleSelectCandidate(candidates[num - 1], ' ');
           return;
         }
       }
@@ -398,33 +420,38 @@ export default function TextToPNGConverterPage() {
   };
 
   // --- Export Handlers ---
-  const generateExportCanvas = (targetScale: number): HTMLCanvasElement => {
-    const offscreen = document.createElement('canvas');
-    const options: StickerRenderOptions = {
-      lines: structuredLines,
-      bgTheme,
-      strokeWidth,
-      strokeColor,
-      shadowBlur,
-      shadowColor,
-      shadowOffsetX: 0,
-      shadowOffsetY: Math.round(shadowBlur * 0.25),
-      padding: bgTheme === 'transparent' ? 36 : 60,
-      align,
-      scale: targetScale
-    };
-    renderSticker(offscreen, options);
-    return offscreen;
+  const getScaleMultiplier = (quality: QualityLevel): number => {
+    if (quality === 'high') return 4; // 2048px (Ultra HD)
+    if (quality === 'low') return 1;  // 512px (Standard)
+    return 2;                         // 1024px (Medium Default)
   };
 
-  const handleDownload = async () => {
+  const handleDownload = async (chosenQuality: QualityLevel = downloadQuality) => {
     setIsProcessing(true);
+    setIsQualityDropdownOpen(false);
     try {
-      const exportCanvas = generateExportCanvas(scale);
-      const blob = await canvasToBlob(exportCanvas);
-      const fileName = `Banglish-${bgTheme === 'transparent' ? 'Sticker' : 'Card'}-${Date.now()}.png`;
+      const scaleMultiplier = getScaleMultiplier(chosenQuality);
+      const offscreen = document.createElement('canvas');
+      const options: StickerRenderOptions = {
+        lines: structuredLines,
+        bgTheme,
+        strokeWidth,
+        strokeColor,
+        shadowBlur,
+        shadowColor,
+        shadowOffsetX: 0,
+        shadowOffsetY: Math.round(shadowBlur * 0.25),
+        padding: bgTheme === 'transparent' ? 36 : 60,
+        align,
+        scale: scaleMultiplier
+      };
+      renderSticker(offscreen, options);
+
+      const blob = await canvasToBlob(offscreen);
+      const qualityName = chosenQuality.toUpperCase();
+      const fileName = `Banglish-${bgTheme === 'transparent' ? 'Sticker' : 'Card'}-${qualityName}-${Date.now()}.png`;
       downloadBlobAsFile(blob, fileName);
-      showToast('🎉 PNG সফলভাবে ডাউনলোড হয়েছে!');
+      showToast(`🎉 PNG ডাউনলোড হয়েছে (${qualityName} - ${scaleMultiplier * 512}px)!`);
     } catch (err) {
       console.error(err);
       alert('ডাউনলোড করতে সমস্যা হয়েছে।');
@@ -436,13 +463,28 @@ export default function TextToPNGConverterPage() {
   const handleCopyToClipboard = async () => {
     setIsProcessing(true);
     try {
-      const exportCanvas = generateExportCanvas(scale);
-      const blob = await canvasToBlob(exportCanvas);
+      const offscreen = document.createElement('canvas');
+      const options: StickerRenderOptions = {
+        lines: structuredLines,
+        bgTheme,
+        strokeWidth,
+        strokeColor,
+        shadowBlur,
+        shadowColor,
+        shadowOffsetX: 0,
+        shadowOffsetY: Math.round(shadowBlur * 0.25),
+        padding: bgTheme === 'transparent' ? 36 : 60,
+        align,
+        scale: 2 // 1024px HD for clipboard
+      };
+      renderSticker(offscreen, options);
+
+      const blob = await canvasToBlob(offscreen);
       await copyBlobToClipboard(blob);
-      showToast('📋 ক্লিপবোর্ডে কপি হয়েছে! সরাসরি WhatsApp/Figma/Photoshop-এ পেস্ট (Ctrl+V) করুন');
+      showToast('📋 ক্লিপবোর্ডে কপি হয়েছে! WhatsApp/Figma/Photoshop-এ পেস্ট (Ctrl+V) করুন');
     } catch (err) {
       console.error(err);
-      alert('ক্লিপবোর্ডে কপি করা যায়নি। ডাউনলোড বাটন ব্যবহার করুন।');
+      alert('ক্লিপবোর্ডে কপি করা যায়নি। Download বাটন ব্যবহার করুন।');
     } finally {
       setIsProcessing(false);
     }
@@ -453,13 +495,13 @@ export default function TextToPNGConverterPage() {
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-200">
-          <div className="bg-emerald-700 text-white font-medium text-xs sm:text-sm px-4 py-2.5 rounded-full shadow-xl shadow-emerald-950/20 flex items-center gap-2 border border-emerald-500/40">
+          <div className="bg-emerald-800 text-white font-medium text-xs sm:text-sm px-4 py-2.5 rounded-full shadow-xl shadow-emerald-950/20 flex items-center gap-2 border border-emerald-500/40">
             <span>{toastMessage}</span>
           </div>
         </div>
       )}
 
-      {/* Site Header matching banglish.bd */}
+      {/* Header */}
       <header className="border-b border-emerald-100/80 bg-white/80 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-3">
           <Link
@@ -475,41 +517,102 @@ export default function TextToPNGConverterPage() {
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-400"></span>
               TextToPNGConverter
             </span>
-            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold hidden sm:inline-block">
-              স্টিকার ও কার্ড মেকার
-            </span>
           </div>
         </div>
 
-        {/* Top Action Buttons */}
-        <div className="flex items-center gap-2">
+        {/* Top Action Buttons (Download Split Button + Copy Image) */}
+        <div className="flex items-center gap-2.5">
+          {/* Copy Image Button */}
           <button
             type="button"
             onClick={handleCopyToClipboard}
             disabled={isProcessing}
-            className="px-3 sm:px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-700 text-xs sm:text-sm font-semibold transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
+            className="px-3.5 sm:px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-700 text-xs sm:text-sm font-semibold transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
           >
             <span>📋</span>
-            <span className="hidden sm:inline">কপি ইমেজ</span>
+            <span>Copy Image</span>
           </button>
-          <button
-            type="button"
-            onClick={handleDownload}
-            disabled={isProcessing}
-            className="px-4 sm:px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm transition-all shadow-md shadow-emerald-600/20 active:scale-95 flex items-center gap-1.5"
-          >
-            <span>⬇️</span>
-            <span>ডাউনলোড PNG</span>
-          </button>
+
+          {/* Split Download Button with Dropdown (High, Medium, Low) */}
+          <div ref={qualityDropdownRef} className="relative inline-flex rounded-xl shadow-sm">
+            <button
+              type="button"
+              onClick={() => handleDownload(downloadQuality)}
+              disabled={isProcessing}
+              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm rounded-l-xl transition-all active:scale-95 flex items-center gap-1.5"
+            >
+              <span>⬇️</span>
+              <span>Download</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsQualityDropdownOpen(!isQualityDropdownOpen)}
+              className="px-2.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs border-l border-emerald-500/40 rounded-r-xl transition-all flex items-center justify-center"
+              title="কোয়ালিটি নির্বাচন করুন"
+            >
+              <span className="text-[10px]">▼</span>
+            </button>
+
+            {/* Quality Dropdown Menu */}
+            {isQualityDropdownOpen && (
+              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-2xl shadow-2xl border border-emerald-100 py-2 z-50 animate-in fade-in zoom-in-95">
+                <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                  রেজোলিউশন নির্বাচন
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDownloadQuality('high');
+                    handleDownload('high');
+                  }}
+                  className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
+                    downloadQuality === 'high' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
+                  }`}
+                >
+                  <span>High Quality</span>
+                  <span className="text-[10px] text-slate-400 font-mono">2048px (Ultra)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDownloadQuality('medium');
+                    handleDownload('medium');
+                  }}
+                  className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
+                    downloadQuality === 'medium' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Medium Quality</span>
+                    <span className="text-[9px] px-1 rounded bg-emerald-100 text-emerald-800 font-semibold">ডিফল্ট</span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-mono">1024px</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDownloadQuality('low');
+                    handleDownload('low');
+                  }}
+                  className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
+                    downloadQuality === 'low' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
+                  }`}
+                >
+                  <span>Low Quality</span>
+                  <span className="text-[10px] text-slate-400 font-mono">512px</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Main Content Studio Grid */}
+      {/* Main Studio Grid */}
       <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Editor & Controls (7 Cols) */}
-        <div ref={containerRef} className="lg:col-span-7 space-y-6 relative">
-          {/* Card 1: Main Text Box with Drag-Selection Notice & Phonetic Support */}
-          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-3 relative">
+        {/* Left Column: Text Input, Selection Toolbar & Options (7 Cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          {/* Card 1: Text Box with Inline Drag Selection & Floating Phonetics */}
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
@@ -542,7 +645,7 @@ export default function TextToPNGConverterPage() {
               </button>
             </div>
 
-            {/* Interactive Textarea with selection trigger */}
+            {/* Textarea */}
             <div className="relative">
               <textarea
                 ref={textareaRef}
@@ -554,7 +657,7 @@ export default function TextToPNGConverterPage() {
                 onKeyUp={handleSelection}
                 onKeyDown={handleKeyDown}
                 rows={4}
-                placeholder="এখানে বাংলা লিখুন বা বাংলিশে টাইপ করুন (যেমন: amra, cader, valobasha)..."
+                placeholder="এখানে লিখুন বা বাংলিশে টাইপ করুন (যেমন: amra, cader, valobasha লিখে স্পেস চাপুন)..."
                 className="w-full bg-slate-50/70 border border-emerald-200/80 rounded-2xl p-4 text-base sm:text-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all resize-y shadow-inner"
               />
 
@@ -565,15 +668,15 @@ export default function TextToPNGConverterPage() {
                     candidates={candidates}
                     selectedIndex={selectedCandidateIndex}
                     onSelectIndex={setSelectedCandidateIndex}
-                    onSelectCandidate={handleSelectCandidate}
+                    onSelectCandidate={(cand) => handleSelectCandidate(cand, ' ')}
                   />
                 </div>
               )}
             </div>
 
-            {/* Helper Guidance */}
-            <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-              <span>💡 লেখার যেকোনো শব্দ বা লাইন মাউস দিয়ে টেনে (drag করে) সিলেক্ট করলেই স্টাইল পপআপ আসবে।</span>
+            {/* Helper Advice */}
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-0.5">
+              <span>💡 লেখার যেকোনো শব্দ মাউস দিয়ে drag করে সিলেক্ট করলেই নিচে স্টাইল টুলবার ওপেন হবে।</span>
               {segments.length > 1 && (
                 <button
                   type="button"
@@ -598,118 +701,133 @@ export default function TextToPNGConverterPage() {
               )}
             </div>
 
-            {/* --- FLOATING SELECTION POPUP TOOLBAR (Appears when text is highlighted/dragged) --- */}
+            {/* --- SELECTION FORMATTING POPUP TOOLBAR (Clean, docked & never cuts off or goes inside other cards) --- */}
             {isPopupOpen && selectedRange && (
-              <div
-                className="absolute z-50 bg-white/95 backdrop-blur-2xl border-2 border-emerald-500 rounded-2xl shadow-2xl shadow-emerald-950/20 p-4 w-[310px] sm:w-[360px] animate-in fade-in zoom-in-95 duration-150 space-y-3.5 text-slate-800"
-                style={{
-                  top: `${(popupPos?.top || 40) + 70}px`,
-                  left: '16px'
-                }}
-              >
-                {/* Popup Header with selected text preview */}
-                <div className="flex items-center justify-between border-b border-emerald-100 pb-2">
-                  <div className="flex items-center gap-1.5 truncate max-w-[240px]">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
-                    <span className="text-xs font-bold text-slate-700">সিলেক্টেড:</span>
-                    <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 truncate">
+              <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/80 border-2 border-emerald-500 shadow-lg space-y-3.5 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between border-b border-emerald-200/60 pb-2">
+                  <div className="flex items-center gap-2 truncate max-w-[280px]">
+                    <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                    <span className="text-xs font-bold text-slate-700">সিলেক্টেড অংশ:</span>
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-300 truncate">
                       "{selectedRange.text}"
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setIsPopupOpen(false)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-slate-100 text-xs font-bold"
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-800 hover:bg-emerald-100/50 text-xs font-bold"
                   >
-                    ✕
+                    ✕ বন্ধ করুন
                   </button>
                 </div>
 
-                {/* 1. Font Selection Dropdown (As requested by user: "font select er drop down thakbe") */}
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-700 flex items-center justify-between">
-                    <span>ফন্ট নির্বাচন করুন (Font)</span>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="text-[10px] text-emerald-700 font-semibold hover:underline"
+                {/* Font Dropdown & Size Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Font Dropdown */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700">ফন্ট নির্বাচন করুন (Font)</label>
+                    <select
+                      value={activeFont}
+                      onChange={(e) => applyFormattingToRange(e.target.value)}
+                      className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
                     >
-                      + কাস্টম TTF
-                    </button>
-                  </label>
-                  <select
-                    value={activeFont}
-                    onChange={(e) => applyFormattingToRange(e.target.value)}
-                    className="w-full bg-slate-50 border border-emerald-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                  >
-                    {availableFonts.map((f) => (
-                      <option key={f.id} value={f.family}>
-                        {f.bnName} ({f.name})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 2. Font Size Slider */}
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs font-bold text-slate-700">
-                    <span>ফন্ট সাইজ (Size)</span>
-                    <span className="font-mono text-emerald-700">{activeSize}px</span>
+                      {availableFonts.map((f) => (
+                        <option key={f.id} value={f.family}>
+                          {f.bnName} ({f.name})
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => applyFormattingToRange(undefined, Math.max(16, activeSize - 4))}
-                      className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-700 text-xs font-bold"
-                    >
-                      A-
-                    </button>
-                    <input
-                      type="range"
-                      min="16"
-                      max="140"
-                      value={activeSize}
-                      onChange={(e) => applyFormattingToRange(undefined, parseInt(e.target.value, 10))}
-                      className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => applyFormattingToRange(undefined, Math.min(140, activeSize + 4))}
-                      className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-emerald-50 text-slate-700 text-xs font-bold"
-                    >
-                      A+
-                    </button>
-                  </div>
-                </div>
 
-                {/* 3. Weight Options (Light / Regular / Bold) */}
-                <div className="space-y-1">
-                  <span className="text-xs font-bold text-slate-700">ফন্ট ওয়েইট (Weight)</span>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {[
-                      { label: 'হালকা (Light)', weight: 300 },
-                      { label: 'সাধারণ (Regular)', weight: 400 },
-                      { label: 'বোল্ড (Bold)', weight: 700 }
-                    ].map((w) => (
+                  {/* Size Slider */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-bold text-slate-700">
+                      <span>ফন্ট সাইজ (Size)</span>
+                      <span className="font-mono text-emerald-700">{activeSize}px</span>
+                    </div>
+                    <div className="flex items-center gap-2">
                       <button
-                        key={w.weight}
                         type="button"
-                        onClick={() => applyFormattingToRange(undefined, undefined, w.weight)}
-                        className={`py-1.5 text-xs rounded-xl border font-semibold transition-all ${
-                          activeWeight === w.weight
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-emerald-50'
-                        }`}
+                        onClick={() => applyFormattingToRange(undefined, Math.max(16, activeSize - 4))}
+                        className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold"
                       >
-                        {w.label}
+                        A-
                       </button>
-                    ))}
+                      <input
+                        type="range"
+                        min="16"
+                        max="140"
+                        value={activeSize}
+                        onChange={(e) => applyFormattingToRange(undefined, parseInt(e.target.value, 10))}
+                        className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => applyFormattingToRange(undefined, Math.min(140, activeSize + 4))}
+                        className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold"
+                      >
+                        A+
+                      </button>
+                    </div>
                   </div>
                 </div>
 
-                {/* 4. Full RGB Color Selector for Selected Word */}
+                {/* Font Weight & Alignment Controls Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Weight */}
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-slate-700">ফন্ট ওয়েইট (Weight)</span>
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        { label: 'Light', weight: 300 },
+                        { label: 'Regular', weight: 400 },
+                        { label: 'Bold', weight: 700 }
+                      ].map((w) => (
+                        <button
+                          key={w.weight}
+                          type="button"
+                          onClick={() => applyFormattingToRange(undefined, undefined, w.weight)}
+                          className={`py-1.5 text-xs rounded-xl border font-semibold transition-all ${
+                            activeWeight === w.weight
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50'
+                          }`}
+                        >
+                          {w.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Alignment for Selected Words */}
+                  <div className="space-y-1">
+                    <span className="text-xs font-bold text-slate-700">অ্যালাইনমেন্ট (Alignment)</span>
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        { a: 'left' as const, label: 'বাম' },
+                        { a: 'center' as const, label: 'মাঝখানে' },
+                        { a: 'right' as const, label: 'ডান' }
+                      ].map((al) => (
+                        <button
+                          key={al.a}
+                          type="button"
+                          onClick={() => applyFormattingToRange(undefined, undefined, undefined, undefined, al.a)}
+                          className={`py-1.5 text-xs rounded-xl border font-semibold transition-all ${
+                            align === al.a
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-emerald-50'
+                          }`}
+                        >
+                          {al.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* True RGB Color Selector for Selected Text */}
                 <RgbColorPicker
-                  label="সিলেক্টেড লেখার রঙ (RGB Color)"
+                  label="সিলেক্টেড লেখার রঙ (RGB Color Selector)"
                   value={activeColor}
                   onChange={(color) => applyFormattingToRange(undefined, undefined, undefined, color)}
                 />
@@ -726,21 +844,21 @@ export default function TextToPNGConverterPage() {
             className="hidden"
           />
 
-          {/* Card 2: Global Styling & Background Theme Settings */}
+          {/* Card 2: Background Selector (Strictly 3 options: Transparent, Banglish Theme Card 1:1, Dark Aurora Glass) */}
           <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-5">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <span>🖼️</span>
               <span>ব্যাকগ্রাউন্ড থিম নির্বাচন করুন (Background)</span>
             </h3>
 
-            {/* Background Theme Selector: ONLY Transparent, Banglish Theme Card, and Dark Aurora */}
+            {/* The 3 Background Options */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {/* Option 1: Transparent PNG */}
+              {/* Option 1: Transparent */}
               <button
                 type="button"
                 onClick={() => {
                   setBgTheme('transparent');
-                  if (strokeWidth === 0) setStrokeWidth(10); // Auto outline for stickers
+                  if (strokeWidth === 0) setStrokeWidth(10);
                   setGlobalColor('#10b981');
                 }}
                 className={`p-3.5 rounded-2xl text-left border-2 transition-all flex flex-col justify-between ${
@@ -751,8 +869,8 @@ export default function TextToPNGConverterPage() {
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900">স্বচ্ছ স্টিকার</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono">PNG</span>
+                    <span className="text-sm font-bold text-slate-900">ট্রান্সপারেন্ট</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono">Transparent</span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
                     কোনো ব্যাকগ্রাউন্ড থাকবে না (WhatsApp/Telegram স্টিকারের জন্য)
@@ -761,7 +879,7 @@ export default function TextToPNGConverterPage() {
                 <div className="mt-3 w-full h-8 rounded-lg bg-[linear-gradient(45deg,#cbd5e1_25%,transparent_25%),linear-gradient(-45deg,#cbd5e1_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#cbd5e1_75%),linear-gradient(-45deg,transparent_75%,#cbd5e1_75%)] bg-[size:10px_10px] border border-slate-300/80"></div>
               </button>
 
-              {/* Option 2: Banglish Theme Card (The user's uploaded image) */}
+              {/* Option 2: Banglish Theme Card (1:1 Procedural Grid, Droplets & Watermark Letters) */}
               <button
                 type="button"
                 onClick={() => {
@@ -778,14 +896,14 @@ export default function TextToPNGConverterPage() {
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-slate-900">ব্যাংলিশ থিম কার্ড</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">New</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">1:1 Square</span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    গ্রিড ও ওয়াটার ড্রপলেট সহ আমাদের সাইটের সিগনেচার থিম
+                    লো-ট্রান্সপারেন্সি গ্রিড, ওয়াটারমার্ক ও ড্রপলেট সহ সিগনেচার থিম
                   </p>
                 </div>
-                <div className="mt-3 w-full h-8 rounded-lg overflow-hidden border border-emerald-200 relative">
-                  <img src="/assets/banglish-card-bg.jpg" alt="Theme Card" className="w-full h-full object-cover" />
+                <div className="mt-3 w-full h-8 rounded-lg bg-gradient-to-br from-[#f9fdfa] via-white to-[#f2faf5] border border-emerald-200 relative overflow-hidden flex items-center justify-center">
+                  <span className="text-[11px] text-slate-400 font-bangla font-semibold">অ আ ক খ গ</span>
                 </div>
               </button>
 
@@ -806,7 +924,7 @@ export default function TextToPNGConverterPage() {
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-bold text-slate-900">ডার্ক অরোরা গ্লাস</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-900 text-emerald-400 font-mono">Dark</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-900 text-emerald-400 font-mono">1:1 Dark</span>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1">
                     গ্রাফাইট ব্যাকগ্রাউন্ড ও নিয়ন এমারেল্ড গ্লাস ফ্রেম
@@ -816,14 +934,14 @@ export default function TextToPNGConverterPage() {
               </button>
             </div>
 
-            {/* Global Typography & RGB Color Controls */}
+            {/* Global Typography & Default Alignment Controls */}
             <div className="pt-3 border-t border-emerald-100/80 space-y-4">
               <div className="text-xs font-bold text-slate-800">
                 সকল শব্দের ডিফল্ট সেটিংস (Global Defaults):
               </div>
 
-              {/* Font Dropdown for all text */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Default Font Dropdown */}
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700">ডিফল্ট ফন্ট (Default Font)</label>
                   <select
@@ -842,9 +960,9 @@ export default function TextToPNGConverterPage() {
                   </select>
                 </div>
 
-                {/* Text Alignment */}
+                {/* Default Alignment */}
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">অ্যালাইনমেন্ট</label>
+                  <label className="text-xs font-semibold text-slate-700">ডিফল্ট অ্যালাইনমেন্ট</label>
                   <div className="grid grid-cols-3 gap-1">
                     {(['left', 'center', 'right'] as const).map((a) => (
                       <button
@@ -853,7 +971,7 @@ export default function TextToPNGConverterPage() {
                         onClick={() => setAlign(a)}
                         className={`py-2 text-xs rounded-xl border font-semibold ${
                           align === a
-                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-emerald-50'
                         }`}
                       >
@@ -874,7 +992,7 @@ export default function TextToPNGConverterPage() {
                 }}
               />
 
-              {/* Die-Cut Sticker Outline (Border) if user wants a sticker die-cut */}
+              {/* Die-Cut Sticker Outline if enabled */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
                 <div className="space-y-1">
                   <div className="flex justify-between text-xs font-semibold text-slate-700">
@@ -903,23 +1021,23 @@ export default function TextToPNGConverterPage() {
           </div>
         </div>
 
-        {/* Right Column: Sticky Live Canvas Preview & Export (5 Cols) */}
+        {/* Right Column: Sticky Live Preview & Actions (5 Cols) */}
         <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-24">
           <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-4">
-            {/* Preview Header */}
+            {/* Preview Header - Just "Preview" as requested */}
             <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  লাইভ প্রিভিউ (Live Card Preview)
+                  Preview
                 </span>
               </div>
               <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                {bgTheme === 'transparent' ? 'স্বচ্ছ PNG' : bgTheme === 'banglish-theme' ? 'ব্যাংলিশ থিম' : 'ডার্ক অরোরা'}
+                {bgTheme === 'transparent' ? 'ট্রান্সপারেন্ট' : bgTheme === 'banglish-theme' ? 'ব্যাংলিশ থিম (1:1)' : 'ডার্ক অরোরা (1:1)'}
               </span>
             </div>
 
-            {/* Canvas Container with Theme Background */}
+            {/* Canvas Container */}
             <div className="w-full min-h-[320px] max-h-[460px] rounded-2xl overflow-hidden flex items-center justify-center p-3 relative border border-emerald-200/80 shadow-inner bg-[linear-gradient(45deg,#f1f5f9_25%,transparent_25%),linear-gradient(-45deg,#f1f5f9_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f1f5f9_75%),linear-gradient(-45deg,transparent_75%,#f1f5f9_75%)] bg-[size:16px_16px]">
               <canvas
                 ref={previewCanvasRef}
@@ -927,67 +1045,94 @@ export default function TextToPNGConverterPage() {
               />
             </div>
 
-            {/* Resolution Selector */}
-            <div className="space-y-1.5 pt-1">
-              <div className="flex justify-between text-xs font-semibold text-slate-700">
-                <span>এক্সপোর্ট সাইজ (Export Quality)</span>
-                <span className="font-mono text-emerald-700">
-                  {scale === 1 ? '512px (Standard)' : scale === 2 ? '1024px (HD)' : '2048px (Ultra HD 300 DPI)'}
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { s: 1, label: '512px', sub: 'স্ট্যান্ডার্ড' },
-                  { s: 2, label: '1024px', sub: 'রেটিনা HD' },
-                  { s: 4, label: '2048px', sub: 'আল্ট্রা প্রিন্ট' }
-                ].map((r) => (
-                  <button
-                    key={r.s}
-                    type="button"
-                    onClick={() => setScale(r.s)}
-                    className={`py-2 px-2 rounded-xl text-center border transition-all ${
-                      scale === r.s
-                        ? 'bg-emerald-600 text-white border-emerald-600 font-bold shadow-sm'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-emerald-50'
-                    }`}
-                  >
-                    <div className="text-xs">{r.label}</div>
-                    <div className={`text-[10px] ${scale === r.s ? 'text-emerald-100' : 'text-slate-400'}`}>
-                      {r.sub}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Primary Action Buttons */}
+            {/* Bottom Actions Row */}
             <div className="space-y-2.5 pt-2">
-              <button
-                type="button"
-                onClick={handleDownload}
-                disabled={isProcessing}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm tracking-wide transition-all shadow-lg shadow-emerald-600/25 active:scale-98 flex items-center justify-center gap-2"
-              >
-                <span>⬇️</span>
-                <span>ডাউনলোড হাই-কোয়ালিটি PNG ({scale * 512}px)</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Download Split Button with Quality Dropdown */}
+                <div className="flex-1 relative inline-flex rounded-2xl shadow-md shadow-emerald-600/20">
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(downloadQuality)}
+                    disabled={isProcessing}
+                    className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm rounded-l-2xl transition-all active:scale-98 flex items-center justify-center gap-2"
+                  >
+                    <span>⬇️</span>
+                    <span>Download</span>
+                    <span className="text-[10px] font-normal opacity-80 font-mono">
+                      ({downloadQuality === 'high' ? '2048px' : downloadQuality === 'low' ? '512px' : '1024px'})
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsQualityDropdownOpen(!isQualityDropdownOpen)}
+                    className="px-3 bg-emerald-700 hover:bg-emerald-600 text-white text-xs border-l border-emerald-500/40 rounded-r-2xl transition-all flex items-center justify-center"
+                    title="কোয়ালিটি অপশন"
+                  >
+                    <span className="text-[10px]">▼</span>
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleCopyToClipboard}
-                disabled={isProcessing}
-                className="w-full py-3 rounded-2xl bg-white hover:bg-emerald-50 border border-emerald-300 text-slate-800 font-bold text-xs sm:text-sm transition-all active:scale-98 flex items-center justify-center gap-2 shadow-xs"
-              >
-                <span>📋</span>
-                <span>সরাসরি ক্লিপবোর্ডে কপি করুন (Paste to WhatsApp/Figma)</span>
-              </button>
-            </div>
+                  {/* Quality Dropdown Menu */}
+                  {isQualityDropdownOpen && (
+                    <div className="absolute right-0 bottom-full mb-2 w-52 bg-white rounded-2xl shadow-2xl border border-emerald-200 py-2 z-50 animate-in fade-in zoom-in-95">
+                      <div className="px-3.5 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                        রেজোলিউশন নির্বাচন
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDownloadQuality('high');
+                          handleDownload('high');
+                        }}
+                        className="w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between"
+                      >
+                        <span className="font-semibold text-slate-800">High Quality</span>
+                        <span className="text-[10px] text-slate-400 font-mono">2048px (Ultra)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDownloadQuality('medium');
+                          handleDownload('medium');
+                        }}
+                        className="w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between font-bold text-emerald-800 bg-emerald-50/70"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>Medium Quality</span>
+                          <span className="text-[9px] px-1 rounded bg-emerald-200/80 text-emerald-900 font-semibold">ডিফল্ট</span>
+                        </div>
+                        <span className="text-[10px] font-mono">1024px</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDownloadQuality('low');
+                          handleDownload('low');
+                        }}
+                        className="w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between"
+                      >
+                        <span className="font-semibold text-slate-800">Low Quality</span>
+                        <span className="text-[10px] text-slate-400 font-mono">512px</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-            {/* Pro Tip */}
-            <div className="text-[11px] text-slate-500 bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 space-y-1">
-              <p className="font-bold text-emerald-800">💡 ব্যবহারবিধি:</p>
-              <p>১. টেক্সটের যে অংশটি বদলাতে চান, মাউস দিয়ে শুধু সেই অংশটুকু ড্র্যাগ করে সিলেক্ট করুন।</p>
-              <p>২. সাথে সাথেই ভেসে ওঠা পপআপ থেকে ফন্ট ড্রপডাউন, সাইজ স্লাইডার ও RGB কালার দিয়ে স্টাইল করুন।</p>
+                {/* Copy Image Button */}
+                <button
+                  type="button"
+                  onClick={handleCopyToClipboard}
+                  disabled={isProcessing}
+                  className="py-3 px-4 rounded-2xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-800 font-bold text-xs sm:text-sm transition-all active:scale-98 flex items-center justify-center gap-1.5 shadow-xs shrink-0"
+                >
+                  <span>📋</span>
+                  <span>Copy Image</span>
+                </button>
+              </div>
+
+              {/* Quick tip */}
+              <p className="text-[11px] text-slate-500 text-center">
+                ✨ ড্রপডাউনে ক্লিক না করলে স্বয়ংক্রিয়ভাবে মিডিয়াম কোয়ালিটিতে (1024px) ডাউনলোড হবে।
+              </p>
             </div>
           </div>
         </div>
