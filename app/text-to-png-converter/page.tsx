@@ -1110,115 +1110,119 @@ export default function TextToPNGConverterPage() {
       )}
 
       {/* Header */}
-      <header className="border-b border-emerald-100/80 bg-white/90 backdrop-blur-md sticky top-0 z-40 px-4 sm:px-8 py-3 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 sm:gap-3 group focus:outline-none focus:ring-2 focus:ring-emerald-500/20 rounded-xl p-1"
-            title="Banglish হোমপেজে যান"
-          >
-            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100/80 p-1.5 flex items-center justify-center border border-emerald-200/60 shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:rotate-1">
-              <img src="/assets/banglish-logo-192.png" alt="Banglish Logo" className="w-full h-full object-contain" />
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1">
-                <span className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-sans">Banglish</span>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              </div>
-              <span className="text-[11px] font-medium text-emerald-700 tracking-wider font-bangla -mt-1">বাংলায় লিখি বিজয়ের সুর</span>
-            </div>
-          </Link>
-
-          <span className="text-slate-300 hidden md:inline">|</span>
-          <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/60 text-emerald-800 text-xs font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            TextToPNGConverter
-          </div>
-        </div>
-
-        {/* Top Action Buttons (Download Split Button + Copy Image) */}
-        <div className="flex items-center gap-2.5">
-          {/* Copy Image Button */}
-          <button
-            type="button"
-            onClick={handleCopyToClipboard}
-            disabled={isProcessing}
-            className="px-3.5 sm:px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-700 text-xs sm:text-sm font-semibold transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
-          >
-            <CopyIcon className="w-4 h-4 text-emerald-700" />
-            <span>Copy Image</span>
-          </button>
-
-          {/* Split Download Button with Dropdown (High, Medium, Low) */}
-          <div ref={qualityDropdownRef} className="relative inline-flex rounded-xl shadow-sm">
-            <button
-              type="button"
-              onClick={() => handleDownload(downloadQuality)}
-              disabled={isProcessing}
-              className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm rounded-l-xl transition-all active:scale-95 flex items-center gap-1.5"
-            >
-              <DownloadIcon className="w-4 h-4" />
-              <span>Download</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsQualityDropdownOpen(!isQualityDropdownOpen)}
-              className="px-2.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs border-l border-emerald-500/40 rounded-r-xl transition-all flex items-center justify-center"
-              title="কোয়ালিটি অপশন"
-            >
-              <ChevronDownIcon className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Quality Dropdown Menu */}
-            {isQualityDropdownOpen && (
-              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-2xl shadow-2xl border border-emerald-100 py-2 z-50 animate-in fade-in zoom-in-95">
-                <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                  রেজোলিউশন নির্বাচন
+      <header className="sticky top-0 z-40 backdrop-blur-md bg-white/90 border-b border-emerald-100/70 shadow-xs transition-all duration-300">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16 sm:h-20">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <Link
+                href="/"
+                className="flex items-center gap-2.5 sm:gap-3 group focus:outline-none focus:ring-2 focus:ring-emerald-500/20 rounded-xl p-1"
+                title="Banglish হোমপেজে যান"
+              >
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100/80 p-1.5 flex items-center justify-center border border-emerald-200/60 shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:rotate-1">
+                  <img src="/assets/banglish-logo-192.png" alt="Banglish Logo" className="w-full h-full object-contain" />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDownloadQuality('high');
-                    handleDownload('high');
-                  }}
-                  className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
-                    downloadQuality === 'high' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
-                  }`}
-                >
-                  <span>High Quality</span>
-                  <span className="text-[10px] text-slate-400 font-mono">2048px (Ultra)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDownloadQuality('medium');
-                    handleDownload('medium');
-                  }}
-                  className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
-                    downloadQuality === 'medium' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>Medium Quality</span>
-                    <span className="text-[9px] px-1 rounded bg-emerald-100 text-emerald-800 font-semibold">ডিফল্ট</span>
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 font-sans">Banglish</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   </div>
-                  <span className="text-[10px] text-slate-400 font-mono">1024px</span>
+                  <span className="text-[11px] font-medium text-emerald-700 tracking-wider font-bangla -mt-1">বাংলায় লিখি বিজয়ের সুর</span>
+                </div>
+              </Link>
+
+              <span className="text-slate-300 hidden md:inline">|</span>
+              <div className="hidden md:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200/60 text-emerald-800 text-xs font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                TextToPNGConverter
+              </div>
+            </div>
+
+            {/* Top Action Buttons (Download Split Button + Copy Image) */}
+            <div className="flex items-center gap-2.5">
+              {/* Copy Image Button */}
+              <button
+                type="button"
+                onClick={handleCopyToClipboard}
+                disabled={isProcessing}
+                className="px-3.5 sm:px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-700 text-xs sm:text-sm font-semibold transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
+              >
+                <CopyIcon className="w-4 h-4 text-emerald-700" />
+                <span>Copy Image</span>
+              </button>
+
+              {/* Split Download Button with Dropdown (High, Medium, Low) */}
+              <div ref={qualityDropdownRef} className="relative inline-flex rounded-xl shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => handleDownload(downloadQuality)}
+                  disabled={isProcessing}
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs sm:text-sm rounded-l-xl transition-all active:scale-95 flex items-center gap-1.5"
+                >
+                  <DownloadIcon className="w-4 h-4" />
+                  <span>Download</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setDownloadQuality('low');
-                    handleDownload('low');
-                  }}
-                  className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
-                    downloadQuality === 'low' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
-                  }`}
+                  onClick={() => setIsQualityDropdownOpen(!isQualityDropdownOpen)}
+                  className="px-2.5 py-2 bg-emerald-700 hover:bg-emerald-600 text-white text-xs border-l border-emerald-500/40 rounded-r-xl transition-all flex items-center justify-center"
+                  title="কোয়ালিটি অপশন"
                 >
-                  <span>Low Quality</span>
-                  <span className="text-[10px] text-slate-400 font-mono">512px</span>
+                  <ChevronDownIcon className="w-3.5 h-3.5" />
                 </button>
+
+                {/* Quality Dropdown Menu */}
+                {isQualityDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-48 bg-white rounded-2xl shadow-2xl border border-emerald-100 py-2 z-50 animate-in fade-in zoom-in-95">
+                    <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                      রেজোলিউশন নির্বাচন
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDownloadQuality('high');
+                        handleDownload('high');
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
+                        downloadQuality === 'high' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
+                      }`}
+                    >
+                      <span>High Quality</span>
+                      <span className="text-[10px] text-slate-400 font-mono">2048px (Ultra)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDownloadQuality('medium');
+                        handleDownload('medium');
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
+                        downloadQuality === 'medium' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Medium Quality</span>
+                        <span className="text-[9px] px-1 rounded bg-emerald-100 text-emerald-800 font-semibold">ডিফল্ট</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono">1024px</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDownloadQuality('low');
+                        handleDownload('low');
+                      }}
+                      className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
+                        downloadQuality === 'low' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
+                      }`}
+                    >
+                      <span>Low Quality</span>
+                      <span className="text-[10px] text-slate-400 font-mono">512px</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </header>
