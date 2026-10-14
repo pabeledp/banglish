@@ -9,18 +9,22 @@ export default function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const LOW_DB_VOLUME = 0.16;
 
-  // Do not render or play song on pastebin workspace pages
-  const isPastebin = pathname?.startsWith('/pastebin') || pathname?.startsWith('/paste-bin');
+  // Do not render or play song on pastebin or text-to-png-converter workspace pages
+  const isExcluded = 
+    pathname?.startsWith('/pastebin') || 
+    pathname?.startsWith('/paste-bin') ||
+    pathname?.toLowerCase().includes('text-to-png-converter') ||
+    pathname?.toLowerCase().includes('texttopngconverter');
 
   useEffect(() => {
-    if (isPastebin && audioRef.current && !audioRef.current.paused) {
+    if (isExcluded && audioRef.current && !audioRef.current.paused) {
       audioRef.current.pause();
       setIsPlaying(false);
     }
-  }, [isPastebin]);
+  }, [isExcluded]);
 
   useEffect(() => {
-    if (isPastebin) return;
+    if (isExcluded) return;
 
     if (audioRef.current) {
       audioRef.current.volume = LOW_DB_VOLUME;
@@ -43,10 +47,10 @@ export default function AudioPlayer() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isPlaying, isPastebin]);
+  }, [isPlaying, isExcluded]);
 
   const togglePlay = () => {
-    if (!audioRef.current || isPastebin) return;
+    if (!audioRef.current || isExcluded) return;
     if (audioRef.current.paused) {
       audioRef.current.volume = LOW_DB_VOLUME;
       audioRef.current.play().then(() => {
@@ -60,7 +64,7 @@ export default function AudioPlayer() {
     }
   };
 
-  if (isPastebin) {
+  if (isExcluded) {
     return null;
   }
 
