@@ -49,6 +49,7 @@ interface StyledSegment {
   fontSize: number;
   fontWeight: number;
   color: string;
+  letterSpacing?: number;
 }
 
 type QualityLevel = 'high' | 'medium' | 'low';
@@ -60,6 +61,8 @@ export default function TextToPNGConverterPage() {
   const [globalFontWeight, setGlobalFontWeight] = useState<number>(600);
   const [globalColor, setGlobalColor] = useState<string>('#0f172a');
   const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
+  const [lineGap, setLineGap] = useState<number>(0);
+  const [globalLetterSpacing, setGlobalLetterSpacing] = useState<number>(0);
 
   // Styled segments (Source of truth)
   const [segments, setSegments] = useState<StyledSegment[]>([
@@ -69,7 +72,8 @@ export default function TextToPNGConverterPage() {
       fontFamily: BANGLA_FONTS[0].family,
       fontSize: 56,
       fontWeight: 600,
-      color: '#0f172a'
+      color: '#0f172a',
+      letterSpacing: 0
     }
   ]);
 
@@ -83,6 +87,7 @@ export default function TextToPNGConverterPage() {
   const [activeSize, setActiveSize] = useState(56);
   const [activeWeight, setActiveWeight] = useState(600);
   const [activeColor, setActiveColor] = useState('#059669');
+  const [activeSpacing, setActiveSpacing] = useState(0);
 
   // Background Theme: Only Transparent, Banglish Theme Card (1:1 procedural), and Dark Aurora Glass
   const [bgTheme, setBgTheme] = useState<BackgroundTheme>('banglish-theme');
@@ -115,22 +120,60 @@ export default function TextToPNGConverterPage() {
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const floatingPopupRef = useRef<HTMLDivElement | null>(null);
 
   // Plain text representation
   const plainText = useMemo(() => {
     return segments.map(s => s.text).join('');
   }, [segments]);
 
-  // Close quality dropdown when clicking outside
+  // Close quality dropdown & floating popup when clicking outside or pressing Escape
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (qualityDropdownRef.current && !qualityDropdownRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (qualityDropdownRef.current && !qualityDropdownRef.current.contains(target)) {
         setIsQualityDropdownOpen(false);
       }
+      if (
+        isPopupOpen &&
+        floatingPopupRef.current &&
+        !floatingPopupRef.current.contains(target)
+      ) {
+        if (textareaRef.current && textareaRef.current.contains(target)) {
+          // If clicked inside textarea on a blank spot (no range selection), auto-close
+          setTimeout(() => {
+            if (
+              textareaRef.current &&
+              textareaRef.current.selectionStart === textareaRef.current.selectionEnd
+            ) {
+              setIsPopupOpen(false);
+              setSelectedRange(null);
+            }
+          }, 0);
+        } else {
+          setIsPopupOpen(false);
+          setSelectedRange(null);
+        }
+      }
     };
+
+    const handleKeyDownGlobal = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsQualityDropdownOpen(false);
+        setIsPopupOpen(false);
+        setSelectedRange(null);
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDownGlobal);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDownGlobal);
+    };
+  }, [isPopupOpen]);
 
   // Construct structured lines for the Canvas Sticker Engine
   const structuredLines = useMemo(() => {
@@ -194,11 +237,13 @@ export default function TextToPNGConverterPage() {
       shadowOffsetY: Math.round(shadowBlur * 0.25),
       padding: bgTheme === 'transparent' ? 36 : 60,
       align,
-      scale: 1 // 1x preview for fast 60fps
+      scale: 1, // 1x preview for fast 60fps
+      lineGap,
+      letterSpacing: globalLetterSpacing
     };
 
     renderSticker(canvas, options);
-  }, [structuredLines, bgTheme, strokeWidth, strokeColor, shadowBlur, shadowColor, align]);
+  }, [structuredLines, bgTheme, strokeWidth, strokeColor, shadowBlur, shadowColor, align, lineGap, globalLetterSpacing]);
 
   // Toast helper
   const showToast = (msg: string) => {
@@ -219,7 +264,7 @@ export default function TextToPNGConverterPage() {
 
         // Calculate floating position directly near cursor, clamped to viewport
         const popupW = 340;
-        const popupH = 380;
+        const popupH = 430;
         const clientX = e.clientX || window.innerWidth / 2;
         const clientY = e.clientY || 200;
 
@@ -239,11 +284,35 @@ export default function TextToPNGConverterPage() {
             setActiveSize(seg.fontSize);
             setActiveWeight(seg.fontWeight);
             setActiveColor(seg.color);
+            setActiveSpacing(seg.letterSpacing ?? globalLetterSpacing);
             break;
           }
           offset = sEnd;
         }
+        return;
       }
+    }
+
+    // Auto-close if clicked on empty space / collapsed selection
+    if (isPopupOpen) {
+      setIsPopupOpen(false);
+      setSelectedRange(null);
+    }
+  };
+
+  const handleTextareaClick = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget;
+    if (el.selectionStart === el.selectionEnd && isPopupOpen) {
+      setIsPopupOpen(false);
+      setSelectedRange(null);
+    }
+  };
+
+  const handleTextareaKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const el = e.currentTarget;
+    if (el.selectionStart === el.selectionEnd && isPopupOpen) {
+      setIsPopupOpen(false);
+      setSelectedRange(null);
     }
   };
 
@@ -253,7 +322,8 @@ export default function TextToPNGConverterPage() {
     newSize?: number,
     newWeight?: number,
     newColor?: string,
-    newAlign?: 'left' | 'center' | 'right'
+    newAlign?: 'left' | 'center' | 'right',
+    newSpacing?: number
   ) => {
     if (newAlign) {
       setAlign(newAlign);
@@ -266,11 +336,13 @@ export default function TextToPNGConverterPage() {
     const nextSize = newSize ?? activeSize;
     const nextWeight = newWeight ?? activeWeight;
     const nextColor = newColor ?? activeColor;
+    const nextSpacing = newSpacing ?? activeSpacing;
 
     if (newFont) setActiveFont(newFont);
     if (newSize) setActiveSize(newSize);
     if (newWeight) setActiveWeight(newWeight);
     if (newColor) setActiveColor(newColor);
+    if (newSpacing !== undefined) setActiveSpacing(nextSpacing);
 
     const newSegments: StyledSegment[] = [];
     let curOffset = 0;
@@ -304,7 +376,8 @@ export default function TextToPNGConverterPage() {
           fontFamily: nextFont,
           fontSize: nextSize,
           fontWeight: nextWeight,
-          color: nextColor
+          color: nextColor,
+          letterSpacing: nextSpacing
         });
       }
 
@@ -335,6 +408,12 @@ export default function TextToPNGConverterPage() {
         color: globalColor
       }
     ]);
+
+    // Auto-close popup when text changes or word is removed
+    if (isPopupOpen) {
+      setIsPopupOpen(false);
+      setSelectedRange(null);
+    }
 
     if (!isPhoneticActive) {
       setCandidates([]);
@@ -480,7 +559,9 @@ export default function TextToPNGConverterPage() {
         shadowOffsetY: Math.round(shadowBlur * 0.25),
         padding: bgTheme === 'transparent' ? 36 : 60,
         align,
-        scale: scaleMultiplier
+        scale: scaleMultiplier,
+        lineGap,
+        letterSpacing: globalLetterSpacing
       };
       renderSticker(offscreen, options);
 
@@ -512,7 +593,9 @@ export default function TextToPNGConverterPage() {
         shadowOffsetY: Math.round(shadowBlur * 0.25),
         padding: bgTheme === 'transparent' ? 36 : 60,
         align,
-        scale: 2 // 1024px HD for clipboard
+        scale: 2, // 1024px HD for clipboard
+        lineGap,
+        letterSpacing: globalLetterSpacing
       };
       renderSticker(offscreen, options);
 
@@ -541,6 +624,7 @@ export default function TextToPNGConverterPage() {
       {/* --- TRUE FLOATING POPUP TOOLBAR (Floats freely above selected words) --- */}
       {isPopupOpen && selectedRange && (
         <div
+          ref={floatingPopupRef}
           className="fixed z-[100] bg-white/95 backdrop-blur-2xl border-2 border-emerald-500/90 rounded-2xl shadow-2xl shadow-emerald-950/25 p-4 w-[330px] sm:w-[350px] animate-in fade-in zoom-in-95 duration-150 space-y-3.5 text-slate-800"
           style={{
             left: `${floatingPos.x}px`,
@@ -678,9 +762,95 @@ export default function TextToPNGConverterPage() {
             </div>
           </div>
 
-          {/* 5. True RGB Color Selector */}
+          {/* Character Gap & Line Gap (Side by Side: 2 পাশে ২ টা) */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {/* Character Gap */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                <span>ক্যারেক্টার গ্যাপ</span>
+                <span className="font-mono text-[11px] text-emerald-700">{activeSpacing}px</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = Math.max(-6, activeSpacing - 1);
+                    setActiveSpacing(next);
+                    applyFormattingToRange(undefined, undefined, undefined, undefined, undefined, next);
+                  }}
+                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+                  title="ক্যারেক্টার গ্যাপ কমান"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min="-6"
+                  max="20"
+                  step="1"
+                  value={activeSpacing}
+                  onChange={(e) => {
+                    const next = parseInt(e.target.value, 10);
+                    setActiveSpacing(next);
+                    applyFormattingToRange(undefined, undefined, undefined, undefined, undefined, next);
+                  }}
+                  className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = Math.min(20, activeSpacing + 1);
+                    setActiveSpacing(next);
+                    applyFormattingToRange(undefined, undefined, undefined, undefined, undefined, next);
+                  }}
+                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+                  title="ক্যারেক্টার গ্যাপ বাড়ান"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Line Gap */}
+            <div className="space-y-1">
+              <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                <span>লাইন গ্যাপ</span>
+                <span className="font-mono text-[11px] text-emerald-700">{lineGap}px</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setLineGap(prev => Math.max(-30, prev - 2))}
+                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+                  title="লাইন গ্যাপ কমান"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min="-30"
+                  max="40"
+                  step="1"
+                  value={lineGap}
+                  onChange={(e) => setLineGap(parseInt(e.target.value, 10))}
+                  className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => setLineGap(prev => Math.min(40, prev + 2))}
+                  className="w-6 h-6 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+                  title="লাইন গ্যাপ বাড়ান"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 5. Color Selector - Just Choose Color */}
           <RgbColorPicker
-            label="সিলেক্টেড লেখার রঙ (RGB Color Selector)"
+            label="Choose Color"
+            showRgbBadge={false}
             value={activeColor}
             onChange={(color) => applyFormattingToRange(undefined, undefined, undefined, color)}
           />
@@ -798,15 +968,12 @@ export default function TextToPNGConverterPage() {
         {/* Left Column: Text Input & Options (7 Cols) */}
         <div className="lg:col-span-7 space-y-6">
           {/* Card 1: Text Box with Drag-Selection Notice & Phonetic Support */}
-          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-3.5">
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-3.5 relative z-30">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
                   <span>✍️</span>
                   <span>বাংলা টেক্সট লিখুন</span>
-                </span>
-                <span className="text-[11px] text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60">
-                  মাউস দিয়ে ড্র্যাগ করে শব্দ সিলেক্ট করুন
                 </span>
               </div>
 
@@ -838,6 +1005,8 @@ export default function TextToPNGConverterPage() {
                 value={plainText}
                 onChange={handleTextareaChange}
                 onMouseUp={handleMouseUp}
+                onClick={handleTextareaClick}
+                onKeyUp={handleTextareaKeyUp}
                 onTouchEnd={(e) => {
                   const touch = e.changedTouches[0];
                   if (touch) {
@@ -852,7 +1021,7 @@ export default function TextToPNGConverterPage() {
 
               {/* Floating Phonetic Suggestions Popup (Pops downwards underneath the textarea) */}
               {isPhoneticActive && candidates.length > 0 && (
-                <div className="absolute left-2 top-full mt-1.5 z-[70]">
+                <div className="absolute left-2 top-full mt-1.5 z-[100]">
                   <CandidatePopup
                     candidates={candidates}
                     selectedIndex={selectedCandidateIndex}
@@ -863,10 +1032,9 @@ export default function TextToPNGConverterPage() {
               )}
             </div>
 
-            {/* Helper advice */}
-            <div className="flex items-center justify-between text-xs text-slate-500 pt-0.5">
-              <span>💡 লেখার যেকোনো শব্দ মাউস দিয়ে drag করে সিলেক্ট করলেই ফ্লোটিং পপআপ ভেসে উঠবে।</span>
-              {segments.length > 1 && (
+            {/* Style Reset button if multi-segment */}
+            {segments.length > 1 && (
+              <div className="flex items-center justify-end text-xs text-slate-500 pt-0.5">
                 <button
                   type="button"
                   onClick={() => {
@@ -877,7 +1045,8 @@ export default function TextToPNGConverterPage() {
                         fontFamily: globalFont,
                         fontSize: globalFontSize,
                         fontWeight: globalFontWeight,
-                        color: globalColor
+                        color: globalColor,
+                        letterSpacing: globalLetterSpacing
                       }
                     ]);
                     setIsPopupOpen(false);
@@ -887,8 +1056,8 @@ export default function TextToPNGConverterPage() {
                 >
                   স্টাইল রিসেট ↺
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Hidden File Input for Custom Font Upload */}
@@ -901,7 +1070,7 @@ export default function TextToPNGConverterPage() {
           />
 
           {/* Card 2: Background Selector (Strictly 3 options: Transparent, Banglish Theme Card 1:1, Dark Aurora Glass) */}
-          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-5">
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-5 relative z-10">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <span>🖼️</span>
               <span>ব্যাকগ্রাউন্ড থিম নির্বাচন করুন (Background)</span>
@@ -1074,9 +1243,83 @@ export default function TextToPNGConverterPage() {
                 </div>
               </div>
 
-              {/* Full Global RGB Color Picker */}
+              {/* Global Character Gap & Line Gap (Side by Side: 2 পাশে ২ টা) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* Global Character Gap */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
+                    <span>ডিফল্ট ক্যারেক্টার গ্যাপ</span>
+                    <span className="font-mono text-emerald-700">{globalLetterSpacing}px</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setGlobalLetterSpacing(prev => Math.max(-6, prev - 1))}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+                      title="ক্যারেক্টার গ্যাপ কমান"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="range"
+                      min="-6"
+                      max="20"
+                      step="1"
+                      value={globalLetterSpacing}
+                      onChange={(e) => setGlobalLetterSpacing(parseInt(e.target.value, 10))}
+                      className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setGlobalLetterSpacing(prev => Math.min(20, prev + 1))}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+                      title="ক্যারেক্টার গ্যাপ বাড়ান"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Global Line Gap */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
+                    <span>ডিফল্ট লাইন গ্যাপ</span>
+                    <span className="font-mono text-emerald-700">{lineGap}px</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setLineGap(prev => Math.max(-30, prev - 2))}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+                      title="লাইন গ্যাপ কমান"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="range"
+                      min="-30"
+                      max="40"
+                      step="1"
+                      value={lineGap}
+                      onChange={(e) => setLineGap(parseInt(e.target.value, 10))}
+                      className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setLineGap(prev => Math.min(40, prev + 2))}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+                      title="লাইন গ্যাপ বাড়ান"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Global Color Picker - Just Choose Color */}
               <RgbColorPicker
-                label="ডিফল্ট লেখার রঙ (Global Text RGB Color)"
+                label="Choose Color"
+                showRgbBadge={false}
                 value={globalColor}
                 onChange={(c) => {
                   setGlobalColor(c);
@@ -1103,7 +1346,8 @@ export default function TextToPNGConverterPage() {
 
                 {strokeWidth > 0 && (
                   <RgbColorPicker
-                    label="বর্ডারের রঙ (Outline Color)"
+                    label="Choose Color"
+                    showRgbBadge={false}
                     value={strokeColor}
                     onChange={setStrokeColor}
                   />
@@ -1220,11 +1464,6 @@ export default function TextToPNGConverterPage() {
                   <span>Copy Image</span>
                 </button>
               </div>
-
-              {/* Quick tip */}
-              <p className="text-[11px] text-slate-500 text-center">
-                ✨ ড্রপডাউনে ক্লিক না করলে স্বয়ংক্রিয়ভাবে মিডিয়াম কোয়ালিটিতে (1024px) ডাউনলোড হবে।
-              </p>
             </div>
           </div>
         </div>

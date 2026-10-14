@@ -7,6 +7,7 @@ interface RgbColorPickerProps {
   value: string; // e.g. '#10b981' or 'rgb(16, 185, 129)'
   onChange: (color: string) => void;
   className?: string;
+  showRgbBadge?: boolean;
 }
 
 // Convert any hex or rgb string to { r, g, b, hex }
@@ -45,7 +46,8 @@ export default function RgbColorPicker({
   label,
   value,
   onChange,
-  className = ''
+  className = '',
+  showRgbBadge = false
 }: RgbColorPickerProps) {
   const [rgb, setRgb] = useState(() => parseColorToRgb(value));
 
@@ -76,15 +78,17 @@ export default function RgbColorPicker({
 
   return (
     <div className={`space-y-2.5 p-3 rounded-2xl bg-white border border-emerald-100/90 shadow-sm ${className}`}>
-      {/* Header with Visual Preview & Hex */}
+      {/* Header with Visual Preview */}
       <div className="flex items-center justify-between">
         <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: rgb.hex }}></span>
           <span>{label}</span>
         </label>
-        <span className="text-[11px] font-mono text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-          rgb({rgb.r}, {rgb.g}, {rgb.b})
-        </span>
+        {showRgbBadge && (
+          <span className="text-[11px] font-mono text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+            rgb({rgb.r}, {rgb.g}, {rgb.b})
+          </span>
+        )}
       </div>
 
       {/* Visual Color Bar + HEX Input */}

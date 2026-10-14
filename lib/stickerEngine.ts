@@ -29,6 +29,8 @@ export interface StickerRenderOptions {
   padding: number;
   align: 'left' | 'center' | 'right';
   scale: number; // 1x, 2x (HD), 4x (Ultra HD 300 DPI)
+  lineGap?: number; // Line gap adjustment in px (-30 to +60)
+  letterSpacing?: number; // Global character gap in px (-6 to +30)
   aspectRatio?: 'auto' | '1:1' | '16:9' | '9:16';
   cardWidth?: number;
   cardHeight?: number;
@@ -53,7 +55,9 @@ interface MeasuredLine {
 function measureLines(
   ctx: CanvasRenderingContext2D,
   lines: TextSpan[][],
-  scale: number
+  scale: number,
+  globalLineGap: number = 0,
+  globalLetterSpacing: number = 0
 ): { measuredLines: MeasuredLine[]; totalTextWidth: number; totalTextHeight: number } {
   const measuredLines: MeasuredLine[] = [];
   let totalTextWidth = 0;
@@ -71,8 +75,17 @@ function measureLines(
 
       const fontString = `${span.fontWeight} ${scaledFontSize}px ${span.fontFamily}`;
       ctx.font = fontString;
+      const effectiveSpacing = (span.letterSpacing !== undefined ? span.letterSpacing : globalLetterSpacing) * scale;
+      const ctxAny = ctx as any;
+      const hasNativeLetterSpacing = typeof ctxAny.letterSpacing === 'string';
+      if (hasNativeLetterSpacing) {
+        ctxAny.letterSpacing = `${effectiveSpacing}px`;
+      }
       const metrics = ctx.measureText(span.text);
-      const spanWidth = metrics.width;
+      let spanWidth = metrics.width;
+      if (!hasNativeLetterSpacing && effectiveSpacing !== 0) {
+        spanWidth += Math.max(0, span.text.length - 1) * effectiveSpacing;
+      }
 
       lineMeasuredSpans.push({
         span,
@@ -82,7 +95,8 @@ function measureLines(
       lineTotalWidth += spanWidth;
     }
 
-    const lineHeight = Math.round(maxFontSize * 1.35);
+    const scaledLineGap = Math.round(globalLineGap * scale);
+    const lineHeight = Math.max(Math.round(maxFontSize * 0.6), Math.round(maxFontSize * 1.35) + scaledLineGap);
     totalTextHeight += lineHeight;
     if (lineTotalWidth > totalTextWidth) totalTextWidth = lineTotalWidth;
 
@@ -325,6 +339,8 @@ export function renderSticker(
     padding,
     align,
     scale,
+    lineGap = 0,
+    letterSpacing = 0,
     aspectRatio,
     cardWidth,
     cardHeight
@@ -333,7 +349,7 @@ export function renderSticker(
   // 1. Measure text
   const scaledPadding = Math.round(padding * scale);
   const scaledStrokeWidth = Math.round(strokeWidth * scale);
-  const { measuredLines, totalTextWidth, totalTextHeight } = measureLines(ctx, lines, scale);
+  const { measuredLines, totalTextWidth, totalTextHeight } = measureLines(ctx, lines, scale, lineGap, letterSpacing);
 
   // 2. Determine canvas dimensions
   let targetWidth = totalTextWidth + scaledPadding * 2 + scaledStrokeWidth * 2;
@@ -388,7 +404,22 @@ export function renderSticker(
       let curX = startX;
       for (const mSpan of mLine.spans) {
         ctx.font = mSpan.fontString;
-        ctx.strokeText(mSpan.span.text, curX, lineBaselineY);
+        const effectiveSpacing = (mSpan.span.letterSpacing !== undefined ? mSpan.span.letterSpacing : letterSpacing) * scale;
+        const ctxAny = ctx as any;
+        const hasNativeLetterSpacing = typeof ctxAny.letterSpacing === 'string';
+        if (hasNativeLetterSpacing) {
+          ctxAny.letterSpacing = `${effectiveSpacing}px`;
+          ctx.strokeText(mSpan.span.text, curX, lineBaselineY);
+        } else if (effectiveSpacing !== 0) {
+          let charX = curX;
+          for (let i = 0; i < mSpan.span.text.length; i++) {
+            const ch = mSpan.span.text[i];
+            ctx.strokeText(ch, charX, lineBaselineY);
+            charX += ctx.measureText(ch).width + effectiveSpacing;
+          }
+        } else {
+          ctx.strokeText(mSpan.span.text, curX, lineBaselineY);
+        }
         curX += mSpan.width;
       }
       pass1Y += mLine.lineHeight;
@@ -421,7 +452,22 @@ export function renderSticker(
     for (const mSpan of mLine.spans) {
       ctx.font = mSpan.fontString;
       ctx.fillStyle = mSpan.span.color;
-      ctx.fillText(mSpan.span.text, curX, lineBaselineY);
+      const effectiveSpacing = (mSpan.span.letterSpacing !== undefined ? mSpan.span.letterSpacing : letterSpacing) * scale;
+      const ctxAny = ctx as any;
+      const hasNativeLetterSpacing = typeof ctxAny.letterSpacing === 'string';
+      if (hasNativeLetterSpacing) {
+        ctxAny.letterSpacing = `${effectiveSpacing}px`;
+        ctx.fillText(mSpan.span.text, curX, lineBaselineY);
+      } else if (effectiveSpacing !== 0) {
+        let charX = curX;
+        for (let i = 0; i < mSpan.span.text.length; i++) {
+          const ch = mSpan.span.text[i];
+          ctx.fillText(ch, charX, lineBaselineY);
+          charX += ctx.measureText(ch).width + effectiveSpacing;
+        }
+      } else {
+        ctx.fillText(mSpan.span.text, curX, lineBaselineY);
+      }
       curX += mSpan.width;
     }
     pass2Y += mLine.lineHeight;
