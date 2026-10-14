@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { transliterateText } from '@/lib/phoneticEngine';
 import { getPhoneticCandidates } from '@/lib/banglishDictionary';
+import CandidatePopup from '@/components/CandidatePopup';
 
 export function transliteratePhonetic(text: string): string {
   if (!text) return '';
@@ -194,39 +195,18 @@ export default function Simulator() {
                 <div className="absolute right-3 top-3.5 text-xs text-slate-400 pointer-events-none font-mono">
                   abc
                 </div>
-              </div>
 
-              {/* Real-time Phonetic Suggestion Pills */}
-              {candidates.length > 0 && (
-                <div className="pt-1.5 animate-in fade-in duration-150">
-                  <div className="flex items-center gap-1.5 flex-wrap bg-emerald-950/5 border border-emerald-800/15 p-2 rounded-xl">
-                    <span className="text-[11px] font-mono text-emerald-800 font-semibold flex items-center gap-1 mr-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      সাজেশন:
-                    </span>
-                    {candidates.map((cand, idx) => {
-                      const isSelected = idx === selectedCandidateIndex;
-                      return (
-                        <button
-                          key={`${cand}-${idx}`}
-                          type="button"
-                          onClick={() => selectCandidate(cand)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bangla transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-emerald-600 text-white font-bold shadow-sm shadow-emerald-700/20 ring-1 ring-emerald-500 scale-[1.02]'
-                              : 'bg-white hover:bg-emerald-50 text-emerald-950 border border-slate-200 hover:border-emerald-300'
-                          }`}
-                        >
-                          <span className={`font-mono text-[10px] ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
-                            {idx + 1}.
-                          </span>
-                          <span className="text-[13px]">{cand}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                {/* Floating Candidate Suggestions Popup */}
+                {isUserActive && candidates.length > 0 && (
+                  <CandidatePopup
+                    candidates={candidates}
+                    selectedIndex={selectedCandidateIndex}
+                    onSelectIndex={setSelectedCandidateIndex}
+                    onSelectCandidate={selectCandidate}
+                    className="absolute left-0 top-full mt-2 z-50 drop-shadow-2xl"
+                  />
+                )}
+              </div>
             </div>
 
             {/* Live Bangla Transliterated Output Box */}

@@ -6,6 +6,7 @@
 import { transliterateWord } from './phoneticEngine';
 import autodictData from './autodictData.json';
 import commonWordsData from './commonWords.json';
+import chandrabinduWordsData from './chandrabinduWords.json';
 
 // High-frequency seed words for immediate verification
 const seedWordsList = [
@@ -19,7 +20,7 @@ const seedWordsList = [
   "মানুষ", "মানুস", "দেশ", "দেশের", "বিপদ", "বিপদ্", "হঠাৎ", "হঠাত",
   "সৃষ্টি", "সৃষ্টী", "অনুষ্ঠান", "পুষ্প", "অঙ্ক", "অংক", "সঙ্গ", "সংগ",
   "ব্যাংক", "ব্যাঙ্ক", "ইউআই", "ট্যাংক", "সফটওয়্যার", "ভালো", "ভাল", "কেমন", "আছো", "আছেন", "ধন্যবাদ", "স্বাগতম",
-  "চাঁদ", "হাঁস", "বাঁধা", "খোঁজ", "ডাক্তার", "সুন্দর", "নির্ভুল", "প্রবলেম",
+  "চাঁদ", "চাঁদের", "হাঁস", "হাঁসের", "বাঁধা", "বাঁধার", "খোঁজ", "ডাক্তার", "সুন্দর", "নির্ভুল", "প্রবলেম",
   "ডিভাইস", "আপডেট", "কিবোর্ড", "সাজেশন", "প্লেসমেন্ট", "করব", "করবে", "করো",
   "হবে", "সময়", "সবার", "কিছু", "সবচেয়ে", "লেখা", "শব্দ", "নতুন", "সব",
   "কাজ", "ঠিক", "আসছে", "আসছিল", "হচ্ছে", "হচ্ছিল", "কিন্তু", "কথা", "কোথায়",
@@ -30,19 +31,46 @@ const seedWordsList = [
   "এমন", "এমনি", "এমনই", "যেমন", "যেমনি", "যেমনই", "তেমন", "তেমনি", "তেমনই", "কেমন", "কেমনি", "কেমনই",
   "আস্তে", "আসতে", "তখন", "তখনই", "তখনি", "এখনই", "এখনি",
   "চোখ", "চোখে", "চোখের", "লোক", "লোকে", "লোকের", "রোগ", "রোগে", "রোগের", "রোগী",
-  "বলো", "ছোট", "বড়ো", "বড়", "শোনো", "দরজা", "খবর", "পাঁচ",
+  "বলো", "ছোট", "বড়ো", "বড়", "শোনো", "দরজা", "খবর", "পাঁচ", "পাঁচে", "পাঁচের",
+  "কাঁধ", "কাঁধে", "কাঁধের", "বাঁধ", "বাঁধে", "বাঁধের", "ধাঁধা", "গাঁয়ে",
   "ঢাকা", "ভাই", "কর্ম", "রুটি", "গান", "গাই", "বাংলায়", "অনেক", "মুখে", "জন্য"
 ];
 
-// Combine seed words, autodict values, and top dictionary words into a fast Lookup Set
+// Comprehensive Chandrabindu Lookup Set
+const chandrabinduWordsSet = new Set<string>(chandrabinduWordsData as string[]);
+
+// Combine seed words, autodict values, and all verified Chandrabindu words into dictionaryWordsSet
 const dictionaryWordsSet = new Set<string>([
   ...seedWordsList,
   ...(commonWordsData as string[]),
+  ...(chandrabinduWordsData as string[]),
   ...Object.values(autodictData as Record<string, string>)
 ]);
 
 const autodictMap: Record<string, string> = {
   ...(autodictData as Record<string, string>),
+  chad: "চাঁদ",
+  cad: "চাঁদ",
+  chader: "চাঁদের",
+  cader: "চাঁদের",
+  has: "হাঁস",
+  haser: "হাঁসের",
+  badha: "বাঁধা",
+  badhar: "বাঁধার",
+  badh: "বাঁধ",
+  badhe: "বাঁধে",
+  badher: "বাঁধের",
+  kadh: "কাঁধ",
+  kadhe: "কাঁধে",
+  kadher: "কাঁধের",
+  pach: "পাঁচ",
+  pache: "পাঁচে",
+  pacher: "পাঁচের",
+  dhadha: "ধাঁধা",
+  dhadhay: "ধাঁধায়",
+  gaye: "গাঁয়ে",
+  khuj: "খোঁজ",
+  khoj: "খোঁজ",
   bank: "ব্যাংক",
   banking: "ব্যাংকিং",
   iuai: "ইউআই",
@@ -74,11 +102,6 @@ const autodictMap: Record<string, string> = {
   computer: "কম্পিউটার",
   internet: "ইন্টারনেট",
   online: "অনলাইন",
-  chad: "চাঁদ",
-  has: "হাঁস",
-  badha: "বাঁধা",
-  khuj: "খোঁজ",
-  khoj: "খোঁজ",
   shundor: "সুন্দর",
   sundor: "সুন্দর",
   dhonnobad: "ধন্যবাদ",
@@ -422,10 +445,26 @@ export function getPhoneticCandidates(rawInput: string): string[] {
   });
 
   // Rule L: Comprehensive Chandrabindu (চন্দ্রবিন্দু ঁ) Suggestions
+  const VOWEL_SIGNS = ['া', 'ি', 'ী', 'ু', 'ূ', 'ে', 'ো', 'ৌ', 'ৈ'];
+  const INDEPENDENT_VOWELS = ['অ', 'আ', 'ই', 'ঈ', 'উ', 'ঊ', 'ঋ', 'এ', 'ঐ', 'ও', 'ঔ'];
+
   runMutation(w => {
+    // 1. Nasal conjuncts to Chandrabindu (e.g. chand -> চাঁদ, has -> হাঁস, badha -> বাঁধা)
     for (const [from, to] of NASAL_REPLACEMENTS) {
       if (w.includes(from)) {
         variants.add(w.replaceAll(from, to));
+      }
+    }
+
+    // 2. Vowel-attached Chandrabindu variants verified against 19,000+ words dictionary (e.g. cader -> চাঁদের, haser -> হাঁসের, pacher -> পাঁচের)
+    const chars = Array.from(w);
+    for (let i = 0; i < chars.length; i++) {
+      const ch = chars[i];
+      if (VOWEL_SIGNS.includes(ch) || INDEPENDENT_VOWELS.includes(ch) || i === 0) {
+        const candidate = chars.slice(0, i + 1).join('') + 'ঁ' + chars.slice(i + 1).join('');
+        if (chandrabinduWordsSet.has(candidate)) {
+          variants.add(candidate);
+        }
       }
     }
   });
@@ -450,27 +489,30 @@ export function getPhoneticCandidates(rawInput: string): string[] {
     }
   }
 
+  // Sort confirmed Chandrabindu words so that root vowel placements come first (e.g. 'চাঁদের' before 'চাদেঁর')
+  cbConfirmed.sort((a, b) => a.indexOf('ঁ') - b.indexOf('ঁ'));
+
   const primaryConfirmed = dictionaryWordsSet.has(primary);
   const userExplicitCB = rawInput.includes('^');
 
+  // If there are confirmed Chandrabindu words, ALWAYS suggest them at the top!
+  if (cbConfirmed.length > 0) {
+    for (const v of cbConfirmed) {
+      if (result.length >= 7) break;
+      addCandidate(v);
+    }
+  }
+
   if (primaryConfirmed) {
     addCandidate(primary);
+  }
 
-    if (userExplicitCB) {
-      for (const v of cbConfirmed) { if (result.length >= 7) break; addCandidate(v); }
-      for (const v of otherConfirmed) { if (result.length >= 7) break; addCandidate(v); }
-    } else {
-      for (const v of otherConfirmed) { if (result.length >= 7) break; addCandidate(v); }
-      for (const v of cbConfirmed) { if (result.length >= 7) break; addCandidate(v); }
-    }
-  } else {
-    if (userExplicitCB) {
-      for (const v of cbConfirmed) { if (result.length >= 7) break; addCandidate(v); }
-      for (const v of otherConfirmed) { if (result.length >= 7) break; addCandidate(v); }
-    } else {
-      for (const v of otherConfirmed) { if (result.length >= 7) break; addCandidate(v); }
-      for (const v of cbConfirmed) { if (result.length >= 7) break; addCandidate(v); }
-    }
+  for (const v of otherConfirmed) {
+    if (result.length >= 7) break;
+    addCandidate(v);
+  }
+
+  if (!primaryConfirmed) {
     addCandidate(primary);
   }
 
