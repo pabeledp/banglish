@@ -37,6 +37,10 @@ export default function Navbar() {
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 group-hover:scale-125 transition-transform"></span>
               <span>পেস্টবিন</span>
             </Link>
+            <Link href="/text-to-png-converter" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla inline-flex items-center gap-1.5 group">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform"></span>
+              <span>স্টিকার মেকার</span>
+            </Link>
             <Link href="/contact" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">যোগাযোগ</Link>
           </nav>
 
@@ -122,6 +126,13 @@ export default function Navbar() {
               <span>পেস্টবিন (Smart Workspace)</span>
             </span>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-200/70 text-cyan-900 font-bold">NEW</span>
+          </Link>
+          <Link href="/text-to-png-converter" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center justify-between px-3 py-2 rounded-lg text-base font-medium text-emerald-800 bg-emerald-50/70 hover:bg-emerald-100/70 font-bangla">
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>স্টিকার ও কার্ড মেকার (TextToPNG)</span>
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 font-bold">NEW</span>
           </Link>
           <Link href="/contact" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">যোগাযোগ</Link>
           
