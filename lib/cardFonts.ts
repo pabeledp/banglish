@@ -82,58 +82,58 @@ export const BANGLA_FONTS: BanglaFontOption[] = [
 
 export const ARABIC_FONTS: BanglaFontOption[] = [
   {
-    id: 'amiri',
-    name: 'Amiri (Quranic)',
-    bnName: 'আমিরী (কুরআনিক নসখ)',
-    family: "'Amiri', serif",
-    category: 'serif',
-    weights: [400, 700],
-    preview: 'بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ',
-    description: 'ক্লাসিক কুরআনিক ক্যালিগ্রাফি ও মার্জিত নসখ ফন্ট',
-    script: 'arabic'
-  },
-  {
-    id: 'amiri-quran',
-    name: 'Amiri Quran',
-    bnName: 'আমিরী কুরআন (মুসহাফ)',
-    family: "'Amiri Quran', serif",
-    category: 'serif',
-    weights: [400],
-    preview: 'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ',
-    description: 'পরিপূর্ণ হরকত ও মুসহাফ শৈলীর কুরআনিক ফন্ট',
-    script: 'arabic'
-  },
-  {
-    id: 'aref-ruqaa',
-    name: 'Aref Ruqaa',
-    bnName: 'আরেফ রুক\'আ (খত্তে রুক\'আ)',
-    family: "'Aref Ruqaa', cursive",
-    category: 'cursive',
-    weights: [400, 700],
-    preview: 'اقْرَأْ بِاسْمِ رَبِّكَ الَّذِي خَلَقَ',
-    description: 'ঐতিহ্যবাহী খত্তে রুক\'আ ক্যালিগ্রাফি শৈলী',
-    script: 'arabic'
-  },
-  {
-    id: 'reem-kufi',
-    name: 'Reem Kufi',
-    bnName: 'রিম কুফি (স্টাইলিশ কুফিক)',
-    family: "'Reem Kufi', sans-serif",
-    category: 'display',
-    weights: [400, 600, 700],
-    preview: 'لا إله إلا الله محمد رسول الله',
-    description: 'আধুনিক ও নান্দনিক কুফিক ক্যালিগ্রাফিক ডিজাইন',
-    script: 'arabic'
-  },
-  {
     id: 'noto-naskh-arabic',
     name: 'Noto Naskh Arabic',
-    bnName: 'নোটো নসখ আরবি',
+    bnName: 'নোটো নসখ আরবি (ডিফল্ট)',
     family: "'Noto Naskh Arabic', serif",
     category: 'serif',
-    weights: [400, 600, 700],
+    weights: [400, 500, 600, 700],
     preview: 'فَبِأَيِّ آلَاءِ رَبِّكُمَا تُكَذِّبَانِ',
     description: 'পরিচ্ছন্ন ও নিখুঁত গুগল স্ট্যান্ডার্ড আরবি ফন্ট',
+    script: 'arabic'
+  },
+  {
+    id: 'playpen-sans-arabic',
+    name: 'Playpen Sans Arabic',
+    bnName: 'প্লেপেন সানস আরবি',
+    family: "'Playpen Sans Arabic', cursive",
+    category: 'cursive',
+    weights: [400, 500, 600, 700],
+    preview: 'بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ',
+    description: 'আধুনিক ক্যাজুয়াল হ্যান্ডরিটেন আরবি ফন্ট',
+    script: 'arabic'
+  },
+  {
+    id: 'noto-kufi-arabic',
+    name: 'Noto Kufi Arabic',
+    bnName: 'নোটো কুফি আরবি',
+    family: "'Noto Kufi Arabic', sans-serif",
+    category: 'display',
+    weights: [400, 500, 600, 700],
+    preview: 'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ',
+    description: 'মার্জিত কুফিক জিওমেট্রিক আরবি ফন্ট',
+    script: 'arabic'
+  },
+  {
+    id: 'lemon-brush-arabic',
+    name: 'Lemon Brush Arabic',
+    bnName: 'লেমন ব্রাশ আরবি',
+    family: "'Lemon Brush Arabic', cursive",
+    category: 'display',
+    weights: [400],
+    preview: 'لا إله إلا الله محمد رسول الله',
+    description: 'স্টাইলিশ ক্যালিগ্রাফিক ব্রাশ আরবি ফন্ট',
+    script: 'arabic'
+  },
+  {
+    id: 'lemon-brush-texture',
+    name: 'Lemon Brush Texture',
+    bnName: 'লেমন ব্রাশ টেক্সচার',
+    family: "'Lemon Brush Texture', cursive",
+    category: 'display',
+    weights: [400],
+    preview: 'اقْرَأْ بِاسْمِ رَبِّكَ الَّذِي خَلَقَ',
+    description: 'ইউনিক রাফ টেক্সচার্ড ব্রাশ আরবি ফন্ট',
     script: 'arabic'
   }
 ];

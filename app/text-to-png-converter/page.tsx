@@ -64,6 +64,45 @@ const CopyIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   </svg>
 );
 
+const TextTabIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="4 7 4 4 20 4 20 7" />
+    <line x1="9" y1="20" x2="15" y2="20" />
+    <line x1="12" y1="4" x2="12" y2="20" />
+  </svg>
+);
+
+const ThemeTabIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <circle cx="8.5" cy="8.5" r="1.5" />
+    <polyline points="21 15 16 10 5 21" />
+  </svg>
+);
+
+const LogoTabIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+  </svg>
+);
+
+const OutlineTabIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3a9 9 0 0 0 0 18v-18z" />
+    <circle cx="12" cy="12" r="9" />
+  </svg>
+);
+
+const ExportTabIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+type MobileTab = 'text' | 'theme' | 'logo' | 'outline' | 'download' | null;
+
 interface StyledSegment {
   id: string;
   text: string;
@@ -127,6 +166,7 @@ export default function TextToPNGConverterPage() {
   const [lineGaps, setLineGaps] = useState<Record<number, number>>({});
   const [lineSizes, setLineSizes] = useState<Record<number, number>>({});
   const [globalLetterSpacing, setGlobalLetterSpacing] = useState<number>(0);
+  const [activeMobileTab, setActiveMobileTab] = useState<MobileTab>(null);
 
   // Styled segments (Source of truth)
   const [segments, setSegments] = useState<StyledSegment[]>([
@@ -882,6 +922,663 @@ export default function TextToPNGConverterPage() {
     }
   };
 
+  const renderTextControls = (isMobileSheet: boolean = false) => (
+    <div className="space-y-4">
+      {/* 1. Header with Phonetic Switch */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+          <span>✍️</span>
+          <span>বাংলা টেক্সট লিখুন</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setIsPhoneticActive(!isPhoneticActive)}
+          className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 border ${
+            isPhoneticActive
+              ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'
+              : 'bg-slate-100 text-slate-600 border-slate-200'
+          }`}
+        >
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              isPhoneticActive ? 'bg-emerald-600' : 'bg-slate-400'
+            }`}
+          />
+          <span>{isPhoneticActive ? 'বাংলিশ ফোনেটিক চালু' : 'সরাসরি ইনপুট'}</span>
+        </button>
+      </div>
+
+      {/* 2. Textarea */}
+      <div className="relative">
+        <textarea
+          ref={textareaRef}
+          value={plainText}
+          onChange={handleTextareaChange}
+          onMouseUp={handleMouseUp}
+          onClick={handleTextareaClick}
+          onKeyUp={handleTextareaKeyUp}
+          onTouchEnd={(e) => {
+            const touch = e.changedTouches[0];
+            if (touch) {
+              handleMouseUp({ clientX: touch.clientX, clientY: touch.clientY, currentTarget: textareaRef.current } as any);
+            }
+          }}
+          onKeyDown={handleKeyDown}
+          rows={isMobileSheet ? 3 : 4}
+          placeholder="এখানে লিখুন..."
+          className="w-full bg-slate-50/70 border border-emerald-200/80 rounded-2xl p-3.5 sm:p-4 text-base text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all resize-y shadow-inner"
+        />
+
+        {/* Phonetic suggestions */}
+        {isPhoneticActive && candidates.length > 0 && (
+          <div className="absolute left-2 top-full mt-1.5 z-[100]">
+            <CandidatePopup
+              candidates={candidates}
+              selectedIndex={selectedCandidateIndex}
+              onSelectIndex={setSelectedCandidateIndex}
+              onSelectCandidate={(cand) => handleSelectCandidate(cand, ' ')}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Style Reset button */}
+      {(segments.length > 1 || Object.keys(lineGaps).length > 0 || Object.keys(lineSizes).length > 0) && (
+        <div className="flex items-center justify-end text-xs text-slate-500 pt-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              setSegments([
+                {
+                  id: 'seg-reset',
+                  text: plainText,
+                  fontFamily: globalFont,
+                  fontSize: globalFontSize,
+                  fontWeight: globalFontWeight,
+                  color: globalColor,
+                  letterSpacing: globalLetterSpacing
+                }
+              ]);
+              setLineSizes({});
+              setLineGaps({});
+              setIsPopupOpen(false);
+              showToast('সকল শব্দ ও লাইনের স্টাইল ডিফল্টে রিসেট হয়েছে!');
+            }}
+            className="text-amber-700 hover:underline font-semibold"
+          >
+            স্টাইল রিসেট ↺
+          </button>
+        </div>
+      )}
+
+      {/* Typography Controls */}
+      <div className="pt-2 border-t border-slate-100 space-y-3.5">
+        {/* Font Family & Upload */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-700">ডিফল্ট ফন্ট</label>
+            <select
+              value={globalFont}
+              onChange={(e) => {
+                setGlobalFont(e.target.value);
+                setSegments(prev => prev.map(s => ({ ...s, fontFamily: e.target.value })));
+              }}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+            >
+              <optgroup label="বাংলা ফন্ট (Bangla Fonts)">
+                {availableFonts.filter(f => f.script === 'bangla').map((f) => (
+                  <option key={f.id} value={f.family}>
+                    {f.bnName} ({f.name})
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="আরবি ও কুরআনিক ফন্ট (Arabic & Quranic)">
+                {availableFonts.filter(f => f.script === 'arabic').map((f) => (
+                  <option key={f.id} value={f.family}>
+                    {f.bnName} ({f.name})
+                  </option>
+                ))}
+              </optgroup>
+              {availableFonts.some(f => f.isCustom) && (
+                <optgroup label="কাস্টম ফন্ট (Custom Uploaded)">
+                  {availableFonts.filter(f => f.isCustom).map((f) => (
+                    <option key={f.id} value={f.family}>
+                      {f.bnName} ({f.name})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-700">কাস্টম ফন্ট যোগ</label>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full py-2 px-3 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition flex items-center justify-center gap-1.5"
+            >
+              <span>+ ফন্ট ফাইল (.ttf/.otf)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Font Size & Weight */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {/* Font Size Slider */}
+          <div className="space-y-1">
+            <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
+              <span>ফন্ট সাইজ (Size)</span>
+              <span className="font-mono text-emerald-700">{activeSize}px</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = Math.max(16, activeSize - 4);
+                  setActiveSize(next);
+                  if (selectedRange && selectedRange.lineIndex !== undefined) {
+                    setLineSizes(prev => ({ ...prev, [selectedRange.lineIndex]: next }));
+                  } else {
+                    setLineSizes(prev => ({ ...prev, [0]: next }));
+                    setGlobalFontSize(next);
+                  }
+                }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+              >
+                -
+              </button>
+              <input
+                type="range"
+                min="16"
+                max="140"
+                value={activeSize}
+                onChange={(e) => {
+                  const next = parseInt(e.target.value, 10);
+                  setActiveSize(next);
+                  if (selectedRange && selectedRange.lineIndex !== undefined) {
+                    setLineSizes(prev => ({ ...prev, [selectedRange.lineIndex]: next }));
+                  } else {
+                    setLineSizes(prev => ({ ...prev, [0]: next }));
+                    setGlobalFontSize(next);
+                  }
+                }}
+                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const next = Math.min(140, activeSize + 4);
+                  setActiveSize(next);
+                  if (selectedRange && selectedRange.lineIndex !== undefined) {
+                    setLineSizes(prev => ({ ...prev, [selectedRange.lineIndex]: next }));
+                  } else {
+                    setLineSizes(prev => ({ ...prev, [0]: next }));
+                    setGlobalFontSize(next);
+                  }
+                }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Font Weight */}
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-slate-700">ডিফল্ট ওয়েইট</label>
+            <select
+              value={globalFontWeight}
+              onChange={(e) => {
+                const w = parseInt(e.target.value, 10);
+                setGlobalFontWeight(w);
+                setSegments(prev => prev.map(s => ({ ...s, fontWeight: w })));
+              }}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+            >
+              <option value={300}>হালকা (Light 300)</option>
+              <option value={400}>সাধারণ (Regular 400)</option>
+              <option value={600}>সেমি-বোল্ড (SemiBold 600)</option>
+              <option value={700}>বোল্ড (Bold 700)</option>
+              <option value={800}>অতিরিক্ত বোল্ড (Black 800)</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Alignment */}
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-slate-700">অ্যালাইনমেন্ট</label>
+          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setAlign('left')}
+              className={`flex-1 py-1.5 flex items-center justify-center rounded-lg transition-all ${
+                align === 'left' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+              }`}
+              title="Align Left"
+            >
+              <AlignLeftIcon />
+            </button>
+            <button
+              type="button"
+              onClick={() => setAlign('center')}
+              className={`flex-1 py-1.5 flex items-center justify-center rounded-lg transition-all ${
+                align === 'center' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+              }`}
+              title="Align Center"
+            >
+              <AlignCenterIcon />
+            </button>
+            <button
+              type="button"
+              onClick={() => setAlign('right')}
+              className={`flex-1 py-1.5 flex items-center justify-center rounded-lg transition-all ${
+                align === 'right' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+              }`}
+              title="Align Right"
+            >
+              <AlignRightIcon />
+            </button>
+          </div>
+        </div>
+
+        {/* Character Gap & Line Gap */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {/* Character Gap */}
+          <div className="space-y-1">
+            <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
+              <span>ক্যারেক্টার গ্যাপ</span>
+              <span className="font-mono text-emerald-700">{globalLetterSpacing}px</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setGlobalLetterSpacing(prev => Math.max(-6, prev - 1))}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+              >
+                -
+              </button>
+              <input
+                type="range"
+                min="-6"
+                max="20"
+                step="1"
+                value={globalLetterSpacing}
+                onChange={(e) => setGlobalLetterSpacing(parseInt(e.target.value, 10))}
+                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+              <button
+                type="button"
+                onClick={() => setGlobalLetterSpacing(prev => Math.min(20, prev + 1))}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Line Gap */}
+          <div className="space-y-1">
+            <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
+              <span>লাইন গ্যাপ</span>
+              <span className="font-mono text-emerald-700">{lineGap}px</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setLineGap(prev => Math.max(-30, prev - 2))}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+              >
+                -
+              </button>
+              <input
+                type="range"
+                min="-30"
+                max="40"
+                step="1"
+                value={lineGap}
+                onChange={(e) => setLineGap(parseInt(e.target.value, 10))}
+                className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+              <button
+                type="button"
+                onClick={() => setLineGap(prev => Math.min(40, prev + 2))}
+                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
+              >
+                +
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Text Color */}
+        <RgbColorPicker
+          label="Choose Color"
+          showRgbBadge={false}
+          value={globalColor}
+          onChange={(c) => {
+            setGlobalColor(c);
+            setSegments(prev => prev.map(s => ({ ...s, color: c })));
+          }}
+        />
+      </div>
+    </div>
+  );
+
+  const renderThemeControls = () => (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {/* Option 1: Transparent */}
+        <button
+          type="button"
+          onClick={() => {
+            setBgTheme('transparent');
+            if (strokeWidth === 0) setStrokeWidth(10);
+            setGlobalColor('#10b981');
+          }}
+          className={`p-3 rounded-2xl text-left border-2 transition-all flex flex-col justify-between ${
+            bgTheme === 'transparent'
+              ? 'border-emerald-500 bg-emerald-50/50 shadow-md ring-2 ring-emerald-500/20'
+              : 'border-slate-200 bg-white hover:border-emerald-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs sm:text-sm font-bold text-slate-900">ট্রান্সপারেন্ট</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono">PNG</span>
+          </div>
+          <div className="mt-2 w-full h-8 rounded-lg bg-[linear-gradient(45deg,#cbd5e1_25%,transparent_25%),linear-gradient(-45deg,#cbd5e1_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#cbd5e1_75%),linear-gradient(-45deg,transparent_75%,#cbd5e1_75%)] bg-[size:10px_10px] border border-slate-300/80"></div>
+        </button>
+
+        {/* Option 2: Banglish Theme Card */}
+        <button
+          type="button"
+          onClick={() => {
+            setBgTheme('banglish-theme');
+            setStrokeWidth(0);
+            setGlobalColor('#0f172a');
+          }}
+          className={`p-3 rounded-2xl text-left border-2 transition-all flex flex-col justify-between ${
+            bgTheme === 'banglish-theme'
+              ? 'border-emerald-500 bg-emerald-50/50 shadow-md ring-2 ring-emerald-500/20'
+              : 'border-slate-200 bg-white hover:border-emerald-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs sm:text-sm font-bold text-slate-900">ব্যাংলিশ থিম</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">1:1</span>
+          </div>
+          <div className="mt-2 w-full h-8 rounded-lg bg-gradient-to-br from-[#f9fdfa] via-white to-[#f2faf5] border border-emerald-200 relative overflow-hidden flex items-center justify-center">
+            <span className="text-[11px] text-slate-400 font-bangla font-semibold">অ আ ক খ</span>
+          </div>
+        </button>
+
+        {/* Option 3: Islamic Quote */}
+        <button
+          type="button"
+          onClick={() => {
+            setBgTheme('islamic-quote');
+            setStrokeWidth(0);
+            setGlobalColor('#1e293b');
+            setGlobalFont("'Noto Naskh Arabic', serif");
+            setSegments(prev => prev.map(s => ({ ...s, fontFamily: "'Noto Naskh Arabic', serif" })));
+          }}
+          className={`p-3 rounded-2xl text-left border-2 transition-all flex flex-col justify-between ${
+            bgTheme === 'islamic-quote'
+              ? 'border-emerald-500 bg-emerald-50/50 shadow-md ring-2 ring-emerald-500/20'
+              : 'border-slate-200 bg-white hover:border-emerald-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs sm:text-sm font-bold text-slate-900">ইসলামিক কোট</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold">1:1</span>
+          </div>
+          <div className="mt-2 w-full h-8 rounded-lg border border-amber-200 relative overflow-hidden flex items-center justify-center bg-[#faf7f2]">
+            <img src="/assets/islamic-quote-bg.webp" alt="Islamic BG" className="w-full h-full object-cover object-bottom" />
+          </div>
+        </button>
+
+        {/* Option 4: Dark Aurora Glass */}
+        <button
+          type="button"
+          onClick={() => {
+            setBgTheme('dark-aurora');
+            setStrokeWidth(0);
+            setGlobalColor('#ffffff');
+          }}
+          className={`p-3 rounded-2xl text-left border-2 transition-all flex flex-col justify-between ${
+            bgTheme === 'dark-aurora'
+              ? 'border-emerald-500 bg-emerald-50/50 shadow-md ring-2 ring-emerald-500/20'
+              : 'border-slate-200 bg-white hover:border-emerald-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs sm:text-sm font-bold text-slate-900">ডার্ক অরোরা</span>
+            <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-slate-900 text-emerald-400 font-mono">Dark</span>
+          </div>
+          <div className="mt-2 w-full h-8 rounded-lg bg-gradient-to-br from-[#060a12] via-[#0b1120] to-[#050811] border border-emerald-500/30"></div>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderLogoControls = () => (
+    <div className="space-y-4">
+      {!logoDataUrl ? (
+        <div
+          onClick={() => logoInputRef.current?.click()}
+          className="border-2 border-dashed border-emerald-200 hover:border-emerald-500 rounded-2xl p-6 text-center cursor-pointer transition-colors bg-emerald-50/30 hover:bg-emerald-50/60 flex flex-col items-center justify-center gap-2"
+        >
+          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <p className="text-xs font-semibold text-slate-700">
+            এখানে ক্লিক করে লোগো আপলোড করুন (PNG / SVG / JPG)
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200/70 rounded-2xl">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1 overflow-hidden shadow-sm">
+                <img
+                  src={logoDataUrl}
+                  alt="Logo Preview"
+                  className="max-w-full max-h-full object-contain"
+                />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-800">লোগো সক্রিয় আছে</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-sm transition"
+              >
+                পরিবর্তন
+              </button>
+              <button
+                type="button"
+                onClick={handleRemoveLogo}
+                className="px-3 py-1.5 text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition"
+              >
+                মুছুন
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-700">লোগোর পজিশন (Safe Area Corner)</label>
+            <div className="relative">
+              <select
+                value={logoPosition}
+                onChange={(e) => updateLogoPos(e.target.value as LogoPosition)}
+                className="w-full py-2.5 pl-3 pr-8 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
+              >
+                <option value="top-left">টপ লেফট (Top Left)</option>
+                <option value="top-center">টপ সেন্টার (Top Center)</option>
+                <option value="top-right">টপ রাইট (Top Right)</option>
+                <option value="bottom-left">বটম লেফট (Bottom Left)</option>
+                <option value="bottom-right">বটম রাইট (Bottom Right)</option>
+              </select>
+              <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs font-semibold text-slate-700">
+                <span>লোগোর আকার (Size)</span>
+                <span className="font-mono text-emerald-700">{logoSize}px</span>
+              </div>
+              <input
+                type="range"
+                min="20"
+                max="140"
+                value={logoSize}
+                onChange={(e) => updateLogoSize(parseInt(e.target.value, 10))}
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs font-semibold text-slate-700">
+                <span>স্বচ্ছতা (Opacity)</span>
+                <span className="font-mono text-emerald-700">{logoOpacity}%</span>
+              </div>
+              <input
+                type="range"
+                min="20"
+                max="100"
+                value={logoOpacity}
+                onChange={(e) => updateLogoOpacity(parseInt(e.target.value, 10))}
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderOutlineControls = () => (
+    <div className="space-y-4">
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs font-semibold text-slate-700">
+          <span>স্টিকার বর্ডার (Die-Cut Outline)</span>
+          <span className="font-mono text-emerald-700">{strokeWidth}px</span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="28"
+          value={strokeWidth}
+          onChange={(e) => setStrokeWidth(parseInt(e.target.value, 10))}
+          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+        />
+      </div>
+
+      {strokeWidth > 0 && (
+        <RgbColorPicker
+          label="Choose Color"
+          showRgbBadge={false}
+          value={strokeColor}
+          onChange={setStrokeColor}
+        />
+      )}
+
+      <div className="space-y-1 pt-2 border-t border-slate-100">
+        <div className="flex justify-between text-xs font-semibold text-slate-700">
+          <span>শ্যাডো ব্লার (Shadow Blur)</span>
+          <span className="font-mono text-emerald-700">{shadowBlur}px</span>
+        </div>
+        <input
+          type="range"
+          min="0"
+          max="30"
+          value={shadowBlur}
+          onChange={(e) => setShadowBlur(parseInt(e.target.value, 10))}
+          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+        />
+      </div>
+    </div>
+  );
+
+  const renderDownloadControls = () => (
+    <div className="space-y-3">
+      <div className="text-xs font-bold text-slate-700">
+        রেজোলিউশন নির্বাচন করে ডাউনলোড করুন:
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <button
+          type="button"
+          onClick={() => {
+            setDownloadQuality('high');
+            handleDownload('high');
+          }}
+          disabled={isProcessing}
+          className="p-3 rounded-2xl border-2 border-emerald-500 bg-emerald-50/50 hover:bg-emerald-50 flex items-center justify-between text-left transition active:scale-98"
+        >
+          <div>
+            <div className="text-xs font-bold text-emerald-950">High Quality</div>
+            <div className="text-[10px] text-slate-500 font-mono">2048px (Ultra HD)</div>
+          </div>
+          <DownloadIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setDownloadQuality('medium');
+            handleDownload('medium');
+          }}
+          disabled={isProcessing}
+          className="p-3 rounded-2xl border-2 border-teal-500 bg-teal-50/50 hover:bg-teal-50 flex items-center justify-between text-left transition active:scale-98"
+        >
+          <div>
+            <div className="text-xs font-bold text-teal-950 flex items-center gap-1">
+              Medium Quality
+              <span className="text-[9px] px-1 rounded bg-teal-200/80 text-teal-800 font-bold">ডিফল্ট</span>
+            </div>
+            <div className="text-[10px] text-slate-500 font-mono">1024px (Standard)</div>
+          </div>
+          <DownloadIcon className="w-4 h-4 text-teal-600 shrink-0" />
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setDownloadQuality('low');
+            handleDownload('low');
+          }}
+          disabled={isProcessing}
+          className="p-3 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 flex items-center justify-between text-left transition active:scale-98"
+        >
+          <div>
+            <div className="text-xs font-bold text-slate-800">Low Quality</div>
+            <div className="text-[10px] text-slate-500 font-mono">512px (Small)</div>
+          </div>
+          <DownloadIcon className="w-4 h-4 text-slate-600 shrink-0" />
+        </button>
+      </div>
+
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={handleCopyToClipboard}
+          disabled={isProcessing}
+          className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-700 text-xs font-bold transition flex items-center justify-center gap-2 shadow-xs"
+        >
+          <CopyIcon className="w-4 h-4 text-emerald-700" />
+          <span>Copy PNG Image to Clipboard</span>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50/50 via-white to-teal-50/40 text-slate-800 flex flex-col font-sans selection:bg-emerald-200 selection:text-emerald-950">
       {/* Toast Notification */}
@@ -1194,12 +1891,12 @@ export default function TextToPNGConverterPage() {
 
             {/* Top Action Buttons (Download Split Button + Copy Image) */}
             <div className="flex items-center gap-2.5">
-              {/* Copy Image Button */}
+              {/* Copy Image Button (Hidden on Mobile) */}
               <button
                 type="button"
                 onClick={handleCopyToClipboard}
                 disabled={isProcessing}
-                className="px-3.5 sm:px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-700 text-xs sm:text-sm font-semibold transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
+                className="hidden sm:flex px-3.5 sm:px-4 py-2 rounded-xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-700 text-xs sm:text-sm font-semibold transition-all active:scale-95 items-center gap-1.5 shadow-xs"
               >
                 <CopyIcon className="w-4 h-4 text-emerald-700" />
                 <span>Copy Image</span>
@@ -1282,435 +1979,45 @@ export default function TextToPNGConverterPage() {
       </header>
 
       {/* Main Studio Grid */}
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Text Input & Options (7 Cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Card 1: Text Box with Drag-Selection Notice & Phonetic Support */}
+      {/* Hidden File Inputs */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".ttf,.otf,.woff,.woff2"
+        onChange={handleFontUpload}
+        className="hidden"
+      />
+      <input
+        ref={logoInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleLogoUpload}
+        className="hidden"
+      />
+
+      {/* Main Studio Grid */}
+      <main className="flex-1 max-w-7xl mx-auto w-full p-3 sm:p-6 lg:p-8 flex flex-col lg:grid lg:grid-cols-12 gap-5 lg:gap-8 items-start pb-24 lg:pb-8">
+        {/* Left Column on Desktop (Hidden on mobile) */}
+        <div className="hidden lg:block lg:order-1 lg:col-span-7 space-y-6 w-full">
+          {/* Card 1: Text Box */}
           <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-3.5 relative z-30">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                  <span>✍️</span>
-                  <span>বাংলা টেক্সট লিখুন</span>
-                </span>
-              </div>
-
-              {/* Phonetic Toggle */}
-              <button
-                type="button"
-                onClick={() => setIsPhoneticActive(!isPhoneticActive)}
-                className={`text-[11px] px-2.5 py-1 rounded-full font-medium transition-all flex items-center gap-1.5 border ${
-                  isPhoneticActive
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold'
-                    : 'bg-slate-100 text-slate-600 border-slate-200'
-                }`}
-              >
-                <span
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    isPhoneticActive ? 'bg-emerald-600' : 'bg-slate-400'
-                  }`}
-                />
-                <span>
-                  {isPhoneticActive ? 'বাংলিশ ফোনেটিক চালু' : 'সরাসরি ইনপুট'}
-                </span>
-              </button>
-            </div>
-
-            {/* Textarea */}
-            <div className="relative">
-              <textarea
-                ref={textareaRef}
-                value={plainText}
-                onChange={handleTextareaChange}
-                onMouseUp={handleMouseUp}
-                onClick={handleTextareaClick}
-                onKeyUp={handleTextareaKeyUp}
-                onTouchEnd={(e) => {
-                  const touch = e.changedTouches[0];
-                  if (touch) {
-                    handleMouseUp({ clientX: touch.clientX, clientY: touch.clientY, currentTarget: textareaRef.current } as any);
-                  }
-                }}
-                onKeyDown={handleKeyDown}
-                rows={4}
-                placeholder="এখানে লিখুন..."
-                className="w-full bg-slate-50/70 border border-emerald-200/80 rounded-2xl p-4 text-base sm:text-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500 transition-all resize-y shadow-inner"
-              />
-
-              {/* Floating Phonetic Suggestions Popup (Pops downwards underneath the textarea) */}
-              {isPhoneticActive && candidates.length > 0 && (
-                <div className="absolute left-2 top-full mt-1.5 z-[100]">
-                  <CandidatePopup
-                    candidates={candidates}
-                    selectedIndex={selectedCandidateIndex}
-                    onSelectIndex={setSelectedCandidateIndex}
-                    onSelectCandidate={(cand) => handleSelectCandidate(cand, ' ')}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Style Reset button if custom styles exist */}
-            {(segments.length > 1 || Object.keys(lineGaps).length > 0 || Object.keys(lineSizes).length > 0) && (
-              <div className="flex items-center justify-end text-xs text-slate-500 pt-0.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSegments([
-                      {
-                        id: 'seg-reset',
-                        text: plainText,
-                        fontFamily: globalFont,
-                        fontSize: globalFontSize,
-                        fontWeight: globalFontWeight,
-                        color: globalColor,
-                        letterSpacing: globalLetterSpacing
-                      }
-                    ]);
-                    setLineSizes({});
-                    setLineGaps({});
-                    setIsPopupOpen(false);
-                    showToast('সকল শব্দ ও লাইনের স্টাইল ডিফল্টে রিসেট হয়েছে!');
-                  }}
-                  className="text-amber-700 hover:underline font-semibold"
-                >
-                  স্টাইল রিসেট ↺
-                </button>
-              </div>
-            )}
+            {renderTextControls(false)}
           </div>
 
-          {/* Hidden File Input for Custom Font Upload */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".ttf,.otf,.woff,.woff2"
-            onChange={handleFontUpload}
-            className="hidden"
-          />
-
-          {/* Card 2: Background Selector (Strictly 3 options: Transparent, Banglish Theme Card 1:1, Dark Aurora Glass) */}
+          {/* Card 2: Background Selector & Outline */}
           <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-5 relative z-10">
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <span>🖼️</span>
               <span>ব্যাকগ্রাউন্ড থিম নির্বাচন করুন (Background)</span>
             </h3>
-
-            {/* The 4 Background Options */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {/* Option 1: Transparent */}
-              <button
-                type="button"
-                onClick={() => {
-                  setBgTheme('transparent');
-                  if (strokeWidth === 0) setStrokeWidth(10);
-                  setGlobalColor('#10b981');
-                }}
-                className={`p-3.5 rounded-2xl text-left border-2 transition-all flex flex-col justify-between ${
-                  bgTheme === 'transparent'
-                    ? 'border-emerald-500 bg-emerald-50/50 shadow-md ring-2 ring-emerald-500/20'
-                    : 'border-slate-200 bg-white hover:border-emerald-200'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900">ট্রান্সপারেন্ট</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 font-mono">Transparent</span>
-                  </div>
-                </div>
-                <div className="mt-3 w-full h-8 rounded-lg bg-[linear-gradient(45deg,#cbd5e1_25%,transparent_25%),linear-gradient(-45deg,#cbd5e1_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#cbd5e1_75%),linear-gradient(-45deg,transparent_75%,#cbd5e1_75%)] bg-[size:10px_10px] border border-slate-300/80"></div>
-              </button>
-
-              {/* Option 2: Banglish Theme Card (1:1 Procedural Grid, Droplets & Watermark Letters) */}
-              <button
-                type="button"
-                onClick={() => {
-                  setBgTheme('banglish-theme');
-                  setStrokeWidth(0);
-                  setGlobalColor('#0f172a');
-                }}
-                className={`p-3.5 rounded-2xl text-left border-2 transition-all flex flex-col justify-between ${
-                  bgTheme === 'banglish-theme'
-                    ? 'border-emerald-500 bg-emerald-50/50 shadow-md ring-2 ring-emerald-500/20'
-                    : 'border-slate-200 bg-white hover:border-emerald-200'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900">ব্যাংলিশ থিম</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">1:1 Square</span>
-                  </div>
-                </div>
-                <div className="mt-3 w-full h-8 rounded-lg bg-gradient-to-br from-[#f9fdfa] via-white to-[#f2faf5] border border-emerald-200 relative overflow-hidden flex items-center justify-center">
-                  <span className="text-[11px] text-slate-400 font-bangla font-semibold">অ আ ক খ গ</span>
-                </div>
-              </button>
-
-              {/* Option 3: Islamic Quote (1:1 Mosque & Minaret) */}
-              <button
-                type="button"
-                onClick={() => {
-                  setBgTheme('islamic-quote');
-                  setStrokeWidth(0);
-                  setGlobalColor('#1e293b');
-                }}
-                className={`p-3.5 rounded-2xl text-left border-2 transition-all flex flex-col justify-between ${
-                  bgTheme === 'islamic-quote'
-                    ? 'border-emerald-500 bg-emerald-50/50 shadow-md ring-2 ring-emerald-500/20'
-                    : 'border-slate-200 bg-white hover:border-emerald-200'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900">ইসলামিক কোট</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold">1:1 Quote</span>
-                  </div>
-                </div>
-                <div className="mt-3 w-full h-8 rounded-lg border border-amber-200 relative overflow-hidden flex items-center justify-center bg-[#faf7f2]">
-                  <img src="/assets/islamic-quote-bg.webp" alt="Islamic BG" className="w-full h-full object-cover object-bottom" />
-                </div>
-              </button>
-
-              {/* Option 4: Dark Aurora Glass */}
-              <button
-                type="button"
-                onClick={() => {
-                  setBgTheme('dark-aurora');
-                  setStrokeWidth(0);
-                  setGlobalColor('#ffffff');
-                }}
-                className={`p-3.5 rounded-2xl text-left border-2 transition-all flex flex-col justify-between ${
-                  bgTheme === 'dark-aurora'
-                    ? 'border-emerald-500 bg-emerald-50/50 shadow-md ring-2 ring-emerald-500/20'
-                    : 'border-slate-200 bg-white hover:border-emerald-200'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900">ডার্ক অরোরা</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-900 text-emerald-400 font-mono">1:1 Dark</span>
-                  </div>
-                </div>
-                <div className="mt-3 w-full h-8 rounded-lg bg-gradient-to-br from-[#060a12] via-[#0b1120] to-[#050811] border border-emerald-500/30"></div>
-              </button>
-            </div>
-
-            {/* Global Typography & Default Alignment Controls */}
-            <div className="pt-3 border-t border-emerald-100/80 space-y-4">
-              <div className="text-xs font-bold text-slate-800">
-                সকল শব্দের ডিফল্ট সেটিংস (Global Defaults):
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Default Font Dropdown */}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">ডিফল্ট ফন্ট</label>
-                  <select
-                    value={globalFont}
-                    onChange={(e) => {
-                      setGlobalFont(e.target.value);
-                      setSegments(prev => prev.map(s => ({ ...s, fontFamily: e.target.value })));
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                  >
-                    <optgroup label="বাংলা ফন্ট (Bangla Fonts)">
-                      {availableFonts.filter(f => f.script === 'bangla').map((f) => (
-                        <option key={f.id} value={f.family}>
-                          {f.bnName} ({f.name})
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="আরবি ও কুরআনিক ফন্ট (Arabic & Quranic)">
-                      {availableFonts.filter(f => f.script === 'arabic').map((f) => (
-                        <option key={f.id} value={f.family}>
-                          {f.bnName} ({f.name})
-                        </option>
-                      ))}
-                    </optgroup>
-                    {availableFonts.some(f => f.isCustom) && (
-                      <optgroup label="কাস্টম ফন্ট (Custom Uploaded)">
-                        {availableFonts.filter(f => f.isCustom).map((f) => (
-                          <option key={f.id} value={f.family}>
-                            {f.bnName} ({f.name})
-                          </option>
-                        ))}
-                      </optgroup>
-                    )}
-                  </select>
-                </div>
-
-                {/* Default Font Weight Dropdown */}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">ডিফল্ট ওয়েইট</label>
-                  <select
-                    value={globalFontWeight}
-                    onChange={(e) => {
-                      const w = parseInt(e.target.value, 10);
-                      setGlobalFontWeight(w);
-                      setSegments(prev => prev.map(s => ({ ...s, fontWeight: w })));
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
-                  >
-                    <option value={300}>হালকা (Light 300)</option>
-                    <option value={400}>সাধারণ (Regular 400)</option>
-                    <option value={600}>সেমি-বোল্ড (SemiBold 600)</option>
-                    <option value={700}>বোল্ড (Bold 700)</option>
-                    <option value={800}>অতিরিক্ত বোল্ড (Black 800)</option>
-                  </select>
-                </div>
-
-                {/* Default Alignment with Universal SVG Icons */}
-                <div className="space-y-1">
-                  <label className="text-xs font-semibold text-slate-700">অ্যালাইনমেন্ট</label>
-                  <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => setAlign('left')}
-                      className={`flex-1 py-1.5 flex items-center justify-center rounded-lg transition-all ${
-                        align === 'left' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                      }`}
-                      title="Align Left"
-                    >
-                      <AlignLeftIcon />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAlign('center')}
-                      className={`flex-1 py-1.5 flex items-center justify-center rounded-lg transition-all ${
-                        align === 'center' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                      }`}
-                      title="Align Center"
-                    >
-                      <AlignCenterIcon />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAlign('right')}
-                      className={`flex-1 py-1.5 flex items-center justify-center rounded-lg transition-all ${
-                        align === 'right' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                      }`}
-                      title="Align Right"
-                    >
-                      <AlignRightIcon />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Global Character Gap & Line Gap (Side by Side: 2 পাশে ২ টা) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                {/* Global Character Gap */}
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
-                    <span>ডিফল্ট ক্যারেক্টার গ্যাপ</span>
-                    <span className="font-mono text-emerald-700">{globalLetterSpacing}px</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setGlobalLetterSpacing(prev => Math.max(-6, prev - 1))}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
-                      title="ক্যারেক্টার গ্যাপ কমান"
-                    >
-                      -
-                    </button>
-                    <input
-                      type="range"
-                      min="-6"
-                      max="20"
-                      step="1"
-                      value={globalLetterSpacing}
-                      onChange={(e) => setGlobalLetterSpacing(parseInt(e.target.value, 10))}
-                      className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setGlobalLetterSpacing(prev => Math.min(20, prev + 1))}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
-                      title="ক্যারেক্টার গ্যাপ বাড়ান"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                {/* Global Line Gap */}
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center text-xs font-semibold text-slate-700">
-                    <span>ডিফল্ট লাইন গ্যাপ</span>
-                    <span className="font-mono text-emerald-700">{lineGap}px</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setLineGap(prev => Math.max(-30, prev - 2))}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
-                      title="লাইন গ্যাপ কমান"
-                    >
-                      -
-                    </button>
-                    <input
-                      type="range"
-                      min="-30"
-                      max="40"
-                      step="1"
-                      value={lineGap}
-                      onChange={(e) => setLineGap(parseInt(e.target.value, 10))}
-                      className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setLineGap(prev => Math.min(40, prev + 2))}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 border border-slate-200 hover:bg-emerald-50 text-slate-700 text-xs font-bold shrink-0"
-                      title="লাইন গ্যাপ বাড়ান"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Full Global Color Picker - Just Choose Color */}
-              <RgbColorPicker
-                label="Choose Color"
-                showRgbBadge={false}
-                value={globalColor}
-                onChange={(c) => {
-                  setGlobalColor(c);
-                  setSegments(prev => prev.map(s => ({ ...s, color: c })));
-                }}
-              />
-
-              {/* Die-Cut Sticker Outline if enabled */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs font-semibold text-slate-700">
-                    <span>স্টিকার বর্ডার (Die-Cut Outline)</span>
-                    <span className="font-mono text-emerald-700">{strokeWidth}px</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="28"
-                    value={strokeWidth}
-                    onChange={(e) => setStrokeWidth(parseInt(e.target.value, 10))}
-                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                  />
-                </div>
-
-                {strokeWidth > 0 && (
-                  <RgbColorPicker
-                    label="Choose Color"
-                    showRgbBadge={false}
-                    value={strokeColor}
-                    onChange={setStrokeColor}
-                  />
-                )}
-              </div>
+            {renderThemeControls()}
+            <div className="pt-3 border-t border-emerald-100/80">
+              <h4 className="text-xs font-bold text-slate-800 mb-3">স্টিকার আউটলাইন ও শ্যাডো:</h4>
+              {renderOutlineControls()}
             </div>
           </div>
 
-          {/* Card 3: Brand Logo (Custom Logo in Safe Area, Device Cached) */}
+          {/* Card 3: Brand Logo */}
           <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-4">
             <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
               <div className="flex items-center gap-2">
@@ -1720,124 +2027,15 @@ export default function TextToPNGConverterPage() {
                 </h3>
               </div>
             </div>
-
-            <input
-              ref={logoInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleLogoUpload}
-              className="hidden"
-            />
-
-            {!logoDataUrl ? (
-              <div
-                onClick={() => logoInputRef.current?.click()}
-                className="border-2 border-dashed border-emerald-200 hover:border-emerald-500 rounded-2xl p-6 text-center cursor-pointer transition-colors bg-emerald-50/30 hover:bg-emerald-50/60 flex flex-col items-center justify-center gap-2"
-              >
-                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <p className="text-xs font-semibold text-slate-700">
-                  এখানে ক্লিক করে লোগো আপলোড করুন (PNG / SVG / JPG)
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Uploaded Logo Info & Actions */}
-                <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200/70 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1 overflow-hidden shadow-sm">
-                      <img
-                        src={logoDataUrl}
-                        alt="Logo Preview"
-                        className="max-w-full max-h-full object-contain"
-                      />
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold text-slate-800">লোগো সক্রিয় আছে</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => logoInputRef.current?.click()}
-                      className="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-sm transition"
-                    >
-                      পরিবর্তন
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleRemoveLogo}
-                      className="px-3 py-1.5 text-xs font-medium text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition"
-                    >
-                      মুছুন
-                    </button>
-                  </div>
-                </div>
-
-                {/* Corner Position Selectors - Dropdown */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700">লোগোর পজিশন (Safe Area Corner)</label>
-                  <div className="relative">
-                    <select
-                      value={logoPosition}
-                      onChange={(e) => updateLogoPos(e.target.value as LogoPosition)}
-                      className="w-full py-2.5 pl-3 pr-8 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-xl shadow-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
-                    >
-                      <option value="top-left">টপ লেফট (Top Left)</option>
-                      <option value="top-center">টপ সেন্টার (Top Center)</option>
-                      <option value="top-right">টপ রাইট (Top Right)</option>
-                      <option value="bottom-left">বটম লেফট (Bottom Left)</option>
-                      <option value="bottom-right">বটম রাইট (Bottom Right)</option>
-                    </select>
-                    <ChevronDownIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* Sliders for Size & Opacity */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs font-semibold text-slate-700">
-                      <span>লোগোর আকার (Size)</span>
-                      <span className="font-mono text-emerald-700">{logoSize}px</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="20"
-                      max="140"
-                      value={logoSize}
-                      onChange={(e) => updateLogoSize(parseInt(e.target.value, 10))}
-                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-xs font-semibold text-slate-700">
-                      <span>স্বচ্ছতা (Opacity)</span>
-                      <span className="font-mono text-emerald-700">{logoOpacity}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="20"
-                      max="100"
-                      value={logoOpacity}
-                      onChange={(e) => updateLogoOpacity(parseInt(e.target.value, 10))}
-                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
+            {renderLogoControls()}
           </div>
         </div>
 
-        {/* Right Column: Sticky Live Preview & Actions (5 Cols) */}
-        <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-24">
-          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-5 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-4">
-            {/* Preview Header - Just "Preview" */}
-            <div className="flex items-center justify-between border-b border-emerald-100 pb-3">
+        {/* Right Column: Sticky Live Preview on Desktop, Centered Hero on Mobile */}
+        <div className="order-1 lg:order-2 lg:col-span-5 w-full space-y-4 lg:sticky lg:top-24">
+          <div className="bg-white/90 backdrop-blur-xl rounded-3xl border border-emerald-100/90 p-3 sm:p-6 shadow-xl shadow-emerald-950/5 space-y-3">
+            {/* Preview Header */}
+            <div className="flex items-center justify-between border-b border-emerald-100 pb-2.5">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
                 <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
@@ -1855,8 +2053,8 @@ export default function TextToPNGConverterPage() {
               </span>
             </div>
 
-            {/* Canvas Container with Direct Mouse/Touch Dragging */}
-            <div className="w-full min-h-[320px] max-h-[460px] rounded-2xl overflow-hidden flex items-center justify-center p-3 relative border border-emerald-200/80 shadow-inner bg-[linear-gradient(45deg,#f1f5f9_25%,transparent_25%),linear-gradient(-45deg,#f1f5f9_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f1f5f9_75%),linear-gradient(-45deg,transparent_75%,#f1f5f9_75%)] bg-[size:16px_16px]">
+            {/* Canvas Container with Direct Touch / Mouse Dragging */}
+            <div className="w-full h-[320px] sm:h-[400px] lg:h-[440px] rounded-2xl overflow-hidden flex items-center justify-center p-2 sm:p-3 relative border border-emerald-200/80 shadow-inner bg-[linear-gradient(45deg,#f1f5f9_25%,transparent_25%),linear-gradient(-45deg,#f1f5f9_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f1f5f9_75%),linear-gradient(-45deg,transparent_75%,#f1f5f9_75%)] bg-[size:16px_16px]">
               <canvas
                 ref={previewCanvasRef}
                 onMouseDown={(e) => {
@@ -1868,10 +2066,10 @@ export default function TextToPNGConverterPage() {
                     handleStartDrag(e.touches[0].clientX, e.touches[0].clientY);
                   }
                 }}
-                className={`max-w-full max-h-[420px] object-contain drop-shadow-lg rounded-xl select-none transition-shadow ${
+                className={`max-w-full max-h-full object-contain drop-shadow-lg rounded-xl select-none transition-shadow ${
                   isDraggingText ? 'cursor-grabbing shadow-2xl scale-[1.01]' : 'cursor-grab hover:shadow-xl'
                 }`}
-                title="মাউস দিয়ে ড্র্যাগ করে টেক্সট যেকোনো পজিশনে বসান"
+                title="ড্র্যাগ করে টেক্সট যেকোনো পজিশনে বসান"
               />
             </div>
 
@@ -1892,11 +2090,10 @@ export default function TextToPNGConverterPage() {
               </div>
             )}
 
-            {/* Bottom Actions Row */}
-            <div className="space-y-2.5 pt-2">
+            {/* Desktop Actions Row */}
+            <div className="hidden lg:block space-y-2.5 pt-2">
               <div className="flex items-center gap-2">
-                {/* Download Split Button with Quality Dropdown */}
-                <div className="flex-1 relative inline-flex rounded-2xl shadow-md shadow-emerald-600/20">
+                <div ref={qualityDropdownRef} className="flex-1 relative inline-flex rounded-2xl shadow-md shadow-emerald-600/20">
                   <button
                     type="button"
                     onClick={() => handleDownload(downloadQuality)}
@@ -1918,10 +2115,9 @@ export default function TextToPNGConverterPage() {
                     <ChevronDownIcon className="w-3.5 h-3.5" />
                   </button>
 
-                  {/* Quality Dropdown Menu */}
                   {isQualityDropdownOpen && (
-                    <div className="absolute right-0 bottom-full mb-2 w-52 bg-white rounded-2xl shadow-2xl border border-emerald-200 py-2 z-50 animate-in fade-in zoom-in-95">
-                      <div className="px-3.5 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                    <div className="absolute right-0 bottom-full mb-1.5 w-48 bg-white rounded-2xl shadow-2xl border border-emerald-100 py-2 z-50 animate-in fade-in zoom-in-95">
+                      <div className="px-3 py-1 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                         রেজোলিউশন নির্বাচন
                       </div>
                       <button
@@ -1930,9 +2126,11 @@ export default function TextToPNGConverterPage() {
                           setDownloadQuality('high');
                           handleDownload('high');
                         }}
-                        className="w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between"
+                        className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
+                          downloadQuality === 'high' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
+                        }`}
                       >
-                        <span className="font-semibold text-slate-800">High Quality</span>
+                        <span>High Quality</span>
                         <span className="text-[10px] text-slate-400 font-mono">2048px (Ultra)</span>
                       </button>
                       <button
@@ -1941,13 +2139,15 @@ export default function TextToPNGConverterPage() {
                           setDownloadQuality('medium');
                           handleDownload('medium');
                         }}
-                        className="w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between font-bold text-emerald-800 bg-emerald-50/70"
+                        className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
+                          downloadQuality === 'medium' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
+                        }`}
                       >
                         <div className="flex items-center gap-1.5">
                           <span>Medium Quality</span>
-                          <span className="text-[9px] px-1 rounded bg-emerald-200/80 text-emerald-900 font-semibold">ডিফল্ট</span>
+                          <span className="text-[9px] px-1 rounded bg-emerald-100 text-emerald-800 font-semibold">ডিফল্ট</span>
                         </div>
-                        <span className="text-[10px] font-mono">1024px</span>
+                        <span className="text-[10px] text-slate-400 font-mono">1024px</span>
                       </button>
                       <button
                         type="button"
@@ -1955,30 +2155,148 @@ export default function TextToPNGConverterPage() {
                           setDownloadQuality('low');
                           handleDownload('low');
                         }}
-                        className="w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between"
+                        className={`w-full text-left px-3.5 py-2 text-xs hover:bg-emerald-50 flex items-center justify-between transition-colors ${
+                          downloadQuality === 'low' ? 'font-bold text-emerald-800 bg-emerald-50/70' : 'text-slate-700'
+                        }`}
                       >
-                        <span className="font-semibold text-slate-800">Low Quality</span>
+                        <span>Low Quality</span>
                         <span className="text-[10px] text-slate-400 font-mono">512px</span>
                       </button>
                     </div>
                   )}
                 </div>
 
-                {/* Copy Image Button */}
                 <button
                   type="button"
                   onClick={handleCopyToClipboard}
                   disabled={isProcessing}
-                  className="py-3 px-4 rounded-2xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-800 font-bold text-xs sm:text-sm transition-all active:scale-98 flex items-center justify-center gap-1.5 shadow-xs shrink-0"
+                  className="py-3 px-4 rounded-2xl bg-white hover:bg-emerald-50 border border-emerald-200 text-slate-700 text-xs sm:text-sm font-semibold transition-all active:scale-98 flex items-center gap-1.5 shadow-sm"
+                  title="Copy to Clipboard"
                 >
                   <CopyIcon className="w-4 h-4 text-emerald-700" />
-                  <span>Copy Image</span>
+                  <span>Copy</span>
                 </button>
               </div>
             </div>
           </div>
         </div>
       </main>
+
+      {/* Canva Mobile Bottom Sheet */}
+      {activeMobileTab && (
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end">
+          <div
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+            onClick={() => setActiveMobileTab(null)}
+          />
+          <div className="relative z-10 bg-white rounded-t-3xl shadow-2xl border-t border-emerald-100 max-h-[75vh] flex flex-col animate-in slide-in-from-bottom duration-200">
+            {/* Drag Handle & Header */}
+            <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-base">
+                  {activeMobileTab === 'text' && '✍️'}
+                  {activeMobileTab === 'theme' && '🖼️'}
+                  {activeMobileTab === 'logo' && '🏷️'}
+                  {activeMobileTab === 'outline' && '✨'}
+                  {activeMobileTab === 'download' && '📥'}
+                </span>
+                <span className="text-sm font-bold text-slate-800">
+                  {activeMobileTab === 'text' && 'টেক্সট এডিটর'}
+                  {activeMobileTab === 'theme' && 'ব্যাকগ্রাউন্ড থিম'}
+                  {activeMobileTab === 'logo' && 'ব্র্যান্ড লোগো'}
+                  {activeMobileTab === 'outline' && 'স্টিকার আউটলাইন ও শ্যাডো'}
+                  {activeMobileTab === 'download' && 'ডাউনলোড ও শেয়ার'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveMobileTab(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center font-bold text-sm transition"
+                title="বন্ধ করুন"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="overflow-y-auto p-4 space-y-4 pb-8">
+              {activeMobileTab === 'text' && renderTextControls(true)}
+              {activeMobileTab === 'theme' && renderThemeControls()}
+              {activeMobileTab === 'logo' && renderLogoControls()}
+              {activeMobileTab === 'outline' && renderOutlineControls()}
+              {activeMobileTab === 'download' && renderDownloadControls()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Canva Mobile Bottom Toolbar */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-2 py-1 flex items-center justify-around">
+        <button
+          type="button"
+          onClick={() => setActiveMobileTab(prev => prev === 'text' ? null : 'text')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all ${
+            activeMobileTab === 'text'
+              ? 'text-emerald-700 bg-emerald-50 font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <TextTabIcon className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] tracking-tight">টেক্সট</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMobileTab(prev => prev === 'theme' ? null : 'theme')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all ${
+            activeMobileTab === 'theme'
+              ? 'text-emerald-700 bg-emerald-50 font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <ThemeTabIcon className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] tracking-tight">থিম</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMobileTab(prev => prev === 'logo' ? null : 'logo')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all ${
+            activeMobileTab === 'logo'
+              ? 'text-emerald-700 bg-emerald-50 font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <LogoTabIcon className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] tracking-tight">লোগো</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMobileTab(prev => prev === 'outline' ? null : 'outline')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all ${
+            activeMobileTab === 'outline'
+              ? 'text-emerald-700 bg-emerald-50 font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <OutlineTabIcon className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] tracking-tight">আউটলাইন</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveMobileTab(prev => prev === 'download' ? null : 'download')}
+          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all ${
+            activeMobileTab === 'download'
+              ? 'text-emerald-700 bg-emerald-50 font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <ExportTabIcon className="w-5 h-5 mb-0.5" />
+          <span className="text-[10px] tracking-tight">ডাউনলোড</span>
+        </button>
+      </nav>
     </div>
   );
 }
