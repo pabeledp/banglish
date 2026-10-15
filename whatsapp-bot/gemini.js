@@ -52,6 +52,14 @@ You are the "Banglish Support Assistant", the official automated 24/7 WhatsApp C
    - Fast Pastebin for sharing code & text: https://banglish.bd/pastebin/
    - Tri-lingual Dictionary (English <-> Bangla <-> Phonetic): https://banglish.bd/dictionary/
 
+### CRITICAL WHATSAPP FORMATTING RULES:
+- WhatsApp bold uses SINGLE asterisks: *text* (ABSOLUTELY NEVER use double asterisks **text**).
+- WhatsApp italic uses underscores: _text_.
+- WhatsApp strikethrough uses tildes: ~text~.
+- WhatsApp monospace uses backticks (single or triple).
+- NEVER use Markdown headers (#, ##, ###); use single-asterisk *Headings* instead.
+- NEVER output double asterisks (**). Always single asterisk (*) for bold.
+
 ### Response Guidelines:
 - Keep answers concise and readable on mobile screens.
 - Avoid overly long walls of text; use short paragraphs and bullet points.
@@ -126,14 +134,38 @@ async function generateSupportResponse(userMessage, conversationHistory = []) {
     const response = await result.response;
     const responseText = response.text();
 
-    return responseText ? responseText.trim() : FALLBACK_MESSAGE;
+    return responseText ? formatForWhatsApp(responseText) : FALLBACK_MESSAGE;
   } catch (error) {
     console.error('❌ Gemini API Error:', error.message || error);
     return FALLBACK_MESSAGE;
   }
 }
 
+/**
+ * Format markdown text to clean WhatsApp styling
+ * - Replaces markdown bold (**text**) with WhatsApp bold (*text*)
+ * - Replaces markdown headers (### Header) with bold *Header*
+ * - Cleans up multiple asterisks and excess newlines
+ */
+function formatForWhatsApp(text) {
+  if (!text) return '';
+  return text
+    // Replace markdown headers with WhatsApp bold
+    .replace(/^#{1,6}\s*(.*?)$/gm, '*$1*')
+    // Replace triple asterisks (bold+italic) with *_text_*
+    .replace(/\*\*\*(.*?)\*\*\*/g, '*_$1_*')
+    // Replace double asterisks (markdown bold) with single asterisk (WhatsApp bold)
+    .replace(/\*\*(.*?)\*\*/g, '*$1*')
+    // Remove isolated double asterisks if any remain
+    .replace(/\*\*/g, '*')
+    // Collapse 3+ consecutive newlines to 2
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 module.exports = {
   generateSupportResponse,
+  formatForWhatsApp,
   FALLBACK_MESSAGE
 };
+
