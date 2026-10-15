@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import Link from 'next/link';
 
 export default function AudioPlayer() {
   const pathname = usePathname();
@@ -73,8 +72,60 @@ export default function AudioPlayer() {
     <>
       <audio ref={audioRef} preload="auto" loop src="/assets/ami-banglay-gan-gai.m4a" />
 
-      <aside id="floating-actions-container" aria-label="Quick Support & Audio" className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-2.5 select-none">
-        {/* Floating WhatsApp Support Agent Button */}
+      {/* 1. BOTTOM-LEFT: Music Player ("আমি বাংলায় গান গাই") */}
+      <aside 
+        id="bg-audio-container" 
+        aria-label="Background Music Player" 
+        className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-50 select-none"
+      >
+        <button 
+          id="audio-master-btn" 
+          type="button" 
+          onClick={togglePlay}
+          className="hidden sm:flex hover-card group items-center justify-center p-0 sm:px-3.5 sm:py-2.5 rounded-full sm:rounded-2xl bg-white/95 backdrop-blur-xl border border-emerald-200/90 shadow-lg shadow-emerald-950/10 hover:border-emerald-400 focus:outline-none transition-all active:scale-95 cursor-pointer text-slate-800"
+          title={isPlaying ? "পজ করুন (Space = Pause)" : "আমি বাংলায় গান গাই • Play / Pause (Space)"}
+          aria-label="Play or Pause Background Music"
+        >
+          {/* Play & Pause Icon */}
+          <div className="flex items-center justify-center text-emerald-600 group-hover:text-emerald-700 transition-colors flex-shrink-0">
+            {isPlaying ? (
+              <svg className="w-4 h-4 fill-current text-emerald-600" viewBox="0 0 24 24">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 fill-current text-slate-700 ml-0.5" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+            )}
+          </div>
+
+          {/* Desktop Only: Compact Title with Animated Equalizer */}
+          <div className="flex items-center gap-2 pl-2 text-left">
+            <span className="text-xs font-semibold text-slate-800 font-bangla whitespace-nowrap leading-none">
+              আমি বাংলায় গান গাই
+            </span>
+            
+            {/* Equalizer Wave Bars */}
+            <div className={`flex items-end gap-0.5 h-3.5 px-0.5 ${isPlaying ? '' : 'eq-paused'}`}>
+              <span className="w-0.5 bg-emerald-500 rounded-full eq-bar-1"></span>
+              <span className="w-0.5 bg-emerald-500 rounded-full eq-bar-2"></span>
+              <span className="w-0.5 bg-emerald-500 rounded-full eq-bar-3"></span>
+              <span className="w-0.5 bg-emerald-500 rounded-full eq-bar-4"></span>
+            </div>
+
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">
+              Space
+            </span>
+          </div>
+        </button>
+      </aside>
+
+      {/* 2. BOTTOM-RIGHT: WhatsApp Support Agent Button */}
+      <aside 
+        id="floating-support-container" 
+        aria-label="WhatsApp Support Agent" 
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 select-none"
+      >
         <a 
           id="whatsapp-assistant-btn"
           href="/support"
@@ -99,44 +150,6 @@ export default function AudioPlayer() {
             <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
           </div>
         </a>
-
-        {/* Background Music Player */}
-        <button 
-          id="audio-master-btn" 
-          type="button" 
-          onClick={togglePlay}
-          className="hidden sm:flex hover-card group items-center justify-center p-0 sm:px-3.5 sm:py-2.5 rounded-full sm:rounded-2xl bg-white/95 backdrop-blur-xl border border-emerald-200/90 shadow-lg shadow-emerald-950/10 hover:border-emerald-400 focus:outline-none transition-all active:scale-95 cursor-pointer text-slate-800"
-          title={isPlaying ? "পজ করুন (Space = Pause)" : "আমি বাংলায় গান গাই • Play / Pause (Space)"}
-          aria-label="Play or Pause Background Music"
-        >
-          {/* Play & Pause Icon */}
-          <div className="flex items-center justify-center text-emerald-600 group-hover:text-emerald-700 transition-colors flex-shrink-0">
-            {isPlaying ? (
-              <svg className="w-4 h-4 fill-current text-emerald-600" viewBox="0 0 24 24">
-                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-              </svg>
-            ) : (
-              <svg className="w-4 h-4 fill-current text-slate-700 ml-0.5" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z"/>
-              </svg>
-            )}
-          </div>
-
-          {/* Desktop Only: Compact Title with Animated Equalizer */}
-          <div className="flex items-center gap-2 pl-2 text-left">
-            <span className="text-xs font-semibold text-slate-800 font-bangla whitespace-nowrap leading-none">আমি বাংলায় গান গাই</span>
-            
-            {/* Equalizer Wave Bars */}
-            <div className={`flex items-end gap-0.5 h-3.5 px-0.5 ${isPlaying ? '' : 'eq-paused'}`}>
-              <span className="w-0.5 bg-emerald-500 rounded-full eq-bar-1"></span>
-              <span className="w-0.5 bg-emerald-500 rounded-full eq-bar-2"></span>
-              <span className="w-0.5 bg-emerald-500 rounded-full eq-bar-3"></span>
-              <span className="w-0.5 bg-emerald-500 rounded-full eq-bar-4"></span>
-            </div>
-
-            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 border border-slate-200">Space</span>
-          </div>
-        </button>
       </aside>
     </>
   );
