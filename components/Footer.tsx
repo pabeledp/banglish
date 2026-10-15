@@ -11,8 +11,8 @@ export default function Footer() {
           {/* Brand Info */}
           <div className="md:col-span-2 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 p-1.5 flex items-center justify-center border border-emerald-500/30">
-                <img src="/assets/banglish-logo-192.png" alt="Banglish Logo" className="w-full h-full object-contain" />
+              <div className="w-9 h-9 flex-shrink-0 rounded-xl bg-emerald-500/10 p-1.5 flex items-center justify-center border border-emerald-500/30">
+                <img src="/assets/banglish-logo-192.png" alt="Banglish Logo" width={36} height={36} className="w-full h-full object-contain block" />
               </div>
               <div className="flex flex-col">
                 <span className="text-xl font-bold text-white font-sans leading-none">Banglish</span>

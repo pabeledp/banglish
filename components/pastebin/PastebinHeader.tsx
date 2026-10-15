@@ -45,7 +45,7 @@ export default function PastebinHeader({
 
             <Link href="/" className="flex items-center gap-2 sm:gap-3 group min-w-0">
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100/80 p-1 flex items-center justify-center border border-emerald-200/60 shadow-xs transition-transform duration-200 group-hover:scale-105 shrink-0">
-                <img src="/assets/banglish-logo-192.png" alt="Banglish" className="w-full h-full object-contain" />
+                <img src="/assets/banglish-logo-192.png" alt="Banglish" width={40} height={40} className="w-full h-full object-contain block" />
               </div>
 
               <div className="min-w-0">
