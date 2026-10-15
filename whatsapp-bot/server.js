@@ -172,7 +172,7 @@ db.initDatabase()
 🌐 Server listening on port: ${PORT}
 🔗 Webhook Verification URL: http://localhost:${PORT}/webhook
 📱 Supported Phone Number ID: ${process.env.PHONE_NUMBER_ID || 'Not Set'}
-🤖 AI Engine: Google Gemini (gemini-1.5-flash)
+🤖 AI Engine: Google Gemini (${process.env.GEMINI_MODEL || 'gemini-flash-latest'})
 📦 Database: SQLite (conversations.db)
 ======================================================
       `);

@@ -9,3 +9,4 @@ Banglish Phonetic Ref for Website/
 whatsapp-bot/node_modules/
 whatsapp-bot/*.db*
 whatsapp-bot/.env
+whatsapp-bot/bin/
