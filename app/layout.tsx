@@ -186,6 +186,27 @@ export default function RootLayout({
     <html lang="bn" className="scroll-smooth">
       <head>
         <meta name="facebook-domain-verification" content="5rl38ybwfa6tmmdylipvjgnxshqabk" />
+        
+        {/* Primary Social Media & OpenGraph Preview Meta Tags */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Banglish" />
+        <meta property="og:url" content="https://banglish.bd/" />
+        <meta property="og:title" content="Banglish — Best Avro & iAvro Alternative for macOS & Windows" />
+        <meta property="og:description" content="Download Banglish, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard for Apple Silicon & Windows. Free, offline & private." />
+        <meta property="og:image" content="https://banglish.bd/assets/banglish-og-preview.png" />
+        <meta property="og:image:secure_url" content="https://banglish.bd/assets/banglish-og-preview.png" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:width" content="1024" />
+        <meta property="og:image:height" content="390" />
+        <meta property="og:image:alt" content="Banglish — Best Avro & iAvro Alternative for macOS & Windows" />
+
+        {/* Twitter / X Card */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Banglish — Best Avro & iAvro Alternative for macOS & Windows" />
+        <meta name="twitter:description" content="Download Banglish, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard for Apple Silicon & Windows. Free, offline & private." />
+        <meta name="twitter:image" content="https://banglish.bd/assets/banglish-og-preview.png" />
+        <meta name="twitter:image:alt" content="Banglish — Best Avro & iAvro Alternative for macOS & Windows" />
+
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link 
