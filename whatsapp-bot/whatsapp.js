@@ -17,16 +17,22 @@ async function sendWhatsAppMessage(to, messageText) {
 
   const url = `https://graph.facebook.com/${GRAPH_API_VERSION}/${phoneNumberId}/messages`;
 
+  const isPhoneNumber = typeof to === 'string' && /^[0-9]+$/.test(to.trim());
   const payload = {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
-    to,
     type: 'text',
     text: {
       preview_url: true,
       body: messageText
     }
   };
+
+  if (isPhoneNumber) {
+    payload.to = to.trim();
+  } else {
+    payload.recipient = to.trim();
+  }
 
   const response = await axios.post(url, payload, {
     headers: {

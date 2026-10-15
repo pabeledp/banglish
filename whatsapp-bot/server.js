@@ -105,7 +105,7 @@ async function handleIncomingWebhook(body) {
  * Process a single incoming user message
  */
 async function processSingleMessage(message, contacts) {
-  const from = message.from; // Sender WhatsApp phone number
+  const from = message.from || message.from_user_id; // Sender phone number or BSUID (Meta User ID)
   const messageId = message.id;
   const messageType = message.type;
 
