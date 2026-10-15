@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 
 export default function AudioPlayer() {
   const pathname = usePathname();
@@ -73,15 +74,15 @@ export default function AudioPlayer() {
       <audio ref={audioRef} preload="auto" loop src="/assets/ami-banglay-gan-gai.m4a" />
 
       <aside id="floating-actions-container" aria-label="Quick Support & Audio" className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col items-end gap-2.5 select-none">
-        {/* WhatsApp Chat Assistant Button: On mobile, takes the bottom-right spot; on desktop, sits above music player */}
+        {/* Floating WhatsApp Support Agent Button */}
         <a 
           id="whatsapp-assistant-btn"
-          href="https://wa.me/8801795020192?text=Hi%20Banglish%20Assistant" 
+          href="/support"
           target="_blank" 
           rel="noopener noreferrer"
           className="hover-card group flex items-center justify-center w-12 h-12 sm:w-auto sm:h-auto p-0 sm:px-3.5 sm:py-2.5 rounded-full sm:rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-950/20 hover:from-emerald-400 hover:to-teal-500 hover:shadow-xl hover:scale-105 active:scale-95 transition-all focus:outline-none cursor-pointer border border-emerald-300/40"
-          title="WhatsApp এ আমাদের AI চ্যাট অ্যাসিস্ট্যান্টের সাথে কথা বলুন (+880 1795-020192)"
-          aria-label="Chat with Banglish AI Assistant on WhatsApp"
+          title="WhatsApp এ আমাদের সাপোর্ট এজেন্টের সাথে কথা বলুন (+880 1795-020192)"
+          aria-label="Chat with Banglish Support Agent on WhatsApp"
         >
           {/* WhatsApp Official SVG Icon */}
           <div className="flex items-center justify-center flex-shrink-0 text-white">
@@ -93,13 +94,13 @@ export default function AudioPlayer() {
           {/* Desktop Only: Badge and Text */}
           <div className="hidden sm:flex items-center gap-1.5 pl-2 pr-0.5 text-left">
             <span className="text-xs font-bold font-sans tracking-wide leading-none">
-              WhatsApp Support
+              Support Agent
             </span>
             <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
           </div>
         </a>
 
-        {/* Background Music Player: DESKTOP ONLY (hidden on mobile, replaced by WhatsApp) */}
+        {/* Background Music Player */}
         <button 
           id="audio-master-btn" 
           type="button" 
