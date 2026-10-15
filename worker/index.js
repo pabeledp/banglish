@@ -55,9 +55,12 @@ You are an automated support agent for "Banglish Keyboard" under "FramEmpire".
    - Absolutely NEVER reply in Banglish (Bengali words typed in English letters, e.g. "kemon achen", "apnar ki somoshya", etc.).
    - If the customer writes in Bengali (বাংলা) OR Banglish (English letters), ALWAYS reply in clean, natural, proper Bengali script (বাংলা অক্ষর).
    - If the customer writes in English, reply in clear, professional standard English.
-2. SOFTWARE NAME:
+2. STRICT SCRIPT RESTRICTION (BENGALI & ENGLISH ONLY):
+   - You must NEVER output Chinese, Japanese, Korean, or any other Asian/foreign characters (such as 汉字, 日本語, etc.) under ANY circumstances.
+   - Every single word must strictly be written in proper Bengali script or standard English Latin script.
+3. SOFTWARE NAME:
    - ALWAYS write "Banglish Keyboard" or "Banglish" in English letters. NEVER write it in Bengali script (do NOT write "বাংলিশ কীবোর্ড").
-3. TECHNICAL & DIGITAL TERMS:
+4. TECHNICAL & DIGITAL TERMS:
    - Always keep technical, system, and feature terms in their standard English spelling, such as: "macOS", "Windows", "installer", "setup", "shortcut", "Input Sources", "System Settings", "Apple Silicon", "Intel", "offline", "bug", "download", "Simulator", "Sticker Maker", "Pastebin", "Dictionary", etc.
    - Do NOT awkwardly translate computer/software terms to Bengali. Combine clean Bengali sentence structure with standard English technical terms (e.g., "macOS-এ Banglish Keyboard সেটআপ করতে নিচের সহজ ধাপগুলো অনুসরণ করুন:").
 
@@ -123,6 +126,7 @@ const FALLBACK_MESSAGE =
 function formatForWhatsApp(text) {
   if (!text) return '';
   return text
+    .replace(/[\u4e00-\u9fff\u3400-\u4dbf\u3040-\u30ff]/g, '') // Strip any accidental CJK/Chinese characters
     .replace(/^#{1,6}\s*(.*?)$/gm, '*$1*')
     .replace(/\*\*\*(.*?)\*\*\*/g, '*_$1_*')
     .replace(/\*\*(.*?)\*\*/g, '*$1*')
@@ -179,8 +183,83 @@ export default {
       return handleBlogApi(request, env, ctx, url);
     }
 
-    // 3. Default: Serve Next.js static site assets
-    return env.ASSETS.fetch(request);
+    // 3. Dynamic Blog Post Route: /blog/:slug
+    const blogMatch = url.pathname.match(/^\/blog\/([^/]+)\/?$/);
+    if (blogMatch) {
+      const slug = decodeURIComponent(blogMatch[1]);
+
+      // First check if static pre-rendered HTML exists in out/
+      try {
+        const assetRes = await env.ASSETS.fetch(request);
+        if (assetRes.status === 200) {
+          return assetRes;
+        }
+      } catch (e) {
+        // Continue to D1 database lookup
+      }
+
+      // Query Cloudflare D1 for published post
+      if (env.DB) {
+        try {
+          const post = await env.DB.prepare(
+            "SELECT * FROM blog_posts WHERE slug = ? AND status = 'published'"
+          ).bind(slug).first();
+
+          if (post) {
+            // Asynchronously increment view counter
+            if (ctx && ctx.waitUntil) {
+              ctx.waitUntil(
+                env.DB.prepare('UPDATE blog_posts SET views = views + 1 WHERE id = ?')
+                  .bind(post.id)
+                  .run()
+              );
+            }
+
+            // Related posts
+            let related = [];
+            try {
+              const relRes = await env.DB.prepare(
+                "SELECT slug, title, category, date, read_time, cover_image FROM blog_posts WHERE slug != ? AND status = 'published' ORDER BY id DESC LIMIT 3"
+              ).bind(slug).all();
+              related = relRes?.results || [];
+            } catch (err) {}
+
+            return new Response(renderBlogPostHtml(post, related), {
+              status: 200,
+              headers: {
+                'Content-Type': 'text/html; charset=UTF-8',
+                'Cache-Control': 'public, max-age=60, s-maxage=300',
+              },
+            });
+          }
+        } catch (dbErr) {
+          console.error('Error fetching blog post from D1:', dbErr);
+        }
+      }
+
+      // If post not found in D1, return themed 404
+      return new Response(renderThemed404Html('আর্টিকেলটি পাওয়া যায়নি'), {
+        status: 404,
+        headers: { 'Content-Type': 'text/html; charset=UTF-8' },
+      });
+    }
+
+    // 4. Default: Serve Next.js static site assets with graceful themed 404 fallback
+    try {
+      const res = await env.ASSETS.fetch(request);
+      if (res.status === 404) {
+        return new Response(renderThemed404Html(), {
+          status: 404,
+          headers: { 'Content-Type': 'text/html; charset=UTF-8' },
+        });
+      }
+      return res;
+    } catch (err) {
+      return new Response(renderThemed404Html(), {
+        status: 404,
+        headers: { 'Content-Type': 'text/html; charset=UTF-8' },
+      });
+    }
   },
 };
 
@@ -728,3 +807,426 @@ async function sendWhatsAppMessage(targetId, isBsuid, replyText, env) {
     console.error('❌ Network error sending WhatsApp message:', sendErr);
   }
 }
+
+/**
+ * Render complete responsive Blog Post HTML for dynamic D1 posts
+ */
+function renderBlogPostHtml(post, related = []) {
+  const title = post.title || 'ব্লগ আর্টিকেল';
+  const seoTitle = post.seo_title || post.seoTitle || title;
+  const subtitle = post.subtitle || '';
+  const excerpt = post.excerpt || subtitle || title;
+  const canonical = `https://banglish.bd/blog/${post.slug}`;
+  const coverImage = post.cover_image || post.coverImage || 'https://banglish.bd/assets/banglish-og-preview.png';
+  const authorName = post.author_name || 'A M Pabel';
+  const authorRole = post.author_role || 'Founder, FramEmpire';
+  const authorAvatar = post.author_avatar || '/assets/pabel_light_avatar.webp';
+  const readTime = post.read_time || '৫ মিনিট পড়ার সময়';
+  const dateStr = post.date || new Date().toLocaleDateString('bn-BD', { year: 'numeric', month: 'long', day: 'numeric' });
+  const category = post.category || 'সাধারণ';
+  const views = post.views || 1;
+
+  const contentHtml = convertMarkdownToHtml(post.content || '');
+  const encodedTitle = encodeURIComponent(title);
+  const encodedUrl = encodeURIComponent(canonical);
+
+  const relatedHtml = (related && related.length > 0)
+    ? `<div class="mt-16 pt-10 border-t border-slate-200">
+        <h3 class="text-xl sm:text-2xl font-bold text-slate-900 font-bangla mb-6">সম্পর্কিত অন্যান্য আর্টিকেল</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          ${related.map(r => `
+            <a href="/blog/${r.slug}" class="group block bg-white rounded-2xl p-4 border border-slate-200/80 hover:border-emerald-500/50 hover:shadow-md transition-all">
+              ${r.cover_image ? `<img src="${r.cover_image}" alt="${r.title}" class="w-full h-32 object-cover rounded-xl mb-3 group-hover:scale-105 transition-transform">` : ''}
+              <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/60 font-bangla mb-2">${r.category}</span>
+              <h4 class="font-bold text-slate-900 font-bangla text-sm line-clamp-2 group-hover:text-emerald-700 transition-colors">${r.title}</h4>
+              <p class="text-xs text-slate-400 font-bangla mt-2">${r.read_time || ''}</p>
+            </a>
+          `).join('')}
+        </div>
+      </div>`
+    : '';
+
+  return `<!DOCTYPE html>
+<html lang="bn" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${seoTitle} | Banglish Keyboard</title>
+  <meta name="description" content="${excerpt}">
+  <link rel="canonical" href="${canonical}">
+  
+  <!-- Open Graph -->
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="${seoTitle}">
+  <meta property="og:description" content="${excerpt}">
+  <meta property="og:url" content="${canonical}">
+  <meta property="og:site_name" content="Banglish Keyboard">
+  <meta property="og:image" content="${coverImage}">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${seoTitle}">
+  <meta name="twitter:description" content="${excerpt}">
+  <meta name="twitter:image" content="${coverImage}">
+
+  <!-- Favicon -->
+  <link rel="icon" href="/favicon.ico">
+  <link rel="icon" href="/assets/favicon-32x32.png" sizes="32x32" type="image/png">
+  <link rel="icon" href="/assets/banglish-logo-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+
+  <!-- Google Font: Hind Siliguri -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            bangla: ['"Hind Siliguri"', 'sans-serif'],
+            sans: ['"Hind Siliguri"', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            emerald: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              200: '#a7f3d0',
+              300: '#6ee7b7',
+              400: '#34d399',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+              950: '#022c22',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Hind Siliguri', system-ui, sans-serif; background-color: #fafbfc; }
+    .bg-grid-pattern {
+      background-size: 32px 32px;
+      background-image: linear-gradient(to right, rgba(16, 185, 129, 0.05) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(16, 185, 129, 0.05) 1px, transparent 1px);
+    }
+  </style>
+</head>
+<body class="text-slate-800 antialiased selection:bg-emerald-100 selection:text-emerald-900 min-h-screen flex flex-col">
+  
+  <!-- Reading Progress Bar -->
+  <div id="readProgress" class="fixed top-0 left-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400 z-50 transition-all duration-150" style="width: 0%;"></div>
+
+  <!-- Background Ambience -->
+  <div class="fixed inset-0 pointer-events-none z-0 bg-grid-pattern opacity-60"></div>
+  <div class="fixed -top-40 right-0 w-[500px] h-[500px] bg-emerald-200/20 rounded-full blur-3xl pointer-events-none -z-10"></div>
+  <div class="fixed top-1/2 -left-32 w-[400px] h-[400px] bg-teal-200/20 rounded-full blur-3xl pointer-events-none -z-10"></div>
+
+  <!-- Navbar -->
+  <header class="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-emerald-100/80 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-3 group">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100/80 border border-emerald-200/60 p-1 flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+          <img src="/assets/banglish-logo-192.png" alt="Banglish" class="w-full h-full object-contain">
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight font-sans">Banglish</span>
+          <span class="text-[10px] text-emerald-700 font-semibold font-bangla -mt-1">বাংলা টাইপিং কিবোর্ড</span>
+        </div>
+      </a>
+
+      <nav class="hidden md:flex items-center gap-6 text-sm font-semibold text-slate-600 font-bangla">
+        <a href="/" class="hover:text-emerald-700 transition-colors">ফিচার</a>
+        <a href="/#simulator" class="hover:text-emerald-700 transition-colors">সিমুলেটর</a>
+        <a href="/#cheatsheet" class="hover:text-emerald-700 transition-colors">কী-ম্যাপ</a>
+        <a href="/dictionary" class="hover:text-emerald-700 transition-colors">ডিকশনারি</a>
+        <a href="/pastebin" class="hover:text-emerald-700 transition-colors">পেস্টবিন</a>
+        <a href="/blog" class="text-emerald-700 font-bold">ব্লগ</a>
+      </nav>
+
+      <div class="flex items-center gap-3">
+        <a href="/support" target="_blank" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-xs sm:text-sm font-semibold hover:bg-emerald-100 transition-colors font-bangla">
+          <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.007c.106.005.249-.04.39.299.144.347.491 1.2.534 1.287.043.087.072.188.014.303-.058.116-.087.188-.173.289l-.26.303c-.087.087-.177.182-.076.355.101.173.45 1.053 1.205 1.724.755.671 1.393.882 1.595.981.202.1.318.087.433-.044.116-.13.491-.578.621-.78.13-.202.26-.173.433-.101.173.072 1.098.52 1.286.607.188.087.318.13.361.202.044.072.044.419-.1 1.243z"/></svg>
+          <span>সাপোর্ট</span>
+        </a>
+        <a href="/#download" class="inline-flex items-center gap-2 px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold shadow-md shadow-emerald-600/20 transition-all font-bangla">
+          <span>ডাউনলোড</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Article Body -->
+  <main class="flex-grow max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-12 w-full relative z-10">
+    
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-xs sm:text-sm text-slate-500 font-bangla mb-6">
+      <a href="/" class="hover:text-emerald-700 transition-colors">হোম</a>
+      <span class="text-slate-400">/</span>
+      <a href="/blog" class="hover:text-emerald-700 transition-colors">ব্লগ</a>
+      <span class="text-slate-400">/</span>
+      <span class="text-slate-900 font-semibold truncate max-w-[200px] sm:max-w-xs">${category}</span>
+    </nav>
+
+    <!-- Header -->
+    <header class="mb-8">
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/60 font-bangla">
+          ${category}
+        </span>
+        <span class="text-xs text-slate-500 flex items-center gap-1 font-bangla">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          ${readTime}
+        </span>
+        <span class="text-xs text-slate-500 flex items-center gap-1 font-mono">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+          ${views} ভিউ
+        </span>
+      </div>
+
+      <h1 class="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight sm:leading-snug font-bangla">
+        ${title}
+      </h1>
+
+      ${subtitle ? `<p class="mt-4 text-base sm:text-xl text-slate-600 font-bangla leading-relaxed">${subtitle}</p>` : ''}
+
+      <!-- Author Card -->
+      <div class="mt-6 pt-6 border-t border-slate-200/80 flex items-center justify-between flex-wrap gap-4">
+        <div class="flex items-center gap-3">
+          <img src="${authorAvatar}" alt="${authorName}" class="w-12 h-12 rounded-full object-cover border-2 border-emerald-500 shadow-sm">
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm sm:text-base font-bangla">${authorName}</h4>
+            <p class="text-xs text-slate-500 font-bangla">${authorRole} • ${dateStr}</p>
+          </div>
+        </div>
+
+        <!-- Social Share Pills -->
+        <div class="flex items-center gap-2">
+          <a href="https://api.whatsapp.com/send?text=${encodedTitle}%20${encodedUrl}" target="_blank" title="WhatsApp এ শেয়ার করুন" class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white flex items-center justify-center transition-colors">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.007c.106.005.249-.04.39.299.144.347.491 1.2.534 1.287.043.087.072.188.014.303-.058.116-.087.188-.173.289l-.26.303c-.087.087-.177.182-.076.355.101.173.45 1.053 1.205 1.724.755.671 1.393.882 1.595.981.202.1.318.087.433-.044.116-.13.491-.578.621-.78.13-.202.26-.173.433-.101.173.072 1.098.52 1.286.607.188.087.318.13.361.202.044.072.044.419-.1 1.243z"/></svg>
+          </a>
+          <a href="https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}" target="_blank" title="Facebook এ শেয়ার করুন" class="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-600 hover:text-white flex items-center justify-center transition-colors">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M9 8H6v4h3v12h5V12h3.642L18 8h-4V6.333C14 5.374 14.5 5 15.5 5H18V0h-3.808C10.595 0 9 1.582 9 4.615V8z"/></svg>
+          </a>
+          <button onclick="navigator.clipboard.writeText(window.location.href);alert('লিঙ্ক কপি হয়েছে!')" title="লিঙ্ক কপি করুন" class="w-9 h-9 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-800 hover:text-white flex items-center justify-center transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    ${coverImage && !coverImage.includes('banglish-og-preview.png') ? `
+      <div class="mb-10 rounded-3xl overflow-hidden border border-slate-200/80 shadow-md">
+        <img src="${coverImage}" alt="${title}" class="w-full h-auto max-h-[480px] object-cover">
+      </div>
+    ` : ''}
+
+    <!-- Content Body -->
+    <article class="prose prose-slate max-w-none text-slate-800">
+      ${contentHtml}
+    </article>
+
+    ${relatedHtml}
+
+    <div class="mt-16 text-center">
+      <a href="/blog" class="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm transition-all font-bangla shadow-md">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+        <span>সকল আর্টিকেলের তালিকায় ফিরে যান</span>
+      </a>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200/80 py-10 mt-20 relative z-10 text-center font-bangla">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+      <p>© 2026 Banglish.bd — সর্বস্বত্ব সংরক্ষিত। প্রাউডলি ডেভেলপড বাই টিম FramEmpire ও A M Pabel।</p>
+      <div class="flex items-center gap-6">
+        <a href="/privacy" class="hover:text-emerald-700">গোপনীয়তা নীতি</a>
+        <a href="/terms" class="hover:text-emerald-700">শর্তাবলী</a>
+        <a href="/support" class="hover:text-emerald-700">কাস্টমার সাপোর্ট</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    window.addEventListener('scroll', () => {
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      const progress = total > 0 ? (window.scrollY / total) * 100 : 0;
+      const bar = document.getElementById('readProgress');
+      if (bar) bar.style.width = Math.min(100, Math.max(0, progress)) + '%';
+    });
+  </script>
+</body>
+</html>`;
+}
+
+/**
+ * Render complete responsive Themed 404 HTML
+ */
+function renderThemed404Html(title = 'পৃষ্ঠাটি খুঁজে পাওয়া যায়নি', message = 'আপনি যে পৃষ্ঠাটি খুঁজছেন সেটি হয়তো স্থানান্তরিত হয়েছে অথবা এর ইউআরএল ঠিকানা ভুল রয়েছে।') {
+  return `<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>৪০৪: ${title} | Banglish Keyboard</title>
+  <link rel="icon" href="/favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            bangla: ['"Hind Siliguri"', 'sans-serif'],
+            sans: ['"Hind Siliguri"', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            emerald: { 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 500: '#10b981', 600: '#059669', 700: '#047857' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Hind Siliguri', system-ui, sans-serif; background-color: #fafbfc; }
+    .bg-grid-pattern {
+      background-size: 32px 32px;
+      background-image: linear-gradient(to right, rgba(16, 185, 129, 0.05) 1px, transparent 1px),
+                        linear-gradient(to bottom, rgba(16, 185, 129, 0.05) 1px, transparent 1px);
+    }
+  </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col font-sans relative overflow-hidden">
+  
+  <div class="fixed inset-0 pointer-events-none z-0 bg-grid-pattern opacity-60"></div>
+  <div class="fixed -top-40 right-0 w-[500px] h-[500px] bg-emerald-200/20 rounded-full blur-3xl pointer-events-none -z-10"></div>
+  <div class="fixed bottom-0 -left-32 w-[400px] h-[400px] bg-teal-200/20 rounded-full blur-3xl pointer-events-none -z-10"></div>
+
+  <!-- Floating Bengali Glyphs -->
+  <div class="fixed inset-0 pointer-events-none select-none z-0 overflow-hidden font-bangla" aria-hidden="true">
+    <span class="absolute top-[18%] left-[8%] text-6xl sm:text-8xl font-bold text-emerald-800/10 blur-[2px]">ক</span>
+    <span class="absolute top-[60%] right-[10%] text-6xl sm:text-8xl font-bold text-teal-800/10 blur-[3px]">খ</span>
+    <span class="absolute bottom-[20%] left-[15%] text-7xl sm:text-9xl font-bold text-emerald-900/10 blur-[2.5px]">ব</span>
+    <span class="absolute bottom-[15%] right-[20%] text-7xl sm:text-9xl font-bold text-teal-900/10 blur-[3px]">শ</span>
+  </div>
+
+  <!-- Header -->
+  <header class="h-16 sm:h-20 bg-white/80 backdrop-blur-md border-b border-emerald-100 flex items-center px-4 sm:px-8 relative z-20">
+    <a href="/" class="flex items-center gap-3">
+      <img src="/assets/banglish-logo-192.png" alt="Logo" class="w-9 h-9 object-contain">
+      <span class="text-xl font-bold text-slate-900 font-sans">Banglish</span>
+    </a>
+  </header>
+
+  <!-- 404 Card -->
+  <main class="flex-grow flex items-center justify-center px-4 py-16 relative z-10">
+    <div class="w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-3xl p-8 sm:p-12 shadow-xl shadow-emerald-950/5 border border-emerald-100 text-center">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-700 font-extrabold text-3xl font-mono mb-6 border border-emerald-200/60 shadow-inner">
+        404
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 font-bangla mb-3">${title}</h1>
+      <p class="text-slate-600 font-bangla text-sm sm:text-base leading-relaxed mb-8">${message}</p>
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-3 font-bangla">
+        <a href="/" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all shadow-md shadow-emerald-600/20 hover:scale-[1.02]">
+          <span>হোমপেজে ফিরে যান</span>
+        </a>
+        <a href="/blog" class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-semibold text-sm border border-emerald-200/80 transition-all">
+          <span>ব্লগ পড়ুন</span>
+        </a>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="py-6 text-center text-xs text-slate-500 font-bangla border-t border-slate-200/60 bg-white/50 relative z-10">
+    © 2026 Banglish.bd — FramEmpire & A M Pabel
+  </footer>
+</body>
+</html>`;
+}
+
+/**
+ * Lightweight Markdown converter for Cloudflare Worker
+ */
+function convertMarkdownToHtml(md) {
+  if (!md) return '';
+  let html = md;
+
+  // Code blocks (fenced ```)
+  html = html.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+    const escapedCode = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    return `<div class="my-6 rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden shadow-lg font-mono text-sm">
+      <div class="flex items-center justify-between px-4 py-2.5 bg-slate-950/70 border-b border-slate-800/80 text-xs text-slate-400">
+        <div class="flex items-center gap-2">
+          <span class="w-3 h-3 rounded-full bg-rose-500/80 inline-block"></span>
+          <span class="w-3 h-3 rounded-full bg-amber-500/80 inline-block"></span>
+          <span class="w-3 h-3 rounded-full bg-emerald-500/80 inline-block"></span>
+          <span class="ml-2 font-semibold text-slate-300 uppercase">${lang || 'CODE'}</span>
+        </div>
+        <button onclick="navigator.clipboard.writeText(this.closest('.my-6').querySelector('code').innerText);this.innerText='কপি হয়েছে!';setTimeout(()=>this.innerText='কপি',2000)" class="px-2.5 py-1 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs transition-colors">কপি</button>
+      </div>
+      <pre class="p-4 overflow-x-auto text-emerald-300 leading-relaxed"><code>${escapedCode}</code></pre>
+    </div>`;
+  });
+
+  // Headers ## -> h2 with ID
+  html = html.replace(/^##\s+(.*)$/gm, (match, title) => {
+    const cleanTitle = title.replace(/[*_`]/g, '');
+    const id = cleanTitle.toLowerCase().replace(/[^a-z0-9\u0980-\u09FF]+/g, '-');
+    return `<h2 id="${id}" class="text-2xl sm:text-3xl font-extrabold text-slate-900 mt-10 mb-4 pb-2 border-b border-slate-200/60 font-bangla tracking-tight flex items-center justify-between group">
+      <span>${title}</span>
+      <a href="#${id}" class="text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity text-lg ml-2 font-mono">#</a>
+    </h2>`;
+  });
+
+  // Headers ### -> h3
+  html = html.replace(/^###\s+(.*)$/gm, '<h3 class="text-xl sm:text-2xl font-bold text-slate-800 mt-8 mb-3 font-bangla tracking-tight">$1</h3>');
+
+  // Headers # -> h1
+  html = html.replace(/^#\s+(.*)$/gm, '<h1 class="text-3xl sm:text-4xl font-extrabold text-slate-900 mt-10 mb-5 font-bangla tracking-tight">$1</h1>');
+
+  // CTA Download Buttons
+  html = html.replace(/\[(Try Banglish for Free|Download Banglish|বাংলিশ ডাউনলোড করুন|ডাউনলোড করুন)\]\(([^)]+)\)/g, 
+    '<div class="my-6 text-center"><a href="$2" target="_blank" class="inline-flex items-center gap-2.5 px-7 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-base shadow-lg shadow-emerald-600/25 transition-all transform hover:scale-105">$1 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg></a></div>'
+  );
+
+  // Blockquotes (> text)
+  html = html.replace(/^>\s+(.*)$/gm, '<blockquote class="my-5 pl-4 sm:pl-5 py-2 border-l-4 border-emerald-500 bg-emerald-50/50 rounded-r-2xl text-slate-700 italic font-bangla leading-relaxed">$1</blockquote>');
+
+  // Links [text](url)
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-emerald-700 hover:text-emerald-800 font-semibold underline underline-offset-4 decoration-emerald-300 hover:decoration-emerald-600 transition-colors">$1</a>');
+
+  // Bold & Italic
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-900">$1</strong>');
+  html = html.replace(/\*(.*?)\*/g, '<em class="italic text-slate-800">$1</em>');
+  html = html.replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded-md bg-slate-100 text-emerald-800 font-mono text-xs border border-slate-200/80">$1</code>');
+
+  // Unordered list items (- item)
+  html = html.replace(/^\s*-\s+(.*)$/gm, '<li class="flex items-start gap-2.5 my-1.5 text-slate-700 font-bangla leading-relaxed"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-2.5 shrink-0"></span><span>$1</span></li>');
+
+  // Paragraphs
+  const paragraphs = html.split(/\n\s*\n/);
+  html = paragraphs.map(p => {
+    const trimmed = p.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('<h') || trimmed.startsWith('<div') || trimmed.startsWith('<blockquote') || trimmed.startsWith('<pre') || trimmed.startsWith('<li')) {
+      return trimmed;
+    }
+    return `<p class="my-4 text-slate-700 text-base sm:text-lg leading-relaxed font-bangla">${trimmed}</p>`;
+  }).join('\n');
+
+  return html;
+}
+
