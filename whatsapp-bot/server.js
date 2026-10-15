@@ -124,7 +124,7 @@ async function processSingleMessage(message, contacts) {
   if (messageType !== 'text') {
     console.log(`ℹ️ Received non-text message type "${messageType}" from ${from}`);
     const nonTextReply =
-      'Duhkhito, ami ekhon shudhumatro text message bujhte pari. Onugraho kore apnar prosno ba somoshya likhe janan, ami sahajjo korchi!';
+      'দুঃখিত, আমি এখন শুধুমাত্র টেক্সট মেসেজ বুঝতে পারি। অনুগ্রহ করে আপনার প্রশ্ন বা সমস্যা লিখে জানান, আমি সাহায্য করছি!';
     await sendWhatsAppMessage(from, nonTextReply);
     return;
   }
