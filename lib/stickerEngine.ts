@@ -27,6 +27,26 @@ export interface StickerLogoOptions {
   margin?: number; // safe area margin in px (default 32px)
 }
 
+export interface TextBoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  centerX: number;
+  centerY: number;
+  baseX: number;
+  baseY: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  safeArea: {
+    top: number;
+    bottom: number;
+    left: number;
+    right: number;
+    margin: number;
+  };
+}
+
 export interface StickerRenderOptions {
   lines: TextSpan[][];
   bgTheme: BackgroundTheme;
@@ -40,6 +60,7 @@ export interface StickerRenderOptions {
   padding: number;
   align: 'left' | 'center' | 'right';
   scale: number; // 1x, 2x (HD), 4x (Ultra HD 300 DPI)
+  textScale?: number; // Proportional scaling factor for entire text content (default 1.0)
   lineGap?: number; // Global fallback line gap adjustment in px (-30 to +60)
   lineGaps?: Record<number, number>; // Line-wise line gap mapping
   letterSpacing?: number; // Global character gap in px (-6 to +30)
@@ -73,11 +94,13 @@ function measureLines(
   scale: number,
   globalLineGap: number = 0,
   globalLetterSpacing: number = 0,
-  lineGaps?: Record<number, number>
+  lineGaps?: Record<number, number>,
+  textScale: number = 1.0
 ): { measuredLines: MeasuredLine[]; totalTextWidth: number; totalTextHeight: number } {
   const measuredLines: MeasuredLine[] = [];
   let totalTextWidth = 0;
   let totalTextHeight = 0;
+  const effectiveTextScale = Math.max(0.2, textScale || 1.0);
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const lineSpans = lines[lineIdx];
@@ -87,12 +110,12 @@ function measureLines(
 
     for (const span of lineSpans) {
       if (!span.text) continue;
-      const scaledFontSize = Math.round(span.fontSize * scale);
+      const scaledFontSize = Math.max(6, Math.round(span.fontSize * scale * effectiveTextScale));
       if (scaledFontSize > maxFontSize) maxFontSize = scaledFontSize;
 
       const fontString = `${span.fontWeight} ${scaledFontSize}px ${span.fontFamily}`;
       ctx.font = fontString;
-      const effectiveSpacing = (span.letterSpacing !== undefined ? span.letterSpacing : globalLetterSpacing) * scale;
+      const effectiveSpacing = (span.letterSpacing !== undefined ? span.letterSpacing : globalLetterSpacing) * scale * effectiveTextScale;
       const ctxAny = ctx as any;
       const hasNativeLetterSpacing = typeof ctxAny.letterSpacing === 'string';
       if (hasNativeLetterSpacing) {
@@ -125,7 +148,7 @@ function measureLines(
       }
     }
 
-    const scaledLineGap = Math.round(thisLineGap * scale);
+    const scaledLineGap = Math.round(thisLineGap * scale * effectiveTextScale);
     const lineHeight = Math.max(Math.round(maxFontSize * 0.5), Math.round(maxFontSize * 1.35) + scaledLineGap);
     totalTextHeight += lineHeight;
     if (lineTotalWidth > totalTextWidth) totalTextWidth = lineTotalWidth;
@@ -333,9 +356,9 @@ export function drawBackground(
 export function renderSticker(
   canvas: HTMLCanvasElement,
   options: StickerRenderOptions
-) {
+): TextBoundingBox | null {
   const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  if (!ctx) return null;
 
   const {
     lines,
@@ -349,6 +372,7 @@ export function renderSticker(
     padding,
     align,
     scale,
+    textScale = 1.0,
     lineGap = 0,
     lineGaps,
     letterSpacing = 0,
@@ -360,7 +384,7 @@ export function renderSticker(
   // 1. Measure text
   const scaledPadding = Math.round(padding * scale);
   const scaledStrokeWidth = Math.round(strokeWidth * scale);
-  const { measuredLines, totalTextWidth, totalTextHeight } = measureLines(ctx, lines, scale, lineGap, letterSpacing, lineGaps);
+  const { measuredLines, totalTextWidth, totalTextHeight } = measureLines(ctx, lines, scale, lineGap, letterSpacing, lineGaps, textScale);
 
   // 2. Determine canvas dimensions
   let targetWidth = totalTextWidth + scaledPadding * 2 + scaledStrokeWidth * 2;
@@ -523,6 +547,46 @@ export function renderSticker(
     pass2Y += mLine.lineHeight;
   }
   ctx.restore();
+
+  // 7. Calculate and return Text Bounding Box for selection, scaling & alignment snapping
+  const baseY = totalTextHeight < availableContentHeight
+    ? (canvas.height - totalTextHeight) / 2
+    : scaledPadding + scaledStrokeWidth;
+
+  let baseX = scaledPadding + scaledStrokeWidth;
+  if (align === 'center') {
+    baseX = (canvas.width - totalTextWidth) / 2;
+  } else if (align === 'right') {
+    baseX = canvas.width - scaledPadding - scaledStrokeWidth - totalTextWidth;
+  }
+
+  const boxX = baseX + scaledOffsetX;
+  const boxY = baseY + scaledOffsetY;
+
+  const safeMargin = Math.round((options.logo?.margin !== undefined ? options.logo.margin : 32) * scale);
+  const safeArea = {
+    top: safeMargin,
+    bottom: canvas.height - safeMargin,
+    left: safeMargin,
+    right: canvas.width - safeMargin,
+    margin: safeMargin
+  };
+
+  const boundingBox: TextBoundingBox = {
+    x: boxX,
+    y: boxY,
+    width: totalTextWidth,
+    height: totalTextHeight,
+    centerX: boxX + totalTextWidth / 2,
+    centerY: boxY + totalTextHeight / 2,
+    baseX,
+    baseY,
+    canvasWidth: canvas.width,
+    canvasHeight: canvas.height,
+    safeArea
+  };
+
+  return boundingBox;
 }
 
 /**

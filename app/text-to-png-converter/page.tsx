@@ -7,6 +7,7 @@ import {
   BackgroundTheme,
   LogoPosition,
   StickerRenderOptions,
+  TextBoundingBox,
   renderSticker,
   canvasToBlob,
   downloadBlobAsFile,
@@ -220,6 +221,33 @@ export default function TextToPNGConverterPage() {
   const [isDraggingText, setIsDraggingText] = useState(false);
   const dragStartRef = useRef<{ clientX: number; clientY: number; initialOffsetX: number; initialOffsetY: number } | null>(null);
 
+  // Whole-content proportional text scaling state
+  const [textScale, setTextScale] = useState<number>(1.0);
+  const [textBox, setTextBox] = useState<TextBoundingBox | null>(null);
+  const textBoxRef = useRef<TextBoundingBox | null>(null);
+  const [showTransformBox, setShowTransformBox] = useState<boolean>(true);
+
+  // Active snap guides for visual suggestion
+  const [activeGuides, setActiveGuides] = useState<{
+    verticalCenter: boolean;
+    horizontalCenter: boolean;
+    safeTop: boolean;
+    safeBottom: boolean;
+    safeLeft: boolean;
+    safeRight: boolean;
+  } | null>(null);
+
+  // Drag and Transform mode ('none' | 'move' | 'scale')
+  const [transformMode, setTransformMode] = useState<'none' | 'move' | 'scale'>('none');
+  const scaleStartRef = useRef<{
+    clientX: number;
+    clientY: number;
+    initialScale: number;
+    centerX: number;
+    centerY: number;
+    initialDist: number;
+  } | null>(null);
+
   // Phonetic typing state
   const [isPhoneticActive, setIsPhoneticActive] = useState(true);
   const [activePhoneticToken, setActivePhoneticToken] = useState('');
@@ -315,7 +343,7 @@ export default function TextToPNGConverterPage() {
     } catch {}
   };
 
-  // --- Text Dragging Logic on Canvas Preview ---
+  // --- Text Dragging & Scaling Logic on Canvas Preview ---
   const handleStartDrag = (clientX: number, clientY: number) => {
     dragStartRef.current = {
       clientX,
@@ -324,35 +352,142 @@ export default function TextToPNGConverterPage() {
       initialOffsetY: textOffset.y
     };
     setIsDraggingText(true);
+    setTransformMode('move');
+  };
+
+  const handleScaleStart = (
+    e: React.MouseEvent | React.TouchEvent,
+    corner: 'tl' | 'tr' | 'bl' | 'br'
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    if (!previewCanvasRef.current || !textBoxRef.current) return;
+    const rect = previewCanvasRef.current.getBoundingClientRect();
+    const box = textBoxRef.current;
+    const boxCenterScreenX = rect.left + (box.centerX / box.canvasWidth) * rect.width;
+    const boxCenterScreenY = rect.top + (box.centerY / box.canvasHeight) * rect.height;
+    const initialDist = Math.hypot(clientX - boxCenterScreenX, clientY - boxCenterScreenY);
+
+    scaleStartRef.current = {
+      clientX,
+      clientY,
+      initialScale: textScale,
+      centerX: boxCenterScreenX,
+      centerY: boxCenterScreenY,
+      initialDist: Math.max(15, initialDist)
+    };
+    setTransformMode('scale');
   };
 
   useEffect(() => {
     const handleMove = (e: MouseEvent | TouchEvent) => {
-      if (!dragStartRef.current || !previewCanvasRef.current) return;
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
-      const rect = previewCanvasRef.current.getBoundingClientRect();
-      const canvas = previewCanvasRef.current;
-      const scaleFactor = rect.width > 0 ? (canvas.width / rect.width) : 1;
+      // 1. Handle Corner Handle Scaling
+      if (scaleStartRef.current) {
+        if (e.cancelable) e.preventDefault();
+        const currentDist = Math.hypot(
+          clientX - scaleStartRef.current.centerX,
+          clientY - scaleStartRef.current.centerY
+        );
+        const factor = currentDist / scaleStartRef.current.initialDist;
+        const newScale = Math.max(0.3, Math.min(3.0, Number((scaleStartRef.current.initialScale * factor).toFixed(2))));
+        setTextScale(newScale);
+        return;
+      }
 
-      const deltaX = (clientX - dragStartRef.current.clientX) * scaleFactor;
-      const deltaY = (clientY - dragStartRef.current.clientY) * scaleFactor;
+      // 2. Handle Text Move with Soft Magnetic Snapping
+      if (dragStartRef.current && previewCanvasRef.current) {
+        if (e.cancelable) e.preventDefault();
+        const rect = previewCanvasRef.current.getBoundingClientRect();
+        const canvas = previewCanvasRef.current;
+        const scaleFactor = rect.width > 0 ? (canvas.width / rect.width) : 1;
 
-      setTextOffset({
-        x: Math.round(dragStartRef.current.initialOffsetX + deltaX),
-        y: Math.round(dragStartRef.current.initialOffsetY + deltaY)
-      });
-    };
+        const deltaX = (clientX - dragStartRef.current.clientX) * scaleFactor;
+        const deltaY = (clientY - dragStartRef.current.clientY) * scaleFactor;
 
-    const handleEnd = () => {
-      if (dragStartRef.current) {
-        dragStartRef.current = null;
-        setIsDraggingText(false);
+        const rawX = Math.round(dragStartRef.current.initialOffsetX + deltaX);
+        const rawY = Math.round(dragStartRef.current.initialOffsetY + deltaY);
+
+        let finalX = rawX;
+        let finalY = rawY;
+
+        const guides = {
+          verticalCenter: false,
+          horizontalCenter: false,
+          safeTop: false,
+          safeBottom: false,
+          safeLeft: false,
+          safeRight: false
+        };
+
+        const currentBox = textBoxRef.current;
+        if (currentBox) {
+          const SNAP_THRESHOLD = 9; // Soft magnetic snap threshold in canvas px
+
+          // Horizontal Center Snap
+          if (Math.abs(rawX) <= SNAP_THRESHOLD) {
+            finalX = 0;
+            guides.verticalCenter = true;
+          } else {
+            // Left Safe Area Snap
+            const targetLeft = Math.round(currentBox.safeArea.left - currentBox.baseX);
+            if (Math.abs(rawX - targetLeft) <= SNAP_THRESHOLD) {
+              finalX = targetLeft;
+              guides.safeLeft = true;
+            } else {
+              // Right Safe Area Snap
+              const targetRight = Math.round(currentBox.safeArea.right - currentBox.baseX - currentBox.width);
+              if (Math.abs(rawX - targetRight) <= SNAP_THRESHOLD) {
+                finalX = targetRight;
+                guides.safeRight = true;
+              }
+            }
+          }
+
+          // Vertical Center Snap
+          if (Math.abs(rawY) <= SNAP_THRESHOLD) {
+            finalY = 0;
+            guides.horizontalCenter = true;
+          } else {
+            // Top Safe Area Snap
+            const targetTop = Math.round(currentBox.safeArea.top - currentBox.baseY);
+            if (Math.abs(rawY - targetTop) <= SNAP_THRESHOLD) {
+              finalY = targetTop;
+              guides.safeTop = true;
+            } else {
+              // Bottom Safe Area Snap
+              const targetBottom = Math.round(currentBox.safeArea.bottom - currentBox.baseY - currentBox.height);
+              if (Math.abs(rawY - targetBottom) <= SNAP_THRESHOLD) {
+                finalY = targetBottom;
+                guides.safeBottom = true;
+              }
+            }
+          }
+        }
+
+        setTextOffset({ x: finalX, y: finalY });
+        setActiveGuides(guides);
       }
     };
 
-    window.addEventListener('mousemove', handleMove);
+    const handleEnd = () => {
+      if (scaleStartRef.current) {
+        scaleStartRef.current = null;
+      }
+      if (dragStartRef.current) {
+        dragStartRef.current = null;
+      }
+      setIsDraggingText(false);
+      setTransformMode('none');
+      setActiveGuides(null);
+    };
+
+    window.addEventListener('mousemove', handleMove, { passive: false });
     window.addEventListener('mouseup', handleEnd);
     window.addEventListener('touchmove', handleMove, { passive: false });
     window.addEventListener('touchend', handleEnd);
@@ -363,7 +498,7 @@ export default function TextToPNGConverterPage() {
       window.removeEventListener('touchmove', handleMove);
       window.removeEventListener('touchend', handleEnd);
     };
-  }, [textOffset]);
+  }, []);
 
   // Refs
   const previewCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -490,6 +625,7 @@ export default function TextToPNGConverterPage() {
       padding: bgTheme === 'transparent' ? 36 : 60,
       align,
       scale: 1, // 1x preview for fast 60fps
+      textScale,
       lineGap,
       lineGaps,
       letterSpacing: globalLetterSpacing,
@@ -503,7 +639,11 @@ export default function TextToPNGConverterPage() {
       } : undefined
     };
 
-    renderSticker(canvas, options);
+    const box = renderSticker(canvas, options);
+    if (box) {
+      setTextBox(box);
+      textBoxRef.current = box;
+    }
   }, [
     structuredLines,
     bgTheme,
@@ -512,6 +652,7 @@ export default function TextToPNGConverterPage() {
     shadowBlur,
     shadowColor,
     align,
+    textScale,
     lineGap,
     lineGaps,
     globalLetterSpacing,
@@ -854,6 +995,7 @@ export default function TextToPNGConverterPage() {
         padding: bgTheme === 'transparent' ? 36 : 60,
         align,
         scale: scaleMultiplier,
+        textScale,
         lineGap,
         lineGaps,
         letterSpacing: globalLetterSpacing,
@@ -897,6 +1039,7 @@ export default function TextToPNGConverterPage() {
         padding: bgTheme === 'transparent' ? 36 : 60,
         align,
         scale: 2, // 1024px HD for clipboard
+        textScale,
         lineGap,
         lineGaps,
         letterSpacing: globalLetterSpacing,
@@ -1143,6 +1286,59 @@ export default function TextToPNGConverterPage() {
               <option value={800}>অতিরিক্ত বোল্ড (Black 800)</option>
             </select>
           </div>
+        </div>
+
+        {/* Whole Text Proportional Scale Slider */}
+        <div className="space-y-1.5 p-2.5 rounded-xl bg-purple-50/50 border border-purple-100">
+          <div className="flex justify-between items-center text-xs font-semibold text-slate-800">
+            <span className="flex items-center gap-1.5">
+              <span>📐</span>
+              <span>সামগ্রিক স্কেল (Scale All)</span>
+            </span>
+            <div className="flex items-center gap-1.5 font-mono text-purple-700 font-bold">
+              <span>{Math.round(textScale * 100)}%</span>
+              {textScale !== 1.0 && (
+                <button
+                  type="button"
+                  onClick={() => setTextScale(1.0)}
+                  className="text-[10px] bg-purple-100 hover:bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded transition"
+                  title="১০০% রিসেট করুন"
+                >
+                  ১০০% রিসেট ↺
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setTextScale(prev => Math.max(0.3, Number((prev - 0.05).toFixed(2))))}
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-purple-200 hover:bg-purple-100 text-slate-700 text-xs font-bold shrink-0"
+              title="স্কেল কমান"
+            >
+              -
+            </button>
+            <input
+              type="range"
+              min="0.3"
+              max="2.5"
+              step="0.05"
+              value={textScale}
+              onChange={(e) => setTextScale(parseFloat(e.target.value))}
+              className="flex-1 h-2 bg-purple-200 rounded-lg appearance-none cursor-pointer accent-purple-600"
+            />
+            <button
+              type="button"
+              onClick={() => setTextScale(prev => Math.min(2.5, Number((prev + 0.05).toFixed(2))))}
+              className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-purple-200 hover:bg-purple-100 text-slate-700 text-xs font-bold shrink-0"
+              title="স্কেল বাড়ান"
+            >
+              +
+            </button>
+          </div>
+          <p className="text-[10px] text-slate-500 font-bangla">
+            প্রিভিউতে কর্নার ধরে ড্র্যাগ করে অথবা এখান থেকে সব লাইনের সাইজ সমানুপাতিক হারে স্কেল করুন।
+          </p>
         </div>
 
         {/* Alignment */}
@@ -2042,50 +2238,196 @@ export default function TextToPNGConverterPage() {
                   Preview
                 </span>
               </div>
-              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                {bgTheme === 'transparent'
-                  ? 'ট্রান্সপারেন্ট'
-                  : bgTheme === 'banglish-theme'
-                  ? 'ব্যাংলিশ থিম (1:1)'
-                  : bgTheme === 'islamic-quote'
-                  ? 'ইসলামিক কোট (1:1)'
-                  : 'ডার্ক অরোরা (1:1)'}
-              </span>
-            </div>
-
-            {/* Canvas Container with Direct Touch / Mouse Dragging */}
-            <div className="w-full h-[320px] sm:h-[400px] lg:h-[440px] rounded-2xl overflow-hidden flex items-center justify-center p-2 sm:p-3 relative border border-emerald-200/80 shadow-inner bg-[linear-gradient(45deg,#f1f5f9_25%,transparent_25%),linear-gradient(-45deg,#f1f5f9_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f1f5f9_75%),linear-gradient(-45deg,transparent_75%,#f1f5f9_75%)] bg-[size:16px_16px]">
-              <canvas
-                ref={previewCanvasRef}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleStartDrag(e.clientX, e.clientY);
-                }}
-                onTouchStart={(e) => {
-                  if (e.touches.length === 1) {
-                    handleStartDrag(e.touches[0].clientX, e.touches[0].clientY);
-                  }
-                }}
-                className={`max-w-full max-h-full object-contain drop-shadow-lg rounded-xl select-none transition-shadow ${
-                  isDraggingText ? 'cursor-grabbing shadow-2xl scale-[1.01]' : 'cursor-grab hover:shadow-xl'
-                }`}
-                title="ড্র্যাগ করে টেক্সট যেকোনো পজিশনে বসান"
-              />
-            </div>
-
-            {/* Drag Position Indicator & Reset */}
-            {(textOffset.x !== 0 || textOffset.y !== 0) && (
-              <div className="flex items-center justify-between text-[11px] px-1 text-slate-500">
-                <span className="flex items-center gap-1.5 text-emerald-800 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  পজিশন: ({textOffset.x > 0 ? `+${textOffset.x}` : textOffset.x}px, {textOffset.y > 0 ? `+${textOffset.y}` : textOffset.y}px)
-                </span>
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={() => setTextOffset({ x: 0, y: 0 })}
+                  onClick={() => setShowTransformBox(!showTransformBox)}
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border transition flex items-center gap-1 ${
+                    showTransformBox
+                      ? 'bg-purple-50 text-purple-700 border-purple-200 shadow-2xs'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
+                  }`}
+                  title="সিলেকশন ফ্রেম ও কর্নার স্কেল হ্যান্ডেল চালু/বন্ধ করুন"
+                >
+                  <span>📐</span>
+                  <span>{showTransformBox ? 'স্কেল ফ্রেম' : 'ফ্রেম লুকান'}</span>
+                </button>
+                <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                  {bgTheme === 'transparent'
+                    ? 'ট্রান্সপারেন্ট'
+                    : bgTheme === 'banglish-theme'
+                    ? 'ব্যাংলিশ থিম (1:1)'
+                    : bgTheme === 'islamic-quote'
+                    ? 'ইসলামিক কোট (1:1)'
+                    : 'ডার্ক অরোরা (1:1)'}
+                </span>
+              </div>
+            </div>
+
+            {/* Canvas Container with Direct Touch / Mouse Dragging & Canva-style Transform Box */}
+            <div className="w-full h-[320px] sm:h-[400px] lg:h-[440px] rounded-2xl overflow-hidden flex items-center justify-center p-2 sm:p-3 relative border border-emerald-200/80 shadow-inner bg-[linear-gradient(45deg,#f1f5f9_25%,transparent_25%),linear-gradient(-45deg,#f1f5f9_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f1f5f9_75%),linear-gradient(-45deg,transparent_75%,#f1f5f9_75%)] bg-[size:16px_16px]">
+              <div className="relative inline-flex items-center justify-center max-w-full max-h-full">
+                <canvas
+                  ref={previewCanvasRef}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleStartDrag(e.clientX, e.clientY);
+                  }}
+                  onTouchStart={(e) => {
+                    if (e.touches.length === 1) {
+                      handleStartDrag(e.touches[0].clientX, e.touches[0].clientY);
+                    }
+                  }}
+                  className={`max-w-full max-h-full object-contain drop-shadow-lg rounded-xl select-none transition-shadow ${
+                    isDraggingText ? 'cursor-grabbing shadow-2xl scale-[1.01]' : 'cursor-grab hover:shadow-xl'
+                  }`}
+                  title="ড্র্যাগ করে টেক্সট যেকোনো পজিশনে বসান অথবা কর্নার ধরে স্কেল করুন"
+                />
+
+                {/* Smart Alignment Guides Overlay (Visible during dragging & snapping) */}
+                {activeGuides && (
+                  <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
+                    {/* Vertical Center Alignment Guide */}
+                    {activeGuides.verticalCenter && (
+                      <div className="absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-fuchsia-500 shadow-[0_0_10px_rgba(217,70,239,0.9)] z-30 flex flex-col items-center justify-between py-2">
+                        <span className="text-[9px] font-bold text-white bg-fuchsia-600 px-1.5 py-0.5 rounded shadow whitespace-nowrap">
+                          মাঝখানে (Center)
+                        </span>
+                        <span className="text-[9px] font-bold text-white bg-fuchsia-600 px-1.5 py-0.5 rounded shadow whitespace-nowrap">
+                          মাঝখানে
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Horizontal Center Alignment Guide */}
+                    {activeGuides.horizontalCenter && (
+                      <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-fuchsia-500 shadow-[0_0_10px_rgba(217,70,239,0.9)] z-30 flex items-center justify-between px-2">
+                        <span className="text-[9px] font-bold text-white bg-fuchsia-600 px-1.5 py-0.5 rounded shadow whitespace-nowrap">
+                          মাঝখানে (Center)
+                        </span>
+                        <span className="text-[9px] font-bold text-white bg-fuchsia-600 px-1.5 py-0.5 rounded shadow whitespace-nowrap">
+                          মাঝখানে
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Safe Area Guides (Top / Bottom / Left / Right) */}
+                    {(activeGuides.safeTop || activeGuides.safeBottom || activeGuides.safeLeft || activeGuides.safeRight) && textBox && (
+                      <div
+                        className="absolute border-2 border-dashed border-purple-500 bg-purple-500/10 shadow-[0_0_14px_rgba(168,85,247,0.4)] z-25 transition-all"
+                        style={{
+                          top: `${(textBox.safeArea.top / textBox.canvasHeight) * 100}%`,
+                          bottom: `${((textBox.canvasHeight - textBox.safeArea.bottom) / textBox.canvasHeight) * 100}%`,
+                          left: `${(textBox.safeArea.left / textBox.canvasWidth) * 100}%`,
+                          right: `${((textBox.canvasWidth - textBox.safeArea.right) / textBox.canvasWidth) * 100}%`
+                        }}
+                      >
+                        <div className="absolute top-1 left-1.5 flex items-center gap-1 text-[9px] font-bold text-purple-800 bg-white/95 px-1.5 py-0.5 rounded border border-purple-300 shadow-2xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse"></span>
+                          <span>সেফ এরিয়া এলাইনমেন্ট (Safe Area)</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Canva-style Element Selection & Transform Bounding Box */}
+                {showTransformBox && textBox && (
+                  <div
+                    className={`absolute pointer-events-none z-20 transition-all ${
+                      transformMode !== 'none' ? 'opacity-100 ring-2 ring-purple-500/30' : 'opacity-90 hover:opacity-100'
+                    }`}
+                    style={{
+                      left: `${(textBox.x / textBox.canvasWidth) * 100}%`,
+                      top: `${(textBox.y / textBox.canvasHeight) * 100}%`,
+                      width: `${(textBox.width / textBox.canvasWidth) * 100}%`,
+                      height: `${(textBox.height / textBox.canvasHeight) * 100}%`
+                    }}
+                  >
+                    {/* Purple Boundary Border */}
+                    <div className="absolute inset-0 border-[1.5px] border-purple-600/90 rounded-xs pointer-events-none shadow-[0_0_6px_rgba(147,51,234,0.35)]" />
+
+                    {/* Mini Scale Indicator Pill */}
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 pointer-events-auto flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-900/95 text-white backdrop-blur shadow-md text-[10px] font-mono whitespace-nowrap">
+                      <span>স্কেল: {Math.round(textScale * 100)}%</span>
+                      {textScale !== 1.0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTextScale(1.0);
+                          }}
+                          className="hover:text-amber-300 font-bold ml-0.5 text-slate-300"
+                          title="স্কেল রিসেট (100%)"
+                        >
+                          ↺
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 4 Corner Resize Handles */}
+                    {/* Top-Left */}
+                    <div
+                      onMouseDown={(e) => handleScaleStart(e, 'tl')}
+                      onTouchStart={(e) => handleScaleStart(e, 'tl')}
+                      className="absolute -top-2 -left-2 w-4 h-4 bg-white border-2 border-purple-600 rounded-full shadow-md cursor-nwse-resize pointer-events-auto active:scale-125 hover:scale-110 transition-transform"
+                      title="ড্র্যাগ করে পুরো লেখার সাইজ স্কেল করুন"
+                    />
+                    {/* Top-Right */}
+                    <div
+                      onMouseDown={(e) => handleScaleStart(e, 'tr')}
+                      onTouchStart={(e) => handleScaleStart(e, 'tr')}
+                      className="absolute -top-2 -right-2 w-4 h-4 bg-white border-2 border-purple-600 rounded-full shadow-md cursor-nesw-resize pointer-events-auto active:scale-125 hover:scale-110 transition-transform"
+                      title="ড্র্যাগ করে পুরো লেখার সাইজ স্কেল করুন"
+                    />
+                    {/* Bottom-Left */}
+                    <div
+                      onMouseDown={(e) => handleScaleStart(e, 'bl')}
+                      onTouchStart={(e) => handleScaleStart(e, 'bl')}
+                      className="absolute -bottom-2 -left-2 w-4 h-4 bg-white border-2 border-purple-600 rounded-full shadow-md cursor-nesw-resize pointer-events-auto active:scale-125 hover:scale-110 transition-transform"
+                      title="ড্র্যাগ করে পুরো লেখার সাইজ স্কেল করুন"
+                    />
+                    {/* Bottom-Right */}
+                    <div
+                      onMouseDown={(e) => handleScaleStart(e, 'br')}
+                      onTouchStart={(e) => handleScaleStart(e, 'br')}
+                      className="absolute -bottom-2 -right-2 w-4 h-4 bg-white border-2 border-purple-600 rounded-full shadow-md cursor-nwse-resize pointer-events-auto active:scale-125 hover:scale-110 transition-transform"
+                      title="ড্র্যাগ করে পুরো লেখার সাইজ স্কেল করুন"
+                    />
+
+                    {/* 4 Side Handles (Pills) matching Canva */}
+                    <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-4 h-1.5 bg-white border border-purple-600 rounded-full shadow-xs pointer-events-none" />
+                    <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-1.5 bg-white border border-purple-600 rounded-full shadow-xs pointer-events-none" />
+                    <div className="absolute top-1/2 -left-1 -translate-y-1/2 w-1.5 h-4 bg-white border border-purple-600 rounded-full shadow-xs pointer-events-none" />
+                    <div className="absolute top-1/2 -right-1 -translate-y-1/2 w-1.5 h-4 bg-white border border-purple-600 rounded-full shadow-xs pointer-events-none" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Drag Position & Scale Indicator & Reset */}
+            {(textOffset.x !== 0 || textOffset.y !== 0 || textScale !== 1.0) && (
+              <div className="flex items-center justify-between text-[11px] px-1 text-slate-500">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-1.5 text-emerald-800 font-medium">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    পজিশন: ({textOffset.x > 0 ? `+${textOffset.x}` : textOffset.x}px, {textOffset.y > 0 ? `+${textOffset.y}` : textOffset.y}px)
+                  </span>
+                  {textScale !== 1.0 && (
+                    <span className="font-mono text-purple-700 font-bold bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                      স্কেল: {Math.round(textScale * 100)}%
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTextOffset({ x: 0, y: 0 });
+                    setTextScale(1.0);
+                  }}
                   className="text-xs text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-md font-semibold transition"
                 >
-                  পজিশন রিসেট ↺
+                  পজিশন ও স্কেল রিসেট ↺
                 </button>
               </div>
             )}
