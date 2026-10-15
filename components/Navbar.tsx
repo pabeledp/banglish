@@ -39,6 +39,7 @@ export default function Navbar() {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform"></span>
               <span>স্টিকার মেকার</span>
             </Link>
+            <Link href="/blog" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">ব্লগ</Link>
             <Link href="/contact" className="px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50/70 rounded-lg transition-colors font-bangla">যোগাযোগ</Link>
           </nav>
 
@@ -124,6 +125,7 @@ export default function Navbar() {
             </span>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-200/70 text-emerald-900 font-bold">NEW</span>
           </Link>
+          <Link href="/blog" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">ব্লগ</Link>
           <Link href="/contact" onClick={() => setIsMobileMenuOpen(false)} className="block px-3 py-2 rounded-lg text-base font-medium text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 font-bangla">যোগাযোগ</Link>
           
           <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">

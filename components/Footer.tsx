@@ -38,6 +38,7 @@ export default function Footer() {
               <li><Link href="/#cheatsheet" className="hover:text-emerald-400 transition-colors">কী-ম্যাপ রেফারেন্স</Link></li>
               <li><Link href="/text-to-png-converter" className="hover:text-emerald-400 transition-colors">টেক্সট টু পিএনজি স্টিকার</Link></li>
               <li><Link href="/pastebin" className="hover:text-emerald-400 transition-colors">কোড ও টেক্সট পেস্টবিন</Link></li>
+              <li><Link href="/blog" className="hover:text-emerald-400 transition-colors">বাংলিশ ব্লগ ও নলেজবেইজ</Link></li>
             </ul>
           </div>
 

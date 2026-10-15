@@ -174,10 +174,322 @@ export default {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
-    // 2. Default: Serve Next.js static site assets
+    // 2. Blog REST API Routing
+    if (url.pathname.startsWith('/api/blog')) {
+      return handleBlogApi(request, env, ctx, url);
+    }
+
+    // 3. Default: Serve Next.js static site assets
     return env.ASSETS.fetch(request);
   },
 };
+
+/**
+ * Helper to construct JSON HTTP response with CORS headers
+ */
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  });
+}
+
+/**
+ * Verify admin session token
+ */
+function verifyAdminAuth(request, env) {
+  const authHeader = request.headers.get('Authorization') || '';
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  if (!token) return false;
+  try {
+    const decoded = JSON.parse(atob(token));
+    if (!decoded.u || !decoded.exp || decoded.exp < Date.now()) {
+      return false;
+    }
+    return decoded.u === 'admin';
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Blog REST API Handler powered by Cloudflare D1
+ */
+async function handleBlogApi(request, env, ctx, url) {
+  // CORS Preflight
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      },
+    });
+  }
+
+  const pathname = url.pathname.replace(/\/+$/, ''); // normalize trailing slash
+
+  // 1. Admin Login: POST /api/blog/auth/login
+  if (pathname === '/api/blog/auth/login' && request.method === 'POST') {
+    try {
+      const { username, password } = await request.json();
+      const expectedPassword = env.BLOG_ADMIN_PASSWORD || 'banglish@2026';
+      if (username === 'admin' && password === expectedPassword) {
+        // Issue 7-day token
+        const token = btoa(
+          JSON.stringify({
+            u: 'admin',
+            exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
+          })
+        );
+        return jsonResponse({
+          success: true,
+          token,
+          user: { username: 'admin', role: 'admin' },
+        });
+      }
+      return jsonResponse({ success: false, error: 'ভুল ইউজারনেম বা পাসওয়ার্ড' }, 401);
+    } catch (e) {
+      return jsonResponse({ success: false, error: 'Bad Request' }, 400);
+    }
+  }
+
+  // Ensure DB binding is present
+  if (!env.DB) {
+    return jsonResponse({ success: false, error: 'Database binding (DB) is not configured' }, 500);
+  }
+
+  // 2. Public Posts List: GET /api/blog/posts
+  if (pathname === '/api/blog/posts' && request.method === 'GET') {
+    try {
+      const { results } = await env.DB.prepare(
+        `SELECT id, slug, title, seo_title, subtitle, category, date, iso_date, 
+                read_time, featured, cover_image, cover_alt, author_name, 
+                author_role, author_avatar, excerpt, tags, views, created_at 
+         FROM blog_posts 
+         WHERE status = 'published' 
+         ORDER BY created_at DESC`
+      ).all();
+
+      const formatted = (results || []).map(r => ({
+        ...r,
+        featured: Boolean(r.featured),
+        tags: typeof r.tags === 'string' ? r.tags.split(',').map(t => t.trim()).filter(Boolean) : (r.tags || []),
+        author: {
+          name: r.author_name || 'A M Pabel',
+          role: r.author_role || 'Founder, FramEmpire',
+          avatar: r.author_avatar || '/assets/pabel_light_avatar.webp',
+        },
+      }));
+
+      return jsonResponse({ success: true, posts: formatted });
+    } catch (err) {
+      console.error('Error fetching blog posts:', err);
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 3. Admin All Posts: GET /api/blog/admin/posts
+  if (pathname === '/api/blog/admin/posts' && request.method === 'GET') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস (Unauthorized)' }, 401);
+    }
+    try {
+      const { results } = await env.DB.prepare(
+        `SELECT id, slug, title, seo_title, subtitle, category, date, iso_date, 
+                read_time, featured, cover_image, cover_alt, author_name, 
+                author_role, author_avatar, excerpt, tags, content, status, views, created_at 
+         FROM blog_posts 
+         ORDER BY created_at DESC`
+      ).all();
+
+      const formatted = (results || []).map(r => ({
+        ...r,
+        featured: Boolean(r.featured),
+        tags: typeof r.tags === 'string' ? r.tags.split(',').map(t => t.trim()).filter(Boolean) : (r.tags || []),
+        author: {
+          name: r.author_name || 'A M Pabel',
+          role: r.author_role || 'Founder, FramEmpire',
+          avatar: r.author_avatar || '/assets/pabel_light_avatar.webp',
+        },
+      }));
+
+      return jsonResponse({ success: true, posts: formatted });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 4. Create Post: POST /api/blog/posts
+  if (pathname === '/api/blog/posts' && request.method === 'POST') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    try {
+      const body = await request.json();
+      const title = (body.title || '').trim();
+      if (!title) return jsonResponse({ success: false, error: 'টাইটেল আবশ্যক' }, 400);
+
+      const content = body.content || '';
+      let slug = (body.slug || '').trim();
+      if (!slug) {
+        slug = title
+          .toLowerCase()
+          .replace(/[^a-z0-9\u0980-\u09FF]+/g, '-')
+          .replace(/^-+|-+$/g, '') || `post-${Date.now()}`;
+      }
+
+      const now = new Date();
+      const isoDate = body.isoDate || now.toISOString().split('T')[0];
+      const dateFormatted = body.date || now.toLocaleDateString('bn-BD', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+
+      const tagsStr = Array.isArray(body.tags) ? body.tags.join(', ') : (body.tags || '');
+
+      await env.DB.prepare(
+        `INSERT INTO blog_posts 
+         (slug, title, seo_title, subtitle, category, date, iso_date, read_time, 
+          featured, cover_image, cover_alt, author_name, author_role, author_avatar, 
+          excerpt, tags, content, status) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+        .bind(
+          slug,
+          title,
+          body.seoTitle || title,
+          body.subtitle || '',
+          body.category || 'General',
+          dateFormatted,
+          isoDate,
+          body.readTime || '৫ মিনিট পড়ার সময়',
+          body.featured ? 1 : 0,
+          body.coverImage || '',
+          body.coverAlt || title,
+          body.author?.name || 'A M Pabel',
+          body.author?.role || 'Founder, FramEmpire',
+          body.author?.avatar || '/assets/pabel_light_avatar.webp',
+          body.excerpt || '',
+          tagsStr,
+          content,
+          body.status || 'published'
+        )
+        .run();
+
+      return jsonResponse({ success: true, slug, message: 'পোস্ট সফলভাবে পাবলিশ হয়েছে' });
+    } catch (err) {
+      console.error('Error creating blog post:', err);
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 5. Update Post: PUT /api/blog/posts/:id
+  const putMatch = pathname.match(/^\/api\/blog\/posts\/(\d+)$/);
+  if (putMatch && request.method === 'PUT') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    const postId = parseInt(putMatch[1], 10);
+    try {
+      const body = await request.json();
+      const tagsStr = Array.isArray(body.tags) ? body.tags.join(', ') : (body.tags || '');
+
+      await env.DB.prepare(
+        `UPDATE blog_posts 
+         SET title = ?, seo_title = ?, subtitle = ?, category = ?, read_time = ?, 
+             featured = ?, cover_image = ?, cover_alt = ?, author_name = ?, 
+             author_role = ?, author_avatar = ?, excerpt = ?, tags = ?, 
+             content = ?, status = ?, updated_at = CURRENT_TIMESTAMP 
+         WHERE id = ?`
+      )
+        .bind(
+          body.title,
+          body.seoTitle || body.title,
+          body.subtitle || '',
+          body.category || 'General',
+          body.readTime || '৫ মিনিট পড়ার সময়',
+          body.featured ? 1 : 0,
+          body.coverImage || '',
+          body.coverAlt || body.title,
+          body.author?.name || 'A M Pabel',
+          body.author?.role || 'Founder, FramEmpire',
+          body.author?.avatar || '/assets/pabel_light_avatar.webp',
+          body.excerpt || '',
+          tagsStr,
+          body.content || '',
+          body.status || 'published',
+          postId
+        )
+        .run();
+
+      return jsonResponse({ success: true, message: 'পোস্ট আপডেট সম্পন্ন হয়েছে' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 6. Delete Post: DELETE /api/blog/posts/:id
+  const delMatch = pathname.match(/^\/api\/blog\/posts\/(\d+)$/);
+  if (delMatch && request.method === 'DELETE') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    const postId = parseInt(delMatch[1], 10);
+    try {
+      await env.DB.prepare('DELETE FROM blog_posts WHERE id = ?').bind(postId).run();
+      return jsonResponse({ success: true, message: 'পোস্ট মুছে ফেলা হয়েছে' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 7. Single Post by Slug: GET /api/blog/posts/:slug
+  const slugMatch = pathname.match(/^\/api\/blog\/posts\/([a-zA-Z0-9\-_%.\u0980-\u09FF]+)$/);
+  if (slugMatch && request.method === 'GET') {
+    const rawSlug = decodeURIComponent(slugMatch[1]);
+    try {
+      const post = await env.DB.prepare(
+        'SELECT * FROM blog_posts WHERE slug = ?'
+      ).bind(rawSlug).first();
+
+      if (!post) {
+        return jsonResponse({ success: false, error: 'আর্টিকেলটি পাওয়া যায়নি' }, 404);
+      }
+
+      // Increment view counter asynchronously
+      ctx.waitUntil(
+        env.DB.prepare('UPDATE blog_posts SET views = views + 1 WHERE id = ?')
+          .bind(post.id)
+          .run()
+      );
+
+      const formatted = {
+        ...post,
+        featured: Boolean(post.featured),
+        tags: typeof post.tags === 'string' ? post.tags.split(',').map(t => t.trim()).filter(Boolean) : (post.tags || []),
+        author: {
+          name: post.author_name || 'A M Pabel',
+          role: post.author_role || 'Founder, FramEmpire',
+          avatar: post.author_avatar || '/assets/pabel_light_avatar.webp',
+        },
+      };
+
+      return jsonResponse({ success: true, post: formatted });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  return jsonResponse({ error: 'Endpoint Not Found' }, 404);
+}
 
 /**
  * Process WhatsApp incoming webhook in the background using ctx.waitUntil
