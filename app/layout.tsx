@@ -67,7 +67,12 @@ export const metadata: Metadata = {
     apple: [
       { url: '/assets/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
     ]
-  }
+  },
+  verification: {
+    other: {
+      'facebook-domain-verification': '5rl38ybwfa6tmmdylipvjgnxshqabk',
+    },
+  },
 };
 
 const jsonLd = {
@@ -180,6 +185,7 @@ export default function RootLayout({
   return (
     <html lang="bn" className="scroll-smooth">
       <head>
+        <meta name="facebook-domain-verification" content="5rl38ybwfa6tmmdylipvjgnxshqabk" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link 
