@@ -48,6 +48,7 @@ export default function Footer() {
               <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition-colors">GitHub Repository</a></li>
               <li><a href="https://www.facebook.com/banglishkeyboard/" target="_blank" rel="noopener noreferrer" className="hover:text-blue-400 transition-colors">Facebook Community Page</a></li>
               <li><a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-400 transition-colors">MIT Open Source License</a></li>
+              <li><Link href="/privacy" className="hover:text-emerald-400 transition-colors">Privacy Policy (গোপনীয়তা নীতি)</Link></li>
               <li><a href="mailto:info@banglish.bd" className="hover:text-emerald-400 transition-colors">সরাসরি ইমেইল সাপোর্ট</a></li>
             </ul>
           </div>
