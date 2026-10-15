@@ -2066,8 +2066,8 @@ export default function TextToPNGConverterPage() {
                 className="flex items-center gap-2.5 sm:gap-3 group focus:outline-none focus:ring-2 focus:ring-emerald-500/20 rounded-xl p-1"
                 title="Banglish হোমপেজে যান"
               >
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100/80 p-1.5 flex items-center justify-center border border-emerald-200/60 shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:rotate-1">
-                  <img src="/assets/banglish-logo-192.png" alt="Banglish Logo" className="w-full h-full object-contain" />
+                <div className="w-10 h-10 sm:w-11 sm:h-11 flex-shrink-0 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100/80 p-1.5 flex items-center justify-center border border-emerald-200/60 shadow-sm transition-transform duration-300 group-hover:scale-105 group-hover:rotate-1">
+                  <img src="/assets/banglish-logo-192.png" alt="Banglish Logo" width={44} height={44} className="w-full h-full object-contain block" />
                 </div>
                 <div className="flex flex-col">
                   <div className="flex items-center gap-1">
