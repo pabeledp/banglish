@@ -30,7 +30,7 @@ sleep 2
 
 # Start Cloudflare Tunnel
 echo "🌐 Starting Cloudflare Quick Tunnel..."
-./bin/cloudflared tunnel --url http://localhost:3000 > /tmp/cloudflared-bot.log 2>&1 &
+./bin/cloudflared tunnel --url http://127.0.0.1:3000 > /tmp/cloudflared-bot.log 2>&1 &
 TUNNEL_PID=$!
 
 echo "⏳ Waiting for public tunnel URL..."

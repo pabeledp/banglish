@@ -65,6 +65,8 @@ app.post('/webhook', (req, res) => {
   // 1. Immediately acknowledge Meta with 200 OK to prevent retries
   res.sendStatus(200);
 
+  console.log('📦 Raw Webhook Payload:', JSON.stringify(req.body));
+
   // 2. Process message asynchronously in background
   handleIncomingWebhook(req.body).catch((err) => {
     console.error('❌ Error handling incoming webhook payload:', err.message || err);
@@ -152,11 +154,13 @@ async function processSingleMessage(message, contacts) {
     await sendWhatsAppMessage(from, botReply);
     console.log(`✅ Sent reply to [${from}]: "${botReply.slice(0, 60)}..."`);
   } catch (error) {
-    console.error(`❌ Failed to process message for [${from}]:`, error.message);
+    const errorDetail = error.response ? JSON.stringify(error.response.data) : (error.message || error);
+    console.error(`❌ Failed to process message for [${from}]:`, errorDetail);
     try {
       await sendWhatsAppMessage(from, FALLBACK_MESSAGE);
     } catch (sendErr) {
-      console.error('❌ Failed to send fallback message:', sendErr.message);
+      const sendErrDetail = sendErr.response ? JSON.stringify(sendErr.response.data) : (sendErr.message || sendErr);
+      console.error('❌ Failed to send fallback message:', sendErrDetail);
     }
   }
 }
@@ -164,7 +168,7 @@ async function processSingleMessage(message, contacts) {
 // Start server after verifying DB
 db.initDatabase()
   .then(() => {
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`
 ======================================================
 🚀 Banglish WhatsApp Customer Support Bot Server
