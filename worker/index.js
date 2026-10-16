@@ -541,9 +541,11 @@ async function handleBlogApi(request, env, ctx, url) {
         };
 
         try {
-          let emailRes = await sendAttempt('Banglish Security <security@banglish.bd>');
+          let emailRes = await sendAttempt('Banglish Security <security@support.banglish.bd>');
           if (!emailRes.ok) {
-            // Fallback to onboarding@resend.dev if domain not yet verified in Resend
+            emailRes = await sendAttempt('Banglish Security <security@banglish.bd>');
+          }
+          if (!emailRes.ok) {
             emailRes = await sendAttempt('Banglish Security <onboarding@resend.dev>');
           }
 
@@ -639,19 +641,28 @@ async function handleBlogApi(request, env, ctx, url) {
                 </div>
               </div>
             `;
-            await fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${env.RESEND_API_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                from: 'Banglish Security <onboarding@resend.dev>',
-                to: [resetRow.email],
-                subject: 'Banglish Security: Password Changed Successfully',
-                html: alertHtml
-              })
-            });
+            const sendAlertAttempt = async (fromSender) => {
+              return await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  from: fromSender,
+                  to: [resetRow.email],
+                  subject: 'Banglish Security: Password Changed Successfully',
+                  html: alertHtml
+                })
+              });
+            };
+            let alertRes = await sendAlertAttempt('Banglish Security <security@support.banglish.bd>');
+            if (!alertRes.ok) {
+              alertRes = await sendAlertAttempt('Banglish Security <security@banglish.bd>');
+            }
+            if (!alertRes.ok) {
+              await sendAlertAttempt('Banglish Security <onboarding@resend.dev>');
+            }
           } catch(e) {}
         })());
       }
