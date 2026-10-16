@@ -249,6 +249,7 @@ export default function AdminBlogPage() {
   // Inquiry Discussion Notes State (Admin Only)
   const [inquiryNoteText, setInquiryNoteText] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
 
   // Custom Confirmation Modal & Toast State (in-theme popups)
   const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
@@ -3093,20 +3094,36 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                                   </span>
 
                                   {c.is_direct && (
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-bangla ${
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-bangla flex items-center gap-1 ${
                                       currentStatus === 'completed'
                                         ? 'bg-emerald-100 text-emerald-800'
                                         : currentStatus === 'ongoing'
                                         ? 'bg-sky-100 text-sky-800'
                                         : 'bg-amber-100 text-amber-800'
                                     }`}>
-                                      {currentStatus === 'completed' ? '✅ সম্পন্ন' : currentStatus === 'ongoing' ? '🔄 চলমান' : '⏳ পেন্ডিং'}
+                                      {currentStatus === 'completed' ? (
+                                        <>
+                                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                                          <span>সম্পন্ন</span>
+                                        </>
+                                      ) : currentStatus === 'ongoing' ? (
+                                        <>
+                                          <RefreshCw className="w-2.5 h-2.5 text-blue-600" />
+                                          <span>চলমান</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Clock className="w-2.5 h-2.5 text-amber-600" />
+                                          <span>পেন্ডিং</span>
+                                        </>
+                                      )}
                                     </span>
                                   )}
 
                                   {c.admin_note && (
-                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bangla">
-                                      📝 নোট আছে
+                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bangla flex items-center gap-0.5">
+                                      <FileText className="w-2.5 h-2.5 text-amber-600" />
+                                      <span>নোট</span>
                                     </span>
                                   )}
                                 </div>
@@ -3148,15 +3165,114 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                               {(selectedItem.author_name || 'U')[0]}
                             </div>
                             <div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                                 <h3 className="font-extrabold text-slate-900 text-base font-bangla">
                                   {selectedItem.author_name}
                                 </h3>
                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-bangla ${
                                   selectedItem.is_direct ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'
                                 }`}>
-                                  {selectedItem.is_direct ? 'সরাসরি ফর্ম ইনকোয়ারি' : 'পাবলিক ব্লগ মন্তব্য'}
+                                  {selectedItem.is_direct ? 'ফর্ম ইনকোয়ারি' : 'ব্লগ মন্তব্য'}
                                 </span>
+
+                                {/* Action Status Dropdown Beside Name (No Emojis, Pure Lucide Icons) */}
+                                {selectedItem.is_direct && (
+                                  <div className="relative">
+                                    <button
+                                      type="button"
+                                      onClick={() => setStatusDropdownOpen(!statusDropdownOpen)}
+                                      className={`px-3 py-1 rounded-xl text-xs font-bold font-bangla flex items-center gap-1.5 border transition-all cursor-pointer shadow-2xs ${
+                                        (selectedItem.status || 'pending') === 'completed'
+                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200/90 hover:bg-emerald-100'
+                                          : (selectedItem.status || 'pending') === 'ongoing'
+                                          ? 'bg-blue-50 text-blue-800 border-blue-200/90 hover:bg-blue-100'
+                                          : 'bg-amber-50 text-amber-800 border-amber-200/90 hover:bg-amber-100'
+                                      }`}
+                                    >
+                                      {(selectedItem.status || 'pending') === 'completed' ? (
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                      ) : (selectedItem.status || 'pending') === 'ongoing' ? (
+                                        <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                                      ) : (
+                                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                                      )}
+                                      <span>
+                                        {(selectedItem.status || 'pending') === 'completed'
+                                          ? 'সম্পন্ন (Completed)'
+                                          : (selectedItem.status || 'pending') === 'ongoing'
+                                          ? 'চলমান (Ongoing)'
+                                          : 'অপেক্ষমান (Pending)'}
+                                      </span>
+                                      <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-0.5" />
+                                    </button>
+
+                                    {statusDropdownOpen && (
+                                      <>
+                                        <div
+                                          className="fixed inset-0 z-40"
+                                          onClick={() => setStatusDropdownOpen(false)}
+                                        />
+                                        <div className="absolute left-0 mt-1.5 w-56 bg-white rounded-2xl shadow-xl border border-slate-200/90 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                          <div className="px-3.5 py-1.5 text-[10px] font-bold text-slate-400 font-bangla uppercase tracking-wider border-b border-slate-100">
+                                            অ্যাকশন স্ট্যাটাস পরিবর্তন
+                                          </div>
+
+                                          {[
+                                            {
+                                              id: 'pending',
+                                              label: 'অপেক্ষমান (Pending)',
+                                              sub: 'যোগাযোগ বাকি',
+                                              icon: Clock,
+                                              iconColor: 'text-amber-500',
+                                              hoverClass: 'hover:bg-amber-50',
+                                            },
+                                            {
+                                              id: 'ongoing',
+                                              label: 'চলমান (Ongoing)',
+                                              sub: 'কথা চলছে',
+                                              icon: RefreshCw,
+                                              iconColor: 'text-blue-500',
+                                              hoverClass: 'hover:bg-blue-50',
+                                            },
+                                            {
+                                              id: 'completed',
+                                              label: 'সম্পন্ন (Completed)',
+                                              sub: 'সমাপ্ত হয়েছে',
+                                              icon: CheckCircle2,
+                                              iconColor: 'text-emerald-500',
+                                              hoverClass: 'hover:bg-emerald-50',
+                                            },
+                                          ].map(opt => {
+                                            const Icon = opt.icon;
+                                            const isSelected = (selectedItem.status || 'pending') === opt.id;
+                                            return (
+                                              <button
+                                                key={opt.id}
+                                                type="button"
+                                                onClick={() => {
+                                                  handleUpdateInquiryStatus(selectedItem.id, opt.id);
+                                                  setStatusDropdownOpen(false);
+                                                }}
+                                                className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between text-xs font-bangla transition-colors cursor-pointer ${opt.hoverClass} ${
+                                                  isSelected ? 'bg-slate-50 font-bold text-slate-900' : 'text-slate-700'
+                                                }`}
+                                              >
+                                                <div className="flex items-center gap-2.5">
+                                                  <Icon className={`w-4 h-4 ${opt.iconColor}`} />
+                                                  <div>
+                                                    <div className="font-semibold">{opt.label}</div>
+                                                    <div className="text-[10px] text-slate-400 font-normal">{opt.sub}</div>
+                                                  </div>
+                                                </div>
+                                                {isSelected && <Check className="w-3.5 h-3.5 text-slate-900" />}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 font-bangla mt-0.5">
                                 <span>{new Date(selectedItem.created_at).toLocaleString('bn-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
@@ -3265,73 +3381,15 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                               )}
                             </div>
 
-                            {/* Differentiated Bottom Interaction Area */}
-                            <div className="pt-6 border-t border-slate-100">
-                              {selectedItem.is_direct ? (
-                                /* CASE 1: FORM INQUIRY -> NO REPLY BOX, INSTEAD ACTION STATUS */
-                                <div className="space-y-3 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80">
-                                  <div>
-                                    <h4 className="text-xs font-bold text-slate-900 font-bangla flex items-center gap-1.5">
-                                      <ShieldCheck className="w-4 h-4 text-blue-600" />
-                                      <span>অ্যাকশন স্ট্যাটাস (Action Status):</span>
-                                    </h4>
-                                    <p className="text-[11px] text-slate-500 font-bangla mt-0.5">
-                                      গ্রাহকের এই ইনকোয়ারির বর্তমান অগ্রগতি নির্ধারণ করুন (এখানে কোনো পাবলিক রিপ্লাই হবে না):
-                                    </p>
-                                  </div>
-
-                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                                    {[
-                                      {
-                                        id: 'pending',
-                                        label: '⏳ অপেক্ষমান (Pending)',
-                                        sub: 'যোগাযোগ বাকি',
-                                        activeClass: 'bg-amber-600 text-white shadow-md shadow-amber-600/20 border-amber-600',
-                                        inactiveClass: 'bg-white hover:bg-amber-50/60 text-slate-700 border-slate-200',
-                                      },
-                                      {
-                                        id: 'ongoing',
-                                        label: '🔄 চলমান (Ongoing)',
-                                        sub: 'কথা চলছে',
-                                        activeClass: 'bg-blue-600 text-white shadow-md shadow-blue-600/20 border-blue-600',
-                                        inactiveClass: 'bg-white hover:bg-blue-50/60 text-slate-700 border-slate-200',
-                                      },
-                                      {
-                                        id: 'completed',
-                                        label: '✅ সম্পন্ন (Completed)',
-                                        sub: 'সমাপ্ত হয়েছে',
-                                        activeClass: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 border-emerald-600',
-                                        inactiveClass: 'bg-white hover:bg-emerald-50/60 text-slate-700 border-slate-200',
-                                      },
-                                    ].map(st => {
-                                      const isCurrent = (selectedItem.status || 'pending') === st.id;
-                                      return (
-                                        <button
-                                          key={st.id}
-                                          type="button"
-                                          onClick={() => handleUpdateInquiryStatus(selectedItem.id, st.id)}
-                                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                                            isCurrent ? st.activeClass : st.inactiveClass
-                                          }`}
-                                        >
-                                          <div className="font-bold text-xs font-bangla">{st.label}</div>
-                                          <div className={`text-[10px] mt-0.5 font-bangla ${isCurrent ? 'text-white/80' : 'text-slate-400'}`}>
-                                            {st.sub}
-                                          </div>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
+                            {/* Differentiated Bottom Interaction Area: Only for Public Comments */}
+                            {!selectedItem.is_direct && (
+                              <div className="pt-6 border-t border-slate-100 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-xs font-bold text-slate-900 font-bangla flex items-center gap-1.5">
+                                    <Reply className="w-4 h-4 text-emerald-600" />
+                                    <span>পাবলিক রিপ্লাই (ব্লগ পোস্টে সরাসরি প্রদর্শিত হবে):</span>
+                                  </h4>
                                 </div>
-                              ) : (
-                                /* CASE 2: PUBLIC BLOG COMMENT -> PUBLIC REPLY BOX */
-                                <div className="space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <h4 className="text-xs font-bold text-slate-900 font-bangla flex items-center gap-1.5">
-                                      <Reply className="w-4 h-4 text-emerald-600" />
-                                      <span>পাবলিক রিপ্লাই (ব্লগ পোস্টে সরাসরি প্রদর্শিত হবে):</span>
-                                    </h4>
-                                  </div>
 
                                   {/* Existing Published Reply */}
                                   {selectedItem.admin_reply && (
@@ -3375,7 +3433,6 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                                   </div>
                                 </div>
                               )}
-                            </div>
                           </div>
 
                           {/* Side Panel: Admin-Only Internal Notes ("r pase note rakhbe for admin only") */}
