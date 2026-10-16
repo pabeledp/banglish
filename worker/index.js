@@ -359,7 +359,7 @@ async function handleBlogApi(request, env, ctx, url) {
       const { results } = await env.DB.prepare(
         `SELECT id, slug, title, seo_title, subtitle, category, date, iso_date, 
                 read_time, featured, cover_image, cover_alt, author_name, 
-                author_role, author_avatar, excerpt, tags, views, created_at 
+                author_role, author_avatar, excerpt, tags, views, COALESCE(likes, 0) as likes, created_at 
          FROM blog_posts 
          WHERE status = 'published' 
          ORDER BY created_at DESC`
@@ -392,7 +392,7 @@ async function handleBlogApi(request, env, ctx, url) {
       const { results } = await env.DB.prepare(
         `SELECT id, slug, title, seo_title, subtitle, category, date, iso_date, 
                 read_time, featured, cover_image, cover_alt, author_name, 
-                author_role, author_avatar, excerpt, tags, content, status, views, created_at 
+                author_role, author_avatar, excerpt, tags, content, status, views, COALESCE(likes, 0) as likes, created_at 
          FROM blog_posts 
          ORDER BY created_at DESC`
       ).all();
@@ -787,6 +787,13 @@ async function handleBlogApi(request, env, ctx, url) {
          GROUP BY month`
       ).all();
 
+      const dailyRows = await env.DB.prepare(
+        `SELECT date_day as day, COUNT(*) as count 
+         FROM site_visits 
+         GROUP BY date_day 
+         ORDER BY date_day DESC LIMIT 14`
+      ).all();
+
       const topPostsRows = await env.DB.prepare(
         `SELECT p.title, p.slug, p.views, COALESCE(p.likes, 0) as likes, COUNT(c.id) as comments
          FROM blog_posts p
@@ -798,9 +805,10 @@ async function handleBlogApi(request, env, ctx, url) {
       return jsonResponse({
         success: true,
         analytics: {
-          totalVisits: (totalVisitsRow?.count || 0) + 120,
+          totalVisits: totalVisitsRow?.count || 0,
           todayVisits: todayVisitsRow?.count || 0,
           monthly: monthlyRows?.results || [],
+          daily: dailyRows?.results || [],
           topPosts: topPostsRows?.results || []
         }
       });

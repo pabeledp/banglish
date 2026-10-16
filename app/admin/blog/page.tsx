@@ -10,7 +10,7 @@ import {
   Copy, RefreshCw, ChevronDown, Filter, FileText, ChevronRight,
   Send, Reply, User, Lock, Key, ShieldCheck, Link2, Bold, Italic,
   Heading1, Heading2, Heading3, AlignCenter, Quote, Code, List,
-  Calendar as CalendarIcon, CheckSquare
+  Calendar as CalendarIcon, CheckSquare, Camera, Upload
 } from 'lucide-react';
 import { transliterateWord } from '@/lib/phoneticEngine';
 import MarkdownRenderer from '@/components/blog/MarkdownRenderer';
@@ -34,6 +34,7 @@ interface AnalyticsData {
   totalVisits: number;
   todayVisits: number;
   monthly: { month: string; count: number }[];
+  daily?: { day: string; count: number }[];
   topPosts: { title: string; slug: string; views: number; likes: number; comments: number }[];
 }
 
@@ -129,6 +130,64 @@ export default function AdminBlogPage() {
   // Editor Textarea Ref & Selection Context Menu
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Image Upload File Input Refs & Optimizer
+  const adminFileInputRef = useRef<HTMLInputElement>(null);
+  const authorFileInputRef = useRef<HTMLInputElement>(null);
+  const coverFileInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+
+  const processImageFile = (
+    file: File,
+    maxWidth: number,
+    maxHeight: number,
+    quality: number,
+    onSuccess: (dataUrl: string) => void
+  ) => {
+    if (!file || !file.type.startsWith('image/')) {
+      alert('অনুগ্রহ করে সঠিক ইমেজ ফাইল সিলেক্ট করুন (PNG, JPG, WEBP)');
+      return;
+    }
+    setIsProcessingImage(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new window.Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/webp', quality);
+          onSuccess(dataUrl);
+        } else {
+          onSuccess(e.target?.result as string);
+        }
+        setIsProcessingImage(false);
+      };
+      img.onerror = () => {
+        setIsProcessingImage(false);
+        alert('ইমেজ প্রসেস করতে সমস্যা হয়েছে');
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Backup Export State
   const [backupCode, setBackupCode] = useState('');
@@ -672,6 +731,48 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
     return p.status === plannerFilter;
   });
 
+  // Dynamic Chart Items based on Timeframe ('M' or 'D')
+  const chartItems = useMemo(() => {
+    if (chartTimeframe === 'D') {
+      const days = [];
+      const dailyMap = new Map((analytics.daily || []).map(d => [d.day, d.count]));
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dayKey = d.toISOString().split('T')[0];
+        const count = dailyMap.get(dayKey) || 0;
+        const label = i === 0 ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
+        days.push({ key: dayKey, label, count });
+      }
+      return days;
+    }
+
+    const months = [
+      { key: '01', label: 'Jan' },
+      { key: '02', label: 'Feb' },
+      { key: '03', label: 'Mar' },
+      { key: '04', label: 'Apr' },
+      { key: '05', label: 'May' },
+      { key: '06', label: 'Jun' },
+      { key: '07', label: 'Jul' },
+      { key: '08', label: 'Aug' },
+      { key: '09', label: 'Sep' },
+      { key: '10', label: 'Oct' },
+      { key: '11', label: 'Nov' },
+      { key: '12', label: 'Dec' },
+    ];
+    const monthMap = new Map((analytics.monthly || []).map(m => [String(m.month).padStart(2, '0'), m.count]));
+    return months.map(m => ({
+      ...m,
+      count: monthMap.get(m.key) || 0,
+    }));
+  }, [chartTimeframe, analytics]);
+
+  const maxChartCount = useMemo(() => {
+    const counts = chartItems.map(i => i.count);
+    return Math.max(...counts, 10);
+  }, [chartItems]);
+
   // 1. Light Luxury Emerald Login Screen
   if (!token) {
     return (
@@ -999,27 +1100,23 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     </div>
                     <div className="flex items-center gap-4 mt-6">
                       <div>
-                        <span className="text-xl font-bold text-slate-900 font-sans">{posts.length || fallbackStaticPosts.length}</span>
-                        <span className="text-xs text-slate-400 ml-1.5 font-medium">Total Post</span>
+                        <span className="text-xl font-bold text-slate-900 font-sans">{posts.length}</span>
+                        <span className="text-xs text-slate-400 ml-1.5 font-medium">Total Posts</span>
                       </div>
                       <div className="w-px h-6 bg-slate-200" />
                       <div>
-                        <span className="text-xl font-bold text-slate-900 font-sans">23K</span>
-                        <span className="text-xs text-slate-400 ml-1.5 font-medium">Subscriber</span>
+                        <span className="text-xl font-bold text-slate-900 font-sans">{totalViews}</span>
+                        <span className="text-xs text-slate-400 ml-1.5 font-medium">Total Views</span>
                       </div>
                     </div>
                   </div>
 
-                  <div className="w-32 h-32 relative shrink-0 -mr-2">
-                    <svg viewBox="0 0 120 120" className="w-full h-full drop-shadow-sm">
-                      <circle cx="60" cy="60" r="50" fill="#f0f9ff" />
-                      <circle cx="60" cy="40" r="16" fill="#38bdf8" />
-                      <path d="M42 70 C42 55, 78 55, 78 70 L78 95 L42 95 Z" fill="#0284c7" />
-                      <rect x="46" y="65" width="28" height="18" rx="3" fill="#ffffff" stroke="#0369a1" strokeWidth="2" />
-                      <line x1="50" y1="74" x2="70" y2="74" stroke="#38bdf8" strokeWidth="2" strokeLinecap="round" />
-                      <circle cx="28" cy="35" r="3" fill="#fbbf24" />
-                      <circle cx="92" cy="45" r="2.5" fill="#10b981" />
-                    </svg>
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-slate-100 shadow-sm shrink-0">
+                    <img 
+                      src={authorProfile.avatar || '/assets/pabel_light_avatar.webp'} 
+                      alt="Author" 
+                      className="w-full h-full object-cover" 
+                    />
                   </div>
                 </div>
 
@@ -1029,22 +1126,22 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     <BookOpen className="w-6 h-6" />
                   </div>
                   <div className="mt-4">
-                    <p className="text-xs text-slate-400 font-medium">Total Post</p>
+                    <p className="text-xs text-slate-400 font-medium">Total Articles</p>
                     <h4 className="text-2xl sm:text-3xl font-extrabold text-blue-600 font-sans mt-0.5">
-                      {posts.length || fallbackStaticPosts.length}
+                      {posts.length}
                     </h4>
                   </div>
                 </div>
 
-                {/* Total Pages (Span 2) */}
+                {/* Total Views (Span 2) */}
                 <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between">
                   <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 shadow-inner">
-                    <FileText className="w-6 h-6" />
+                    <Eye className="w-6 h-6" />
                   </div>
                   <div className="mt-4">
-                    <p className="text-xs text-slate-400 font-medium">Total Pages</p>
+                    <p className="text-xs text-slate-400 font-medium">Total Views</p>
                     <h4 className="text-2xl sm:text-3xl font-extrabold text-purple-600 font-sans mt-0.5">
-                      {blogCategories.length}
+                      {totalViews.toLocaleString()}
                     </h4>
                   </div>
                 </div>
@@ -1052,15 +1149,15 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 {/* Comments (Span 2) */}
                 <div 
                   onClick={() => setActiveNav('messages')}
-                  className="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:border-emerald-300 transition-all"
+                  className="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between cursor-pointer hover:border-emerald-300 transition-all group"
                 >
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-inner">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 shadow-inner group-hover:scale-105 transition-transform">
                     <MessageSquare className="w-6 h-6" />
                   </div>
                   <div className="mt-4">
                     <p className="text-xs text-slate-400 font-medium">Comments</p>
                     <h4 className="text-2xl sm:text-3xl font-extrabold text-emerald-600 font-sans mt-0.5">
-                      {comments.length || 25}
+                      {comments.length}
                     </h4>
                   </div>
                 </div>
@@ -1069,12 +1166,12 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 <div className="lg:col-span-2 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between relative">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-50 text-rose-600 text-xs font-bold border border-rose-100 self-start shadow-xs">
                     <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
-                    <span>{totalLikes ? `${totalLikes}` : '1K'}</span>
+                    <span>{totalLikes > 0 ? `+${totalLikes}` : '0'}</span>
                   </div>
                   <div className="mt-4">
                     <p className="text-xs text-slate-400 font-medium">Total Likes</p>
                     <h4 className="text-2xl sm:text-3xl font-extrabold text-rose-500 font-sans mt-0.5">
-                      {totalLikes ? totalLikes.toLocaleString() : '65.26K'}
+                      {totalLikes.toLocaleString()}
                     </h4>
                   </div>
                 </div>
@@ -1088,11 +1185,24 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 <div className="lg:col-span-8 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
                   
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-xl font-extrabold text-slate-900 font-sans">Visitors</h3>
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <h3 className="text-xl font-extrabold text-slate-900 font-sans flex items-center gap-2">
+                          <span>Visitors</span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live Real-time Tracking" />
+                        </h3>
+                        <p className="text-xs text-slate-400 font-medium">Real-time Traffic (Cloudflare D1)</p>
+                      </div>
+                      <button
+                        onClick={() => { if (token) fetchAnalytics(token); }}
+                        className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                        title="রিফ্রেশ অ্যানালিটিক্স"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
                     </div>
 
-                    <div className="flex items-center gap-8">
+                    <div className="flex items-center gap-6">
                       <div>
                         <span className="text-2xl font-black text-slate-900 font-sans">
                           {analytics.totalVisits.toLocaleString()}
@@ -1108,7 +1218,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                       </div>
 
                       <div className="flex items-center bg-slate-100 rounded-full p-1 text-xs font-bold">
-                        {(['D', 'M', 'Y'] as const).map(f => (
+                        {(['D', 'M'] as const).map(f => (
                           <button
                             key={f}
                             onClick={() => setChartTimeframe(f)}
@@ -1117,6 +1227,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                                 ? 'bg-white text-slate-900 shadow-xs'
                                 : 'text-slate-400 hover:text-slate-700'
                             }`}
+                            title={f === 'D' ? 'দৈনিক ট্রাফিক (Last 7 Days)' : 'মাসিক ট্রাফিক (All Months)'}
                           >
                             {f}
                           </button>
@@ -1125,105 +1236,66 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                    <span className="text-xs font-semibold text-slate-500">Old vs New Visitors (Live Trend)</span>
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                    <span className="font-semibold text-slate-500">
+                      {chartTimeframe === 'D' ? 'বিগত ৭ দিনের লাইভ ভিজিটর সংখ্যা (Daily)' : 'চলতি বছরের প্রতি মাসের লাইভ ভিজিটর সংখ্যা (Monthly)'}
+                    </span>
                     
-                    <div className="flex items-center gap-4 text-xs font-medium text-slate-600">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                        <span>This year</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                        <span>Previous year</span>
-                      </div>
+                    <div className="flex items-center gap-2 font-medium text-slate-500">
+                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                      <span>{chartTimeframe === 'D' ? 'দিন অনুযায়ী ভিজিট' : 'মাস অনুযায়ী ভিজিট'}</span>
                     </div>
                   </div>
 
-                  {/* Dual Curve Area Chart */}
-                  <div className="w-full h-64 sm:h-72 relative">
-                    <svg viewBox="0 0 800 280" className="w-full h-full overflow-visible">
-                      <defs>
-                        <linearGradient id="blueGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#2563eb" stopOpacity="0.25" />
-                          <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
-                        </linearGradient>
-                        <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10b981" stopOpacity="0.20" />
-                          <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                        </linearGradient>
-                      </defs>
+                  {/* Real-time Dynamic Interactive Bar Chart */}
+                  <div className="w-full pt-6 pb-2">
+                    <div className="h-56 sm:h-64 flex items-end justify-between gap-2 sm:gap-4 px-2 border-b border-slate-200">
+                      {chartItems.map((item, idx) => {
+                        const heightPct = Math.max(6, Math.round((item.count / maxChartCount) * 100));
+                        const hasVisits = item.count > 0;
+                        return (
+                          <div key={item.key || idx} className="flex-1 flex flex-col items-center h-full justify-end group relative">
+                            
+                            {/* Hover Tooltip */}
+                            <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-20 bg-slate-900 text-white text-[11px] font-bold py-1 px-2.5 rounded-lg shadow-lg whitespace-nowrap">
+                              {item.label}: {item.count} visitors
+                            </div>
 
-                      {[40, 90, 140, 190, 240].map((y, idx) => (
-                        <line
-                          key={idx}
-                          x1="40"
-                          y1={y}
-                          x2="780"
-                          y2={y}
-                          stroke="#f1f5f9"
-                          strokeWidth="1"
-                          strokeDasharray="4 4"
-                        />
+                            {/* Badge count on top of bar if visits > 0 */}
+                            {hasVisits && (
+                              <span className="text-[10px] font-bold text-blue-600 mb-1 font-mono">
+                                {item.count}
+                              </span>
+                            )}
+
+                            {/* Dynamic Bar */}
+                            <div 
+                              style={{ height: `${heightPct}%` }}
+                              className={`w-full max-w-[36px] rounded-t-xl transition-all duration-500 ${
+                                hasVisits
+                                  ? 'bg-gradient-to-t from-blue-600 to-sky-400 shadow-md shadow-blue-500/20 group-hover:from-blue-700 group-hover:to-sky-300'
+                                  : 'bg-slate-100 group-hover:bg-slate-200'
+                              }`}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Chart X-Axis Labels */}
+                    <div className="flex items-center justify-between gap-2 sm:gap-4 px-2 pt-2.5">
+                      {chartItems.map((item, idx) => (
+                        <div key={item.key || idx} className="flex-1 text-center">
+                          <span className={`text-[11px] font-medium block truncate ${
+                            item.count > 0 ? 'text-blue-700 font-bold' : 'text-slate-400'
+                          }`}>
+                            {item.label}
+                          </span>
+                        </div>
                       ))}
-
-                      <path
-                        d="M 50 210 Q 110 200, 170 190 T 290 195 T 410 130 T 530 180 T 650 200 T 770 170 L 770 250 L 50 250 Z"
-                        fill="url(#greenGradient)"
-                      />
-                      <path
-                        d="M 50 210 Q 110 200, 170 190 T 290 195 T 410 130 T 530 180 T 650 200 T 770 170"
-                        fill="none"
-                        stroke="#10b981"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                      />
-
-                      <path
-                        d="M 50 190 Q 110 185, 170 160 T 290 85 T 410 165 T 530 175 T 650 180 T 770 175 L 770 250 L 50 250 Z"
-                        fill="url(#blueGradient)"
-                      />
-                      <path
-                        d="M 50 190 Q 110 185, 170 160 T 290 85 T 410 165 T 530 175 T 650 180 T 770 175"
-                        fill="none"
-                        stroke="#2563eb"
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                      />
-
-                      <circle cx="290" cy="85" r="4.5" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
-                      <circle cx="410" cy="130" r="4.5" fill="#10b981" stroke="#ffffff" strokeWidth="2" />
-                      <circle cx="530" cy="175" r="4" fill="#2563eb" stroke="#ffffff" strokeWidth="2" />
-                      <circle cx="650" cy="200" r="4" fill="#10b981" stroke="#ffffff" strokeWidth="2" />
-
-                      {[
-                        { m: 'Jan', x: 50 },
-                        { m: 'Feb', x: 115 },
-                        { m: 'Mar', x: 180 },
-                        { m: 'Apr', x: 245 },
-                        { m: 'May', x: 310 },
-                        { m: 'Jun', x: 375 },
-                        { m: 'Jul', x: 440 },
-                        { m: 'Aug', x: 505 },
-                        { m: 'Sep', x: 570 },
-                        { m: 'Oct', x: 635 },
-                        { m: 'Nov', x: 700 },
-                        { m: 'Dec', x: 765 },
-                      ].map(item => (
-                        <text
-                          key={item.m}
-                          x={item.x}
-                          y="270"
-                          textAnchor="middle"
-                          fill="#94a3b8"
-                          fontSize="11"
-                          fontFamily="system-ui"
-                        >
-                          {item.m}
-                        </text>
-                      ))}
-                    </svg>
+                    </div>
                   </div>
+
                 </div>
 
                 {/* Right Column: Recent Blogs Card */}
@@ -1447,7 +1519,140 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </div>
           )}
 
-          {/* VIEW 3: Content Planner & Scheduled Articles (User requested content icon & planner) */}
+          {/* VIEW: Analytics & Traffic Insights */}
+          {activeNav === 'analytics' && (
+            <div className="space-y-8">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 font-bangla flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-blue-600" />
+                    <span>অ্যানালিটিক্স ও ট্রাফিক ইনসাইটস (Traffic Analytics)</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 font-bangla mt-1">
+                    ক্লাউডফ্লেয়ার D1-এর রিয়েলটাইম ডাটা ট্র্যাকিং এবং সার্চ ইঞ্জিন পারফরম্যান্স।
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { if (token) fetchAnalytics(token); }}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold font-bangla transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>রিফ্রেশ</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Top Performing Articles Table */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-4">
+                <h3 className="text-base font-bold text-slate-900 font-bangla">সর্বাধিক পঠিত আর্টিকেলসমূহ (Top Articles)</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs font-bangla">
+                    <thead>
+                      <tr className="border-b border-slate-200 text-slate-400 font-semibold uppercase text-[11px]">
+                        <th className="py-3 px-4">শিরোনাম</th>
+                        <th className="py-3 px-4 text-center">ভিউ সংখ্যা</th>
+                        <th className="py-3 px-4 text-center">লাভ রিয়্যাক্ট</th>
+                        <th className="py-3 px-4 text-center">মন্তব্য</th>
+                        <th className="py-3 px-4 text-right">ভিউ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(analytics.topPosts && analytics.topPosts.length > 0 ? analytics.topPosts : posts).map((p: any) => (
+                        <tr key={p.slug || p.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3.5 px-4 font-bold text-slate-800 text-sm max-w-sm truncate">
+                            <Link href={`/blog/${p.slug}`} target="_blank" className="hover:text-blue-600 transition-colors">
+                              {p.title}
+                            </Link>
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-mono font-bold text-slate-700">
+                            {p.views || 0}
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-mono font-bold text-rose-500">
+                            {p.likes || 0}
+                          </td>
+                          <td className="py-3.5 px-4 text-center font-mono font-bold text-emerald-600">
+                            {p.comments || 0}
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <Link
+                              href={`/blog/${p.slug}`}
+                              target="_blank"
+                              className="p-1 rounded-lg text-slate-400 hover:text-blue-600 inline-block"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Google Search Console & Analytics Integration Hub */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Search Console Card */}
+                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 font-bold">
+                        G
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm font-sans">Google Search Console</h4>
+                    </div>
+                    <p className="text-xs text-slate-500 font-bangla leading-relaxed">
+                      গুগল সার্চে আপনার ব্লগের ইমপ্রেশন, ক্লিক, কিওয়ার্ড র‍্যাঙ্কিং এবং ইনডেক্সিং স্ট্যাটাস দেখুন।
+                    </p>
+                  </div>
+
+                  <div className="pt-2">
+                    <a
+                      href="https://search.google.com/search-console"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold font-bangla transition-all shadow-xs cursor-pointer"
+                    >
+                      <span>Search Console খুলুন</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Google Analytics Card */}
+                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 font-bold">
+                        GA
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm font-sans">Google Analytics 4 (GA4)</h4>
+                    </div>
+                    <p className="text-xs text-slate-500 font-bangla leading-relaxed">
+                      লাইভ রিয়েলটাইম ইউজার, বাউন্স রেট, ডিভাইস (মোবাইল/পিসি) ও দেশভিত্তিক বিস্তারিত অ্যানালিটিক্স রিপোর্ট।
+                    </p>
+                  </div>
+
+                  <div className="pt-2">
+                    <a
+                      href="https://analytics.google.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold font-bangla transition-all shadow-xs cursor-pointer"
+                    >
+                      <span>Google Analytics খুলুন</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          )}
           {activeNav === 'calendar' && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
@@ -1577,19 +1782,55 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 {/* Admin Profile Form */}
                 <div className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-4">
                   <h4 className="font-bold text-slate-900 text-sm font-bangla">অ্যাডমিন প্রোফাইল</h4>
-                  <div className="flex items-center gap-4">
-                    <img 
-                      src={adminProfile.avatar || '/assets/pabel_light_avatar.webp'} 
-                      alt="Avatar" 
-                      className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm"
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div 
+                      className="relative group w-16 h-16 shrink-0 cursor-pointer" 
+                      onClick={() => adminFileInputRef.current?.click()}
+                      title="ছবি আপলোড করতে ক্লিক করুন"
+                    >
+                      <img 
+                        src={adminProfile.avatar || '/assets/pabel_light_avatar.webp'} 
+                        alt="Avatar" 
+                        className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm group-hover:opacity-80 transition-opacity"
+                      />
+                      <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                    </div>
+
+                    <input 
+                      type="file" 
+                      ref={adminFileInputRef} 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          processImageFile(file, 300, 300, 0.85, (dataUrl) => {
+                            setAdminProfile({ ...adminProfile, avatar: dataUrl });
+                          });
+                        }
+                      }}
                     />
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold text-slate-700 font-bangla mb-1">
-                        প্রোফাইল পিকচার লিংক (Avatar URL)
-                      </label>
+
+                    <div className="flex-1 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-slate-700 font-bangla">
+                          প্রোফাইল পিকচার
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => adminFileInputRef.current?.click()}
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 font-bangla flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-slate-200 hover:border-blue-300 shadow-2xs"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>ডিভাইস থেকে ছবি আপলোড করুন</span>
+                        </button>
+                      </div>
                       <input
                         type="text"
-                        value={adminProfile.avatar}
+                        placeholder="অথবা সরাসরি ইমেজ লিংক (URL) দিন"
+                        value={adminProfile.avatar.startsWith('data:image') ? '(সরাসরি ডিভাইস থেকে ছবি আপলোড করা হয়েছে)' : adminProfile.avatar}
                         onChange={e => setAdminProfile({ ...adminProfile, avatar: e.target.value })}
                         className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-mono"
                       />
@@ -1621,19 +1862,55 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 {/* Author Profile Form */}
                 <div className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-4">
                   <h4 className="font-bold text-slate-900 text-sm font-bangla">আর্টিকেল অথর (Author Profile)</h4>
-                  <div className="flex items-center gap-4">
-                    <img 
-                      src={authorProfile.avatar || '/assets/pabel_light_avatar.webp'} 
-                      alt="Author" 
-                      className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm"
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div 
+                      className="relative group w-16 h-16 shrink-0 cursor-pointer" 
+                      onClick={() => authorFileInputRef.current?.click()}
+                      title="ছবি আপলোড করতে ক্লিক করুন"
+                    >
+                      <img 
+                        src={authorProfile.avatar || '/assets/pabel_light_avatar.webp'} 
+                        alt="Author" 
+                        className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm group-hover:opacity-80 transition-opacity"
+                      />
+                      <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                    </div>
+
+                    <input 
+                      type="file" 
+                      ref={authorFileInputRef} 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          processImageFile(file, 300, 300, 0.85, (dataUrl) => {
+                            setAuthorProfile({ ...authorProfile, avatar: dataUrl });
+                          });
+                        }
+                      }}
                     />
-                    <div className="flex-1">
-                      <label className="block text-xs font-bold text-slate-700 font-bangla mb-1">
-                        অথর ইমেজ লিংক (Author Avatar URL)
-                      </label>
+
+                    <div className="flex-1 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold text-slate-700 font-bangla">
+                          অথর প্রোফাইল ছবি
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => authorFileInputRef.current?.click()}
+                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 font-bangla flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-slate-200 hover:border-blue-300 shadow-2xs"
+                        >
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>ডিভাইস থেকে ছবি আপলোড করুন</span>
+                        </button>
+                      </div>
                       <input
                         type="text"
-                        value={authorProfile.avatar}
+                        placeholder="অথবা সরাসরি ইমেজ লিংক (URL) দিন"
+                        value={authorProfile.avatar.startsWith('data:image') ? '(সরাসরি ডিভাইস থেকে ছবি আপলোড করা হয়েছে)' : authorProfile.avatar}
                         onChange={e => setAuthorProfile({ ...authorProfile, avatar: e.target.value })}
                         className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-mono"
                       />
@@ -1937,14 +2214,51 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
               {/* Cover Image */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">কভার ইমেজ ইউআরএল (Cover Image URL)</label>
-                <input
-                  type="text"
-                  value={editorCoverImage}
-                  onChange={e => setEditorCoverImage(e.target.value)}
-                  placeholder="https://images.unsplash.com/..."
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 font-bangla">
+                    কভার ইমেজ (Cover Image)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => coverFileInputRef.current?.click()}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 font-bangla flex items-center gap-1 cursor-pointer bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 hover:border-blue-300"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>ডিভাইস থেকে কভার ফটো আপলোড করুন</span>
+                  </button>
+                </div>
+
+                <input 
+                  type="file" 
+                  ref={coverFileInputRef} 
+                  accept="image/*" 
+                  className="hidden" 
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      processImageFile(file, 1200, 675, 0.85, (dataUrl) => {
+                        setEditorCoverImage(dataUrl);
+                      });
+                    }
+                  }}
                 />
+
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={editorCoverImage.startsWith('data:image') ? '(সরাসরি ডিভাইস থেকে কভার ফটো আপলোড করা হয়েছে)' : editorCoverImage}
+                    onChange={e => setEditorCoverImage(e.target.value)}
+                    placeholder="https://images.unsplash.com/... অথবা উপরের বাটন দিয়ে আপলোড করুন"
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                  {editorCoverImage && (
+                    <img 
+                      src={editorCoverImage} 
+                      alt="Cover Preview" 
+                      className="w-14 h-10 rounded-lg object-cover border border-slate-200 shrink-0 shadow-xs" 
+                    />
+                  )}
+                </div>
               </div>
 
               {/* Formatting Toolbar (User requested rich-text formatting buttons) */}
