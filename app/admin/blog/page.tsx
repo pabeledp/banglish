@@ -170,6 +170,19 @@ export default function AdminBlogPage() {
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // Forgot & Reset Password States
+  const [forgotModalOpen, setForgotModalOpen] = useState(false);
+  const [forgotEmailInput, setForgotEmailInput] = useState('ampabel.edp@gmail.com');
+  const [isSendingReset, setIsSendingReset] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState<{ text: string; type: 'success' | 'error' | '' }>({ text: '', type: '' });
+
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetTokenInput, setResetTokenInput] = useState('');
+  const [newResetPassword, setNewResetPassword] = useState('');
+  const [confirmResetPassword, setConfirmResetPassword] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [resetMsg, setResetMsg] = useState<{ text: string; type: 'success' | 'error' | '' }>({ text: '', type: '' });
+
   // Active Sidebar Nav Tab
   const [activeNav, setActiveNav] = useState<'editor' | 'messages' | 'media' | 'analytics' | 'backup' | 'calendar' | 'settings'>('editor');
   
@@ -363,6 +376,95 @@ export default function AdminBlogPage() {
       setLoginError('সার্ভারে যোগাযোগ করতে সমস্যা হচ্ছে');
     } finally {
       setIsLoggingIn(false);
+    }
+  };
+
+  // Check URL query for resetToken on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tokenFromUrl = urlParams.get('resetToken');
+      if (tokenFromUrl) {
+        setResetTokenInput(tokenFromUrl);
+        setResetModalOpen(true);
+      }
+    }
+  }, []);
+
+  // Request Password Reset Link via Resend Email
+  const handleRequestResetLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotMsg({ text: '', type: '' });
+    setIsSendingReset(true);
+    try {
+      const res = await fetch('/api/blog/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmailInput }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setForgotMsg({
+          text: data.message || 'পাসওয়ার্ড রিসেট লিংকটি আপনার ইমেইলে সফলভাবে পাঠানো হয়েছে! ইনবক্স অথবা স্প্যাম ফোল্ডার চেক করুন।',
+          type: 'success',
+        });
+      } else {
+        setForgotMsg({
+          text: data.error || 'রিসেট লিংক পাঠাতে সমস্যা হয়েছে। সঠিক নিবন্ধিত ইমেইল প্রদান করুন।',
+          type: 'error',
+        });
+      }
+    } catch (err: any) {
+      setForgotMsg({ text: 'সার্ভারে যোগাযোগ করতে ব্যর্থ হয়েছে। ইন্টারনেট সংযোগ পরীক্ষা করুন।', type: 'error' });
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
+
+  // Confirm Password Reset with Token
+  const handleConfirmResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetMsg({ text: '', type: '' });
+    if (!newResetPassword || newResetPassword.length < 6) {
+      setResetMsg({ text: 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।', type: 'error' });
+      return;
+    }
+    if (newResetPassword !== confirmResetPassword) {
+      setResetMsg({ text: 'উভয় পাসওয়ার্ড একই হতে হবে।', type: 'error' });
+      return;
+    }
+    setIsResettingPassword(true);
+    try {
+      const res = await fetch('/api/blog/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetTokenInput, newPassword: newResetPassword }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setResetMsg({
+          text: 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে! এখন আপনি নতুন পাসওয়ার্ড দিয়ে লগইন করতে পারেন।',
+          type: 'success',
+        });
+        setTimeout(() => {
+          setResetModalOpen(false);
+          setNewResetPassword('');
+          setConfirmResetPassword('');
+          if (typeof window !== 'undefined') {
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, '', cleanUrl);
+          }
+        }, 2200);
+      } else {
+        setResetMsg({
+          text: data.error || 'পাসওয়ার্ড পরিবর্তন ব্যর্থ হয়েছে। লিংকটির মেয়াদ হয়তো শেষ হয়ে গেছে।',
+          type: 'error',
+        });
+      }
+    } catch (err: any) {
+      setResetMsg({ text: 'সার্ভারে যোগাযোগ করতে ব্যর্থ হয়েছে।', type: 'error' });
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -1261,6 +1363,200 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
     return { labels, bluePoints, greenPoints, blueStroke, greenStroke, blueArea, greenArea };
   }, [chartTimeframe, analytics]);
 
+  // Render Forgot Password and Reset Password Modals
+  const renderPasswordModals = () => (
+    <>
+      {/* 1. Forgot Password Modal */}
+      {forgotModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 relative">
+            <button
+              type="button"
+              onClick={() => { setForgotModalOpen(false); setForgotMsg({ text: '', type: '' }); }}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                <Mail className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 font-sans">পাসওয়ার্ড রিসেট (Forgot Password)</h3>
+                <p className="text-xs text-slate-500 font-bangla">নিবন্ধিত ইমেইলে রিসেট লিংক পাঠানো হবে</p>
+              </div>
+            </div>
+
+            {forgotMsg.text && (
+              <div
+                className={`mb-5 p-3.5 rounded-2xl text-xs sm:text-sm font-bangla flex items-start gap-2.5 ${
+                  forgotMsg.type === 'success'
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border border-rose-200 text-rose-800'
+                }`}
+              >
+                {forgotMsg.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <span>{forgotMsg.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleRequestResetLink} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 font-bangla">
+                  অ্যাডমিন ইমেইল ঠিকানা (Admin Email)
+                </label>
+                <input
+                  type="email"
+                  value={forgotEmailInput}
+                  onChange={(e) => setForgotEmailInput(e.target.value)}
+                  placeholder="ampabel.edp@gmail.com"
+                  required
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-sans transition-all"
+                />
+                <p className="text-[11px] text-slate-400 mt-1 font-bangla">
+                  শুধুমাত্র অনুমোদিত অ্যাডমিন ইমেইলে রিসেট লিংকটি পাঠানো হবে।
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setForgotModalOpen(false); setForgotMsg({ text: '', type: '' }); }}
+                  className="flex-1 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition-all cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingReset}
+                  className="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isSendingReset ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>পাঠানো হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      <span>রিসেট লিংক পাঠান</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Reset Password Modal */}
+      {resetModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-100 relative">
+            <button
+              type="button"
+              onClick={() => { setResetModalOpen(false); setResetMsg({ text: '', type: '' }); }}
+              className="absolute top-5 right-5 p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                <Key className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 font-sans">নতুন পাসওয়ার্ড সেট করুন</h3>
+                <p className="text-xs text-slate-500 font-bangla">নিরাপদ ও শক্তিশালী নতুন পাসওয়ার্ড দিন</p>
+              </div>
+            </div>
+
+            {resetMsg.text && (
+              <div
+                className={`mb-5 p-3.5 rounded-2xl text-xs sm:text-sm font-bangla flex items-start gap-2.5 ${
+                  resetMsg.type === 'success'
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border border-rose-200 text-rose-800'
+                }`}
+              >
+                {resetMsg.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <span>{resetMsg.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleConfirmResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 font-bangla">
+                  নতুন পাসওয়ার্ড (New Password)
+                </label>
+                <input
+                  type="password"
+                  value={newResetPassword}
+                  onChange={(e) => setNewResetPassword(e.target.value)}
+                  placeholder="কমপক্ষে ৬ অক্ষর"
+                  required
+                  minLength={6}
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm font-sans transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 font-bangla">
+                  পাসওয়ার্ড নিশ্চিত করুন (Confirm Password)
+                </label>
+                <input
+                  type="password"
+                  value={confirmResetPassword}
+                  onChange={(e) => setConfirmResetPassword(e.target.value)}
+                  placeholder="পুনরায় পাসওয়ার্ড লিখুন"
+                  required
+                  minLength={6}
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm font-sans transition-all"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => { setResetModalOpen(false); setResetMsg({ text: '', type: '' }); }}
+                  className="flex-1 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition-all cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResettingPassword}
+                  className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/25 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {isResettingPassword ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>পরিবর্তন হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>পাসওয়ার্ড পরিবর্তন করুন</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   // 1. Light Luxury Emerald Login Screen
   if (!token) {
     return (
@@ -1306,9 +1602,18 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-2 font-bangla">
-                পাসওয়ার্ড (Password)
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-semibold text-slate-700 font-bangla">
+                  পাসওয়ার্ড (Password)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setForgotModalOpen(true); setForgotMsg({ text: '', type: '' }); }}
+                  className="text-xs font-bangla font-semibold text-emerald-600 hover:text-emerald-700 cursor-pointer transition-colors"
+                >
+                  পাসওয়ার্ড ভুলে গেছেন?
+                </button>
+              </div>
               <input
                 type="password"
                 value={passwordInput}
@@ -1344,6 +1649,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </Link>
           </div>
         </div>
+
+        {renderPasswordModals()}
       </div>
     );
   }
@@ -3428,6 +3735,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
           </div>
         </div>
       )}
+
+      {renderPasswordModals()}
 
     </div>
   );

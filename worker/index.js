@@ -406,6 +406,194 @@ async function handleBlogApi(request, env, ctx, url) {
     return jsonResponse({ success: false, error: 'Database binding (DB) is not configured' }, 500);
   }
 
+  // 1.1 Request Password Reset Link: POST /api/blog/auth/forgot-password
+  if (pathname === '/api/blog/auth/forgot-password' && request.method === 'POST') {
+    try {
+      const { email } = await request.json();
+      const inputEmail = (email || '').trim().toLowerCase();
+
+      // Get registered admin email from admin_settings or fallback
+      let registeredEmail = 'ampabel.edp@gmail.com';
+      try {
+        const adminRow = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_profile'").first();
+        if (adminRow && adminRow.value) {
+          const prof = JSON.parse(adminRow.value);
+          if (prof.email) registeredEmail = prof.email.trim().toLowerCase();
+        }
+      } catch (e) {}
+
+      if (!inputEmail || inputEmail !== registeredEmail) {
+        return jsonResponse({
+          success: false,
+          error: 'প্রদত্ত ইমেইলটি নিবন্ধিত অ্যাডমিন ইমেইলের সাথে মেলেনি।'
+        }, 400);
+      }
+
+      // Ensure password_resets table exists
+      await env.DB.prepare(
+        `CREATE TABLE IF NOT EXISTS password_resets (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          email TEXT NOT NULL,
+          token TEXT NOT NULL UNIQUE,
+          expires_at TIMESTAMP NOT NULL,
+          used INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )`
+      ).run();
+
+      // Generate cryptographically secure random token (48 hex chars)
+      const token = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      // Expiration: 1 hour
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+      await env.DB.prepare(
+        "INSERT INTO password_resets (email, token, expires_at, used) VALUES (?, ?, ?, 0)"
+      ).bind(registeredEmail, token, expiresAt).run();
+
+      // Construct reset URL
+      const origin = url.origin || 'https://banglish.bd';
+      const resetLink = `${origin}/admin/blog?resetToken=${token}`;
+
+      // Send Email via Resend
+      const resendApiKey = env.RESEND_API_KEY;
+      let emailSent = false;
+      let emailError = null;
+
+      if (resendApiKey) {
+        try {
+          const emailRes = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'Banglish Security <onboarding@resend.dev>',
+              to: [registeredEmail],
+              subject: '🔐 বাংলিশ অ্যাডমিন পাসওয়ার্ড রিসেট লিংক',
+              html: `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);">
+                  <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 36px 28px; text-align: center;">
+                    <div style="width: 54px; height: 54px; background: rgba(255,255,255,0.2); border-radius: 16px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+                      বা
+                    </div>
+                    <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">Banglish Admin Portal</h1>
+                    <p style="color: #d1fae5; margin: 6px 0 0 0; font-size: 13px; font-weight: 500;">অ্যাডমিন নিরাপত্তা নোটিফিকেশন</p>
+                  </div>
+                  
+                  <div style="padding: 32px 30px; color: #1e293b; line-height: 1.65;">
+                    <p style="font-size: 15px; margin-top: 0; font-weight: 600;">প্রিয় A M Pabel,</p>
+                    <p style="font-size: 14px; color: #475569;">
+                      আপনার বাংলিশ অ্যাডমিন পোর্টালের পাসওয়ার্ড রিসেট করার জন্য একটি অনুরোধ পাওয়া গেছে। আপনার অ্যাকাউন্টে নতুন পাসওয়ার্ড সেট করতে নিচের বোতামটিতে ক্লিক করুন:
+                    </p>
+                    
+                    <div style="text-align: center; margin: 32px 0;">
+                      <a href="${resetLink}" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 14px 32px; border-radius: 12px; box-shadow: 0 4px 14px rgba(37,99,235,0.3); letter-spacing: 0.2px;">
+                        পাসওয়ার্ড রিসেট করুন (Reset Password)
+                      </a>
+                    </div>
+
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
+                      <p style="font-size: 12px; color: #64748b; margin: 0 0 6px 0; font-weight: 600;">বোতামে কাজ না করলে নিচের লিংকটি ব্রাউজারে পেস্ট করুন:</p>
+                      <p style="font-size: 11px; font-family: monospace; word-break: break-all; color: #2563eb; margin: 0;">${resetLink}</p>
+                    </div>
+
+                    <p style="font-size: 12px; color: #94a3b8; margin: 24px 0 0 0; padding-top: 18px; border-top: 1px solid #f1f5f9; line-height: 1.5;">
+                      ⚠️ এই লিংকটির মেয়াদ আগামী <strong>১ ঘণ্টার</strong> জন্য কার্যকর থাকবে। আপনি যদি এই অনুরোধ না করে থাকেন, তবে অবিলম্বে এই ইমেইলটি উপেক্ষা করুন; আপনার বর্তমান পাসওয়ার্ড অপরিবর্তিত থাকবে।
+                    </p>
+                  </div>
+
+                  <div style="background-color: #f8fafc; padding: 18px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
+                    © ${new Date().getFullYear()} Banglish Keyboard (banglish.bd) • Secured with Cloudflare & Resend
+                  </div>
+                </div>
+              `
+            })
+          });
+
+          if (emailRes.ok) {
+            emailSent = true;
+          } else {
+            const errData = await emailRes.json();
+            emailError = errData.message || 'Failed to dispatch email via Resend';
+            console.error('Resend error:', errData);
+          }
+        } catch (err) {
+          emailError = err.message;
+          console.error('Resend exception:', err);
+        }
+      }
+
+      return jsonResponse({
+        success: true,
+        emailSent,
+        message: emailSent
+          ? `পাসওয়ার্ড রিসেট লিংকটি আপনার ইমেইলে (${registeredEmail}) সফলভাবে পাঠানো হয়েছে! ইনবক্স অথবা স্প্যাম ফোল্ডার চেক করুন।`
+          : 'রিসেট লিংক তৈরি হয়েছে।',
+        resetLink: !emailSent ? resetLink : undefined,
+        error: emailError || undefined
+      });
+    } catch (e) {
+      console.error('Forgot password error:', e);
+      return jsonResponse({ success: false, error: 'সার্ভারে সমস্যা হয়েছে' }, 500);
+    }
+  }
+
+  // 1.2 Confirm Password Reset: POST /api/blog/auth/reset-password
+  if (pathname === '/api/blog/auth/reset-password' && request.method === 'POST') {
+    try {
+      const { token, newPassword } = await request.json();
+      if (!token || !newPassword) {
+        return jsonResponse({ success: false, error: 'টোকেন এবং নতুন পাসওয়ার্ড আবশ্যক' }, 400);
+      }
+
+      if (newPassword.length < 6) {
+        return jsonResponse({ success: false, error: 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' }, 400);
+      }
+
+      // Check token in DB
+      const resetRow = await env.DB.prepare(
+        "SELECT * FROM password_resets WHERE token = ? AND used = 0"
+      ).bind(token).first();
+
+      if (!resetRow) {
+        return jsonResponse({
+          success: false,
+          error: 'রিসেট লিংকটি অবৈধ অথবা এটি ইতিমধ্যে ব্যবহার করা হয়ে গেছে।'
+        }, 400);
+      }
+
+      // Check expiration
+      if (new Date(resetRow.expires_at).getTime() < Date.now()) {
+        return jsonResponse({
+          success: false,
+          error: 'রিসেট লিংকটির মেয়াদের সময় (১ ঘণ্টা) শেষ হয়ে গেছে। অনুগ্রহ করে আবার নতুন লিংক চেয়ে আবেদন করুন।'
+        }, 400);
+      }
+
+      // Update admin password in admin_settings
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('admin_password', ?, CURRENT_TIMESTAMP)"
+      ).bind(newPassword).run();
+
+      // Mark token as used
+      await env.DB.prepare(
+        "UPDATE password_resets SET used = 1 WHERE id = ?"
+      ).bind(resetRow.id).run();
+
+      return jsonResponse({
+        success: true,
+        message: 'আপনার পাসওয়ার্ড সফলভাবে আপডেট করা হয়েছে! এখন নতুন পাসওয়ার্ড দিয়ে লগইন করুন।'
+      });
+    } catch (e) {
+      console.error('Reset password error:', e);
+      return jsonResponse({ success: false, error: 'পাসওয়ার্ড রিসেট করতে সমস্যা হয়েছে' }, 500);
+    }
+  }
+
   // 2. Public Posts List: GET /api/blog/posts
   if (pathname === '/api/blog/posts' && request.method === 'GET') {
     try {
