@@ -11,11 +11,23 @@ import {
   Send, Reply, User, Lock, Key, ShieldCheck, Link2, Bold, Italic,
   Heading1, Heading2, Heading3, AlignCenter, Quote, Code, List,
   Calendar as CalendarIcon, CheckSquare, Camera, Upload, ZoomIn, ZoomOut, Move,
-  Phone
+  Phone, Users, Shield, UserPlus, UserCheck, UserX
 } from 'lucide-react';
 import { transliterateWord } from '@/lib/phoneticEngine';
 import MarkdownRenderer from '@/components/blog/MarkdownRenderer';
 import { blogCategories, BlogPost, blogPosts as fallbackStaticPosts } from '@/data/blogData';
+
+interface AdminUser {
+  id: number;
+  name: string;
+  username: string;
+  email: string;
+  role: 'super_admin' | 'editor' | 'author' | 'moderator';
+  status: 'active' | 'inactive';
+  avatar?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 interface AdminComment {
   id: number;
@@ -184,7 +196,22 @@ export default function AdminBlogPage() {
   const [resetMsg, setResetMsg] = useState<{ text: string; type: 'success' | 'error' | '' }>({ text: '', type: '' });
 
   // Active Sidebar Nav Tab
-  const [activeNav, setActiveNav] = useState<'editor' | 'messages' | 'media' | 'analytics' | 'backup' | 'calendar' | 'settings'>('editor');
+  const [activeNav, setActiveNav] = useState<'editor' | 'messages' | 'media' | 'analytics' | 'backup' | 'calendar' | 'settings' | 'team'>('editor');
+
+  // Logged-in Admin User & Role
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
+
+  // Team Management & RBAC States
+  const [teamMembers, setTeamMembers] = useState<AdminUser[]>([]);
+  const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberUsername, setNewMemberUsername] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberPassword, setNewMemberPassword] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState<'super_admin' | 'editor' | 'author' | 'moderator'>('editor');
+  const [isSubmittingMember, setIsSubmittingMember] = useState(false);
+  const [teamActionMsg, setTeamActionMsg] = useState({ text: '', type: '' });
   
   // Timeframe filter for Visitor Insight Chart: D, M, Y
   const [chartTimeframe, setChartTimeframe] = useState<'D' | 'M' | 'Y'>('M');
@@ -328,6 +355,26 @@ export default function AdminBlogPage() {
   // Content Planner status filter
   const [plannerFilter, setPlannerFilter] = useState<'all' | 'published' | 'scheduled' | 'draft'>('all');
 
+  // Fetch Team Members (Super Admin only)
+  const fetchTeamMembers = useCallback(async (authToken?: string) => {
+    const t = authToken || token;
+    if (!t) return;
+    setIsLoadingTeam(true);
+    try {
+      const res = await fetch('/api/blog/admin/team', {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTeamMembers(data.members || []);
+      }
+    } catch (err) {
+      console.error('Error fetching team members:', err);
+    } finally {
+      setIsLoadingTeam(false);
+    }
+  }, [token]);
+
   // Unified Data Refresher for 100% Real-time Sync
   const refreshAllData = useCallback((authToken?: string) => {
     const t = authToken || token;
@@ -337,11 +384,16 @@ export default function AdminBlogPage() {
     fetchAnalytics(t);
     fetchAdminSettings(t);
     fetchAdminMedia(t);
-  }, [token]);
+    fetchTeamMembers(t);
+  }, [token, fetchTeamMembers]);
 
   // Check stored auth token on mount
   useEffect(() => {
     const savedToken = sessionStorage.getItem('banglish_admin_token') || localStorage.getItem('banglish_admin_token');
+    const savedUser = sessionStorage.getItem('banglish_admin_user') || localStorage.getItem('banglish_admin_user');
+    if (savedUser) {
+      try { setCurrentUser(JSON.parse(savedUser)); } catch (e) {}
+    }
     if (savedToken) {
       setToken(savedToken);
       refreshAllData(savedToken);
@@ -372,11 +424,17 @@ export default function AdminBlogPage() {
         setToken(data.token);
         sessionStorage.setItem('banglish_admin_token', data.token);
         localStorage.setItem('banglish_admin_token', data.token);
+        if (data.user) {
+          setCurrentUser(data.user);
+          sessionStorage.setItem('banglish_admin_user', JSON.stringify(data.user));
+          localStorage.setItem('banglish_admin_user', JSON.stringify(data.user));
+        }
         fetchAdminPosts(data.token);
         fetchAdminComments(data.token);
         fetchAnalytics(data.token);
         fetchAdminSettings(data.token);
         fetchAdminMedia(data.token);
+        fetchTeamMembers(data.token);
       } else {
         setLoginError(data.error || 'ভুল ইউজারনেম বা পাসওয়ার্ড');
       }
@@ -384,6 +442,86 @@ export default function AdminBlogPage() {
       setLoginError('সার্ভারে যোগাযোগ করতে সমস্যা হচ্ছে');
     } finally {
       setIsLoggingIn(false);
+    }
+  };
+
+  const handleAddTeamMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTeamActionMsg({ text: '', type: '' });
+    setIsSubmittingMember(true);
+    try {
+      const res = await fetch('/api/blog/admin/team', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: newMemberName,
+          username: newMemberUsername,
+          email: newMemberEmail,
+          password: newMemberPassword,
+          role: newMemberRole,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTeamActionMsg({ text: data.message || 'নতুন মেম্বার সফলভাবে যুক্ত হয়েছে!', type: 'success' });
+        setNewMemberName('');
+        setNewMemberUsername('');
+        setNewMemberEmail('');
+        setNewMemberPassword('');
+        setNewMemberRole('editor');
+        setIsAddMemberOpen(false);
+        fetchTeamMembers();
+      } else {
+        setTeamActionMsg({ text: data.error || 'মেম্বার যুক্ত করতে ব্যর্থ হয়েছে', type: 'error' });
+      }
+    } catch (err: any) {
+      setTeamActionMsg({ text: err.message || 'সার্ভার সমস্যা', type: 'error' });
+    } finally {
+      setIsSubmittingMember(false);
+    }
+  };
+
+  const handleUpdateTeamMember = async (id: number, updates: { role?: string; status?: string; password?: string }) => {
+    try {
+      const res = await fetch('/api/blog/admin/team', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id, ...updates }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        fetchTeamMembers();
+      } else {
+        alert(data.error || 'আপডেট করতে সমস্যা হয়েছে');
+      }
+    } catch (err: any) {
+      alert(err.message || 'সার্ভার সমস্যা');
+    }
+  };
+
+  const handleDeleteTeamMember = async (id: number, name: string) => {
+    if (!confirm(`আপনি কি নিশ্চিত যে "${name}"-কে টিম থেকে মুছে ফেলতে চান?`)) return;
+    try {
+      const res = await fetch(`/api/blog/admin/team?id=${id}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        fetchTeamMembers();
+      } else {
+        alert(data.error || 'মুছতে সমস্যা হয়েছে');
+      }
+    } catch (err: any) {
+      alert(err.message || 'সার্ভার সমস্যা');
     }
   };
 
@@ -501,8 +639,11 @@ export default function AdminBlogPage() {
   const handleLogout = () => {
     if (typeof window !== 'undefined' && confirm('আপনি কি নিশ্চিত যে অ্যাডমিন প্যানেল থেকে লগআউট করতে চান?')) {
       setToken(null);
+      setCurrentUser(null);
       sessionStorage.removeItem('banglish_admin_token');
       localStorage.removeItem('banglish_admin_token');
+      sessionStorage.removeItem('banglish_admin_user');
+      localStorage.removeItem('banglish_admin_user');
       window.location.reload();
     }
   };
@@ -1831,20 +1972,40 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </button>
 
             {/* 7. Settings (Profiles, Passwords) */}
-            <button
-              onClick={() => { setActiveNav('settings'); if (token) fetchAdminSettings(token); }}
-              title="Admin & Author Profile Settings"
-              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer relative ${
-                activeNav === 'settings'
-                  ? 'bg-blue-50 text-blue-600 font-bold'
-                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              {activeNav === 'settings' && (
-                <span className="absolute -left-2 w-1.5 h-6 bg-blue-600 rounded-r-full" />
-              )}
-              <Settings className="w-5 h-5" />
-            </button>
+            {(!currentUser || currentUser.role === 'super_admin') && (
+              <button
+                onClick={() => { setActiveNav('settings'); if (token) fetchAdminSettings(token); }}
+                title="Admin & Author Profile Settings"
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer relative ${
+                  activeNav === 'settings'
+                    ? 'bg-blue-50 text-blue-600 font-bold'
+                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {activeNav === 'settings' && (
+                  <span className="absolute -left-2 w-1.5 h-6 bg-blue-600 rounded-r-full" />
+                )}
+                <Settings className="w-5 h-5" />
+              </button>
+            )}
+
+            {/* 8. Team Management & Roles (Super Admin only) */}
+            {(!currentUser || currentUser.role === 'super_admin') && (
+              <button
+                onClick={() => { setActiveNav('team'); if (token) fetchTeamMembers(token); }}
+                title="টিম ও অ্যাক্সেস কন্ট্রোল (Team Management & RBAC)"
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer relative ${
+                  activeNav === 'team'
+                    ? 'bg-blue-50 text-blue-600 font-bold'
+                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                {activeNav === 'team' && (
+                  <span className="absolute -left-2 w-1.5 h-6 bg-blue-600 rounded-r-full" />
+                )}
+                <Users className="w-5 h-5" />
+              </button>
+            )}
           </nav>
         </div>
 
@@ -1932,20 +2093,36 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
               {/* User Dropdown Menu */}
               {userDropdownOpen && (
-                <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-200/80 py-2 z-50 animate-in fade-in slide-in-from-top-2">
+                <div className="absolute right-0 mt-3 w-60 bg-white rounded-2xl shadow-xl border border-slate-200/80 py-2 z-50 animate-in fade-in slide-in-from-top-2">
                   <div className="px-4 py-2.5 border-b border-slate-100">
-                    <p className="text-xs font-bold text-slate-900">{adminProfile.name}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{adminProfile.email}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-slate-900 truncate">{currentUser?.name || adminProfile.name}</p>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                        {currentUser?.role === 'super_admin' ? 'Super Admin' : (currentUser?.role || 'Admin')}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 truncate mt-0.5">{currentUser?.email || adminProfile.email}</p>
                   </div>
 
                   <div className="p-1">
-                    <button
-                      onClick={() => { setActiveNav('settings'); setUserDropdownOpen(false); }}
-                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
-                    >
-                      <Settings className="w-4 h-4 text-slate-400" />
-                      <span>Settings</span>
-                    </button>
+                    {(!currentUser || currentUser.role === 'super_admin') && (
+                      <button
+                        onClick={() => { setActiveNav('team'); setUserDropdownOpen(false); if (token) fetchTeamMembers(token); }}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-emerald-600 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                      >
+                        <Users className="w-4 h-4 text-emerald-600" />
+                        <span>Team Management</span>
+                      </button>
+                    )}
+                    {(!currentUser || currentUser.role === 'super_admin') && (
+                      <button
+                        onClick={() => { setActiveNav('settings'); setUserDropdownOpen(false); }}
+                        className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                      >
+                        <Settings className="w-4 h-4 text-slate-400" />
+                        <span>Settings</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => { setActiveNav('media'); setUserDropdownOpen(false); }}
                       className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
@@ -3356,6 +3533,217 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </div>
           )}
 
+          {/* VIEW 8: Team Management & RBAC */}
+          {activeNav === 'team' && (
+            <div className="space-y-8">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-sans tracking-tight flex items-center gap-2.5">
+                    <Users className="w-7 h-7 text-emerald-600" />
+                    <span>Team Management & Roles</span>
+                  </h1>
+                  <p className="text-xs text-slate-500 font-bangla mt-1">
+                    ক্লাউডফ্লেয়ার D1 ডাটাবেজে সংরক্ষিত টিম মেম্বারদের তালিকা ও রোল-ভিত্তিক অ্যাক্সেস কন্ট্রোল (RBAC)।
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { if (token) fetchTeamMembers(token); }}
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold font-bangla transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTeam ? 'animate-spin' : ''}`} />
+                    <span>রিফ্রেশ</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setTeamActionMsg({ text: '', type: '' });
+                      setIsAddMemberOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold font-sans transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-600/20"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span>+ Add New Member</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Message */}
+              {teamActionMsg.text && (
+                <div
+                  className={`p-3.5 rounded-2xl text-xs font-bangla flex items-start gap-2.5 ${
+                    teamActionMsg.type === 'success'
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                      : 'bg-rose-50 border border-rose-200 text-rose-800'
+                  }`}
+                >
+                  {teamActionMsg.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <span>{teamActionMsg.text}</span>
+                </div>
+              )}
+
+              {/* Stat Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Total Members</span>
+                  <p className="text-2xl font-black text-slate-900 font-mono mt-1">{teamMembers.length}</p>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[11px] font-bold text-purple-600 uppercase tracking-wider block flex items-center gap-1">
+                    <span>👑 Super Admin</span>
+                  </span>
+                  <p className="text-2xl font-black text-slate-900 font-mono mt-1">
+                    {teamMembers.filter(m => m.role === 'super_admin').length}
+                  </p>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wider block flex items-center gap-1">
+                    <span>✍️ Editor</span>
+                  </span>
+                  <p className="text-2xl font-black text-slate-900 font-mono mt-1">
+                    {teamMembers.filter(m => m.role === 'editor').length}
+                  </p>
+                </div>
+                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                  <span className="text-[11px] font-bold text-amber-600 uppercase tracking-wider block flex items-center gap-1">
+                    <span>📝 Author / Mod</span>
+                  </span>
+                  <p className="text-2xl font-black text-slate-900 font-mono mt-1">
+                    {teamMembers.filter(m => m.role === 'author' || m.role === 'moderator').length}
+                  </p>
+                </div>
+              </div>
+
+              {/* Members List Table */}
+              <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="text-base font-bold text-slate-900 font-sans flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-emerald-600" />
+                    <span>Active Team Directory</span>
+                  </h3>
+                  <span className="text-xs text-slate-400 font-sans">{teamMembers.length} Accounts</span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-100 bg-slate-50/50 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                        <th className="py-3 px-6">Member</th>
+                        <th className="py-3 px-6">Role & Permissions</th>
+                        <th className="py-3 px-6">Status</th>
+                        <th className="py-3 px-6">Joined Date</th>
+                        <th className="py-3 px-6 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs">
+                      {teamMembers.map(member => {
+                        const isSelf = currentUser?.id === member.id || currentUser?.username === member.username;
+                        const roleColor = {
+                          super_admin: 'bg-purple-50 text-purple-700 border-purple-200',
+                          editor: 'bg-blue-50 text-blue-700 border-blue-200',
+                          author: 'bg-amber-50 text-amber-700 border-amber-200',
+                          moderator: 'bg-rose-50 text-rose-700 border-rose-200',
+                        }[member.role] || 'bg-slate-50 text-slate-700 border-slate-200';
+
+                        const roleLabel = {
+                          super_admin: '👑 Super Admin',
+                          editor: '✍️ Editor',
+                          author: '📝 Author',
+                          moderator: '🛡️ Moderator',
+                        }[member.role] || member.role;
+
+                        return (
+                          <tr key={member.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="py-4 px-6">
+                              <div className="flex items-center gap-3">
+                                <img
+                                  src={member.avatar || '/assets/pabel_light_avatar.webp'}
+                                  alt={member.name}
+                                  className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                                />
+                                <div>
+                                  <div className="flex items-center gap-1.5 font-bold text-slate-900 font-sans">
+                                    <span>{member.name}</span>
+                                    {isSelf && (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 font-medium">You</span>
+                                    )}
+                                  </div>
+                                  <p className="text-[11px] text-slate-400 font-mono">@{member.username} • {member.email}</p>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="py-4 px-6">
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${roleColor}`}>
+                                  {roleLabel}
+                                </span>
+                                {!isSelf && (
+                                  <select
+                                    value={member.role}
+                                    onChange={(e) => handleUpdateTeamMember(member.id, { role: e.target.value })}
+                                    className="text-[11px] py-1 px-2 rounded-lg border border-slate-200 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 cursor-pointer"
+                                  >
+                                    <option value="super_admin">Super Admin</option>
+                                    <option value="editor">Editor</option>
+                                    <option value="author">Author</option>
+                                    <option value="moderator">Moderator</option>
+                                  </select>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="py-4 px-6">
+                              <button
+                                disabled={isSelf}
+                                onClick={() => handleUpdateTeamMember(member.id, { status: member.status === 'active' ? 'inactive' : 'active' })}
+                                title={isSelf ? 'নিজের স্ট্যাটাস পরিবর্তন করা সম্ভব নয়' : 'ক্লিক করে স্ট্যাটাস পরিবর্তন করুন'}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all ${
+                                  isSelf ? 'cursor-default opacity-80' : 'cursor-pointer hover:opacity-85'
+                                } ${
+                                  member.status === 'active'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : 'bg-slate-100 text-slate-500 border border-slate-200'
+                                }`}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${member.status === 'active' ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                                <span className="capitalize">{member.status}</span>
+                              </button>
+                            </td>
+
+                            <td className="py-4 px-6 text-slate-500 font-mono text-[11px]">
+                              {member.created_at ? new Date(member.created_at).toLocaleDateString('en-GB') : 'Primary'}
+                            </td>
+
+                            <td className="py-4 px-6 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {!isSelf && (
+                                  <button
+                                    onClick={() => handleDeleteTeamMember(member.id, member.name)}
+                                    title="টিম থেকে মুছে ফেলুন"
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
         </main>
       </div>
 
@@ -3887,6 +4275,155 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 <span>পজিশন সংরক্ষণ করুন</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Member Modal */}
+      {isAddMemberOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 my-8">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <UserPlus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 font-sans">Add Team Member</h3>
+                  <p className="text-[11px] text-slate-500 font-bangla">নতুন টিম মেম্বারকে অ্যাক্সেস দিন</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAddMemberOpen(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddTeamMember} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                  পূর্ণ নাম (Full Name) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  placeholder="যেমন: Tanvir Ahmed"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                    ইউজারনেম (Username) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newMemberUsername}
+                    onChange={(e) => setNewMemberUsername(e.target.value)}
+                    placeholder="যেমন: tanvir_editor"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                    ইমেইল (Official Email) *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={newMemberEmail}
+                    onChange={(e) => setNewMemberEmail(e.target.value)}
+                    placeholder="tanvir@example.com"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                  পাসওয়ার্ড (Temporary Password) *
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newMemberPassword}
+                  onChange={(e) => setNewMemberPassword(e.target.value)}
+                  placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                  অ্যাক্সেস রোল (Role & Permissions) *
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  {[
+                    { key: 'super_admin', label: '👑 Super Admin', desc: 'সকল পারমিশন, টিম ম্যানেজমেন্ট ও সেটিংস' },
+                    { key: 'editor', label: '✍️ Editor', desc: 'সব পোস্ট তৈরি/এডিট/পাবলিশ ও কমেন্ট ম্যানেজ' },
+                    { key: 'author', label: '📝 Author', desc: 'শুধুমাত্র নিজের পোস্ট তৈরি ও ড্রাফট করা' },
+                    { key: 'moderator', label: '🛡️ Moderator', desc: 'শুধুমাত্র কমেন্ট ও মেসেজ রিভিউ করা' },
+                  ].map((r) => (
+                    <label
+                      key={r.key}
+                      onClick={() => setNewMemberRole(r.key as any)}
+                      className={`p-3 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
+                        newMemberRole === r.key
+                          ? 'border-emerald-500 bg-emerald-50/50 shadow-2xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-slate-900">{r.label}</span>
+                        <input
+                          type="radio"
+                          name="memberRole"
+                          checked={newMemberRole === r.key}
+                          onChange={() => setNewMemberRole(r.key as any)}
+                          className="accent-emerald-600"
+                        />
+                      </div>
+                      <span className="text-[10px] text-slate-500 font-bangla mt-1 leading-tight">{r.desc}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddMemberOpen(false)}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingMember}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-all shadow-md shadow-emerald-600/20 cursor-pointer flex items-center gap-1.5"
+                >
+                  {isSubmittingMember ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>যুক্ত হচ্ছে...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>মেম্বার যুক্ত করুন</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

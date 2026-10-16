@@ -311,15 +311,74 @@ function jsonResponse(data, status = 200) {
 function verifyAdminAuth(request, env) {
   const authHeader = request.headers.get('Authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!token) return false;
+  if (!token) return null;
   try {
     const decoded = JSON.parse(atob(token));
     if (!decoded.u || !decoded.exp || decoded.exp < Date.now()) {
-      return false;
+      return null;
     }
-    return Boolean(decoded.u);
+    return {
+      id: decoded.id || 1,
+      u: decoded.u,
+      username: decoded.u,
+      email: decoded.email || '',
+      name: decoded.name || decoded.u,
+      role: decoded.role || 'super_admin',
+      exp: decoded.exp
+    };
   } catch (e) {
-    return false;
+    return null;
+  }
+}
+
+/**
+ * Ensure admin_users table exists and seed Super Admin if empty
+ */
+async function ensureAdminUsersTable(db) {
+  try {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        username TEXT NOT NULL UNIQUE,
+        email TEXT NOT NULL UNIQUE,
+        password TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'editor',
+        status TEXT NOT NULL DEFAULT 'active',
+        avatar TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `).run();
+
+    const countRow = await db.prepare("SELECT COUNT(*) as count FROM admin_users").first();
+    if (!countRow || countRow.count === 0) {
+      let username = 'PabelEDP';
+      let password = 'PHI1.618';
+      let email = 'ampabel.edp@gmail.com';
+      let name = 'A M Pabel';
+      let avatar = '/assets/pabel_light_avatar.webp';
+      try {
+        const uRow = await db.prepare("SELECT value FROM admin_settings WHERE key = 'admin_username'").first();
+        if (uRow && uRow.value) username = uRow.value;
+        const pRow = await db.prepare("SELECT value FROM admin_settings WHERE key = 'admin_password'").first();
+        if (pRow && pRow.value) password = pRow.value;
+        const profRow = await db.prepare("SELECT value FROM admin_settings WHERE key = 'admin_profile'").first();
+        if (profRow && profRow.value) {
+          const prof = JSON.parse(profRow.value);
+          if (prof.name) name = prof.name;
+          if (prof.email) email = prof.email;
+          if (prof.avatar) avatar = prof.avatar;
+        }
+      } catch (e) {}
+
+      await db.prepare(`
+        INSERT INTO admin_users (name, username, email, password, role, status, avatar)
+        VALUES (?, ?, ?, ?, 'super_admin', 'active', ?)
+      `).bind(name, username, email, password, avatar).run();
+    }
+  } catch (err) {
+    console.error('ensureAdminUsersTable error:', err);
   }
 }
 
@@ -371,47 +430,80 @@ async function handleBlogApi(request, env, ctx, url) {
   if (pathname === '/api/blog/auth/login' && request.method === 'POST') {
     try {
       const { username, password } = await request.json();
-      let expectedUsername = 'admin';
-      let expectedPassword = env.BLOG_ADMIN_PASSWORD || 'banglish@2026';
-      let usernameChanged = 0;
+      const input = (username || '').trim().toLowerCase();
+      const inputPass = (password || '');
 
-      if (env.DB) {
-        try {
-          const userRow = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_username'").first();
-          if (userRow && userRow.value) {
-            expectedUsername = userRow.value.trim();
-          }
-          const changedRow = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'username_changed'").first();
-          if (changedRow && changedRow.value) {
-            usernameChanged = Number(changedRow.value);
-          }
-          const customPass = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_password'").first();
-          if (customPass && customPass.value) {
-            expectedPassword = customPass.value;
-          }
-        } catch (e) {}
+      if (!input || !inputPass) {
+        return jsonResponse({ success: false, error: 'ইউজারনেম ও পাসওয়ার্ড প্রদান করুন' }, 400);
       }
 
-      const inputUser = (username || '').trim();
-      if (inputUser === expectedUsername && password === expectedPassword) {
-        // Issue 7-day token
-        const token = btoa(
-          JSON.stringify({
-            u: expectedUsername,
-            exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
-          })
-        );
+      if (env.DB) {
+        await ensureAdminUsersTable(env.DB);
+
+        // Find user by username or email
+        const user = await env.DB.prepare(
+          "SELECT * FROM admin_users WHERE (LOWER(username) = ? OR LOWER(email) = ?) LIMIT 1"
+        ).bind(input, input).first();
+
+        if (user) {
+          if (user.status !== 'active') {
+            return jsonResponse({
+              success: false,
+              error: 'আপনার অ্যাকাউন্টটি নিষ্ক্রিয় (Inactive) করা হয়েছে। সুপার অ্যাডমিনের সাথে যোগাযোগ করুন।'
+            }, 403);
+          }
+
+          if (user.password !== inputPass) {
+            return jsonResponse({ success: false, error: 'ভুল ইউজারনেম বা পাসওয়ার্ড' }, 401);
+          }
+
+          // Issue 7-day token
+          const token = btoa(
+            JSON.stringify({
+              id: user.id,
+              u: user.username,
+              email: user.email,
+              name: user.name,
+              role: user.role,
+              exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
+            })
+          );
+
+          let usernameChanged = 1;
+          try {
+            const changedRow = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'username_changed'").first();
+            if (changedRow && changedRow.value) usernameChanged = Number(changedRow.value);
+          } catch(e) {}
+
+          return jsonResponse({
+            success: true,
+            token,
+            user: { 
+              id: user.id,
+              name: user.name,
+              username: user.username, 
+              email: user.email,
+              role: user.role,
+              avatar: user.avatar || '/assets/pabel_light_avatar.webp',
+              isDefaultCredentials: (user.username === 'admin' && user.password === 'banglish@2026'),
+              usernameChanged: usernameChanged === 1
+            },
+          });
+        }
+      }
+
+      // Fallback for emergency single-admin credentials if DB has no match
+      let expectedUsername = 'admin';
+      let expectedPassword = env.BLOG_ADMIN_PASSWORD || 'banglish@2026';
+      if (input === expectedUsername.toLowerCase() && inputPass === expectedPassword) {
+        const token = btoa(JSON.stringify({ id: 1, u: expectedUsername, role: 'super_admin', exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }));
         return jsonResponse({
           success: true,
           token,
-          user: { 
-            username: expectedUsername, 
-            role: 'admin',
-            isDefaultCredentials: (expectedUsername === 'admin' && expectedPassword === 'banglish@2026'),
-            usernameChanged: usernameChanged === 1
-          },
+          user: { id: 1, name: 'Admin', username: expectedUsername, role: 'super_admin', isDefaultCredentials: true, usernameChanged: false },
         });
       }
+
       return jsonResponse({ success: false, error: 'ভুল ইউজারনেম বা পাসওয়ার্ড' }, 401);
     } catch (e) {
       return jsonResponse({ success: false, error: 'Bad Request' }, 400);
@@ -429,21 +521,34 @@ async function handleBlogApi(request, env, ctx, url) {
       const { email } = await request.json();
       const inputEmail = (email || '').trim().toLowerCase();
 
-      // Get registered admin email from admin_settings or fallback
-      let registeredEmail = 'ampabel.edp@gmail.com';
-      try {
-        const adminRow = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_profile'").first();
-        if (adminRow && adminRow.value) {
-          const prof = JSON.parse(adminRow.value);
-          if (prof.email) registeredEmail = prof.email.trim().toLowerCase();
-        }
-      } catch (e) {}
+      // Find registered active admin user by email
+      await ensureAdminUsersTable(env.DB);
+      let targetUser = await env.DB.prepare(
+        "SELECT * FROM admin_users WHERE LOWER(email) = ? AND status = 'active'"
+      ).bind(inputEmail).first();
 
-      if (!inputEmail || inputEmail !== registeredEmail) {
-        return jsonResponse({
-          success: false,
-          error: 'প্রদত্ত ইমেইলটি নিবন্ধিত অ্যাডমিন ইমেইলের সাথে মেলেনি।'
-        }, 400);
+      let registeredEmail = targetUser ? targetUser.email : null;
+      let userName = targetUser ? targetUser.name : 'A M Pabel';
+
+      if (!registeredEmail) {
+        // Fallback check in admin_settings for primary admin
+        let fallbackEmail = 'ampabel.edp@gmail.com';
+        try {
+          const adminRow = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_profile'").first();
+          if (adminRow && adminRow.value) {
+            const prof = JSON.parse(adminRow.value);
+            if (prof.email) fallbackEmail = prof.email.trim().toLowerCase();
+          }
+        } catch (e) {}
+
+        if (inputEmail === fallbackEmail) {
+          registeredEmail = fallbackEmail;
+        } else {
+          return jsonResponse({
+            success: false,
+            error: 'প্রদত্ত ইমেইলটি নিবন্ধিত কোনো সক্রিয় অ্যাডমিন অ্যাকাউন্টের সাথে মেলেনি।'
+          }, 400);
+        }
       }
 
       // Invalidate any previous unused tokens for this email to enforce single-active token
@@ -609,7 +714,13 @@ async function handleBlogApi(request, env, ctx, url) {
         }, 400);
       }
 
-      // Update admin password in admin_settings
+      // Update password in admin_users table
+      await ensureAdminUsersTable(env.DB);
+      await env.DB.prepare(
+        "UPDATE admin_users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE LOWER(email) = ?"
+      ).bind(newPassword, resetRow.email.toLowerCase()).run();
+
+      // Also update admin_settings fallback
       await env.DB.prepare(
         "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('admin_password', ?, CURRENT_TIMESTAMP)"
       ).bind(newPassword).run();
@@ -748,8 +859,12 @@ async function handleBlogApi(request, env, ctx, url) {
 
   // 4. Create Post: POST /api/blog/posts
   if (pathname === '/api/blog/posts' && request.method === 'POST') {
-    if (!verifyAdminAuth(request, env)) {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role === 'moderator') {
+      return jsonResponse({ success: false, error: 'মডারেটরদের নতুন পোস্ট তৈরি করার অনুমতি নেই।' }, 403);
     }
     try {
       const body = await request.json();
@@ -814,11 +929,22 @@ async function handleBlogApi(request, env, ctx, url) {
   // 5. Update Post: PUT /api/blog/posts/:id
   const putMatch = pathname.match(/^\/api\/blog\/posts\/(\d+)$/);
   if (putMatch && request.method === 'PUT') {
-    if (!verifyAdminAuth(request, env)) {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role === 'moderator') {
+      return jsonResponse({ success: false, error: 'মডারেটরদের ব্লগ পোস্ট সম্পাদনা করার অনুমতি নেই।' }, 403);
     }
     const postId = parseInt(putMatch[1], 10);
     try {
+      if (auth.role === 'author') {
+        const post = await env.DB.prepare('SELECT author_name FROM blog_posts WHERE id = ?').bind(postId).first();
+        if (post && post.author_name && post.author_name.toLowerCase() !== auth.name.toLowerCase() && post.author_name.toLowerCase() !== auth.u.toLowerCase()) {
+          return jsonResponse({ success: false, error: 'Author শুধুমাত্র নিজের লেখা পোস্ট সম্পাদনা করতে পারবেন।' }, 403);
+        }
+      }
+
       const body = await request.json();
       const tagsStr = Array.isArray(body.tags) ? body.tags.join(', ') : (body.tags || '');
 
@@ -859,11 +985,21 @@ async function handleBlogApi(request, env, ctx, url) {
   // 6. Delete Post: DELETE /api/blog/posts/:id
   const delMatch = pathname.match(/^\/api\/blog\/posts\/(\d+)$/);
   if (delMatch && request.method === 'DELETE') {
-    if (!verifyAdminAuth(request, env)) {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role === 'moderator') {
+      return jsonResponse({ success: false, error: 'মডারেটরদের ব্লগ পোস্ট মোছার অনুমতি নেই।' }, 403);
     }
     const postId = parseInt(delMatch[1], 10);
     try {
+      if (auth.role === 'author') {
+        const post = await env.DB.prepare('SELECT author_name FROM blog_posts WHERE id = ?').bind(postId).first();
+        if (post && post.author_name && post.author_name.toLowerCase() !== auth.name.toLowerCase() && post.author_name.toLowerCase() !== auth.u.toLowerCase()) {
+          return jsonResponse({ success: false, error: 'Author শুধুমাত্র নিজের লেখা পোস্ট মুছতে পারবেন।' }, 403);
+        }
+      }
       await env.DB.prepare('DELETE FROM blog_posts WHERE id = ?').bind(postId).run();
       return jsonResponse({ success: true, message: 'পোস্ট মুছে ফেলা হয়েছে' });
     } catch (err) {
@@ -1011,8 +1147,12 @@ async function handleBlogApi(request, env, ctx, url) {
   // 11. Admin Reply to Comment: PUT /api/blog/admin/comments/:id/reply
   const replyMatch = pathname.match(/^\/api\/blog\/admin\/comments\/(\d+)\/reply$/);
   if (replyMatch && request.method === 'PUT') {
-    if (!verifyAdminAuth(request, env)) {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role === 'author') {
+      return jsonResponse({ success: false, error: 'Author কমেন্টে উত্তর দেওয়ার পারমিশন রাখে না।' }, 403);
     }
     const commentId = parseInt(replyMatch[1], 10);
     try {
@@ -1032,8 +1172,12 @@ async function handleBlogApi(request, env, ctx, url) {
   // 12. Admin Delete Comment: DELETE /api/blog/admin/comments/:id
   const commentDelMatch = pathname.match(/^\/api\/blog\/admin\/comments\/(\d+)$/);
   if (commentDelMatch && request.method === 'DELETE') {
-    if (!verifyAdminAuth(request, env)) {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role === 'author') {
+      return jsonResponse({ success: false, error: 'Author কমেন্ট মোছার পারমিশন রাখে না।' }, 403);
     }
     const commentId = parseInt(commentDelMatch[1], 10);
     try {
@@ -1260,6 +1404,15 @@ async function handleBlogApi(request, env, ctx, url) {
         "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('username_changed', '1', CURRENT_TIMESTAMP)"
       ).run();
 
+      // Also update in admin_users for current admin
+      await ensureAdminUsersTable(env.DB);
+      const authUser = verifyAdminAuth(request, env);
+      if (authUser && authUser.id) {
+        await env.DB.prepare(
+          "UPDATE admin_users SET username = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        ).bind(trimmed, authUser.id).run();
+      }
+
       return jsonResponse({
         success: true,
         message: 'ইউজারনেম সফলভাবে পরিবর্তন ও লক করা হয়েছে!',
@@ -1273,8 +1426,12 @@ async function handleBlogApi(request, env, ctx, url) {
 
   // 19. Save Settings: POST /api/blog/admin/settings
   if (pathname === '/api/blog/admin/settings' && request.method === 'POST') {
-    if (!verifyAdminAuth(request, env)) {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin সিস্টেম প্রোফাইল পরিবর্তন করতে পারবেন।' }, 403);
     }
     try {
       const { adminProfile, authorProfile } = await request.json();
@@ -1282,6 +1439,14 @@ async function handleBlogApi(request, env, ctx, url) {
         await env.DB.prepare(
           "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('admin_profile', ?, CURRENT_TIMESTAMP)"
         ).bind(JSON.stringify(adminProfile)).run();
+
+        // Sync admin name/email to admin_users
+        if (adminProfile.name || adminProfile.email) {
+          await ensureAdminUsersTable(env.DB);
+          await env.DB.prepare(
+            "UPDATE admin_users SET name = COALESCE(?, name), email = COALESCE(?, email), avatar = COALESCE(?, avatar), updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+          ).bind(adminProfile.name || null, adminProfile.email || null, adminProfile.avatar || null, auth.id).run();
+        }
       }
       if (authorProfile) {
         await env.DB.prepare(
@@ -1312,7 +1477,8 @@ async function handleBlogApi(request, env, ctx, url) {
 
   // 20. Change Password: POST /api/blog/admin/change-password
   if (pathname === '/api/blog/admin/change-password' && request.method === 'POST') {
-    if (!verifyAdminAuth(request, env)) {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
     }
     try {
@@ -1321,21 +1487,212 @@ async function handleBlogApi(request, env, ctx, url) {
         return jsonResponse({ success: false, error: 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' }, 400);
       }
 
+      await ensureAdminUsersTable(env.DB);
+      let userRow = await env.DB.prepare("SELECT * FROM admin_users WHERE id = ?").bind(auth.id).first();
+      if (!userRow) {
+        userRow = await env.DB.prepare("SELECT * FROM admin_users WHERE LOWER(username) = ?").bind(auth.u.toLowerCase()).first();
+      }
+
       let expectedPassword = env.BLOG_ADMIN_PASSWORD || 'banglish@2026';
-      const customPass = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_password'").first();
-      if (customPass && customPass.value) {
-        expectedPassword = customPass.value;
+      if (userRow) {
+        expectedPassword = userRow.password;
+      } else {
+        const customPass = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_password'").first();
+        if (customPass && customPass.value) expectedPassword = customPass.value;
       }
 
       if (currentPassword !== expectedPassword) {
         return jsonResponse({ success: false, error: 'বর্তমান পাসওয়ার্ডটি সঠিক নয়' }, 400);
       }
 
+      // Update in admin_users
+      if (userRow) {
+        await env.DB.prepare(
+          "UPDATE admin_users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        ).bind(newPassword, userRow.id).run();
+      }
+
+      // Also update in admin_settings for backward compatibility
       await env.DB.prepare(
         "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('admin_password', ?, CURRENT_TIMESTAMP)"
       ).bind(newPassword).run();
 
       return jsonResponse({ success: true, message: 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 20.1 Team Management: GET /api/blog/admin/team
+  if (pathname === '/api/blog/admin/team' && request.method === 'GET') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin টিম মেম্বারদের তালিকা দেখার অধিকার রাখেন।' }, 403);
+    }
+    try {
+      await ensureAdminUsersTable(env.DB);
+      const { results } = await env.DB.prepare(
+        "SELECT id, name, username, email, role, status, avatar, created_at, updated_at FROM admin_users ORDER BY id ASC"
+      ).all();
+      return jsonResponse({ success: true, members: results || [] });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 20.2 Add Team Member: POST /api/blog/admin/team
+  if (pathname === '/api/blog/admin/team' && request.method === 'POST') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin নতুন মেম্বার যুক্ত করতে পারবেন।' }, 403);
+    }
+    try {
+      await ensureAdminUsersTable(env.DB);
+      const { name, username, email, password, role } = await request.json();
+
+      const trimmedName = (name || '').trim();
+      const trimmedUser = (username || '').trim();
+      const trimmedEmail = (email || '').trim().toLowerCase();
+      const trimmedPass = (password || '').trim();
+      const targetRole = ['super_admin', 'editor', 'author', 'moderator'].includes(role) ? role : 'editor';
+
+      if (!trimmedName) return jsonResponse({ success: false, error: 'টিম মেম্বারের পূর্ণ নাম আবশ্যক।' }, 400);
+      if (!/^[a-zA-Z0-9_-]{3,24}$/.test(trimmedUser)) {
+        return jsonResponse({ success: false, error: 'ইউজারনেম ৩-২৪ অক্ষরের হতে হবে (শুধুমাত্র ইংরেজি বর্ণ, সংখ্যা, _ এবং - গ্রহণযোগ্য)।' }, 400);
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+        return jsonResponse({ success: false, error: 'সঠিক ইমেইল অ্যাড্রেস প্রদান করুন।' }, 400);
+      }
+      if (!trimmedPass || trimmedPass.length < 6) {
+        return jsonResponse({ success: false, error: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।' }, 400);
+      }
+
+      // Check duplicates
+      const existingUser = await env.DB.prepare(
+        "SELECT id, username, email FROM admin_users WHERE LOWER(username) = ? OR LOWER(email) = ?"
+      ).bind(trimmedUser.toLowerCase(), trimmedEmail).first();
+
+      if (existingUser) {
+        if (existingUser.username.toLowerCase() === trimmedUser.toLowerCase()) {
+          return jsonResponse({ success: false, error: 'এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত হয়েছে।' }, 400);
+        }
+        return jsonResponse({ success: false, error: 'এই ইমেইলটি ইতিমধ্যে ব্যবহৃত হয়েছে।' }, 400);
+      }
+
+      const res = await env.DB.prepare(`
+        INSERT INTO admin_users (name, username, email, password, role, status, avatar)
+        VALUES (?, ?, ?, ?, ?, 'active', '/assets/pabel_light_avatar.webp')
+      `).bind(trimmedName, trimmedUser, trimmedEmail, trimmedPass, targetRole).run();
+
+      return jsonResponse({
+        success: true,
+        message: `নতুন টিম মেম্বার "${trimmedName}" (${targetRole}) সফলভাবে যুক্ত করা হয়েছে!`,
+        member: {
+          id: res.meta?.last_row_id,
+          name: trimmedName,
+          username: trimmedUser,
+          email: trimmedEmail,
+          role: targetRole,
+          status: 'active'
+        }
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 20.3 Update Team Member: PUT /api/blog/admin/team
+  if (pathname === '/api/blog/admin/team' && request.method === 'PUT') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin মেম্বার এডিট বা রোল পরিবর্তন করতে পারবেন।' }, 403);
+    }
+    try {
+      await ensureAdminUsersTable(env.DB);
+      const { id, role, status, password, name } = await request.json();
+      if (!id) return jsonResponse({ success: false, error: 'মেম্বার আইডি আবশ্যক।' }, 400);
+
+      const target = await env.DB.prepare("SELECT * FROM admin_users WHERE id = ?").bind(id).first();
+      if (!target) return jsonResponse({ success: false, error: 'মেম্বার খুঁজে পাওয়া যায়নি।' }, 404);
+
+      // Prevent deactivating or demoting the last super_admin
+      if (target.role === 'super_admin' && (status === 'inactive' || (role && role !== 'super_admin'))) {
+        const superCount = await env.DB.prepare(
+          "SELECT COUNT(*) as count FROM admin_users WHERE role = 'super_admin' AND status = 'active'"
+        ).first();
+        if (superCount && superCount.count <= 1) {
+          return jsonResponse({ success: false, error: 'সিস্টেমের সর্বশেষ সক্রিয় Super Admin-কে নিষ্ক্রিয় বা ডিমোট করা সম্ভব নয়।' }, 400);
+        }
+      }
+
+      let query = "UPDATE admin_users SET updated_at = CURRENT_TIMESTAMP";
+      const bindings = [];
+
+      if (role && ['super_admin', 'editor', 'author', 'moderator'].includes(role)) {
+        query += ", role = ?";
+        bindings.push(role);
+      }
+      if (status && ['active', 'inactive'].includes(status)) {
+        query += ", status = ?";
+        bindings.push(status);
+      }
+      if (name && name.trim()) {
+        query += ", name = ?";
+        bindings.push(name.trim());
+      }
+      if (password && password.trim().length >= 6) {
+        query += ", password = ?";
+        bindings.push(password.trim());
+      }
+
+      query += " WHERE id = ?";
+      bindings.push(id);
+
+      await env.DB.prepare(query).bind(...bindings).run();
+
+      return jsonResponse({
+        success: true,
+        message: 'টিম মেম্বারের তথ্য সফলভাবে আপডেট করা হয়েছে।'
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 20.4 Delete Team Member: DELETE /api/blog/admin/team
+  if (pathname === '/api/blog/admin/team' && request.method === 'DELETE') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin মেম্বার মুছতে পারবেন।' }, 403);
+    }
+    try {
+      await ensureAdminUsersTable(env.DB);
+      const urlObj = new URL(request.url);
+      const id = urlObj.searchParams.get('id');
+      if (!id) return jsonResponse({ success: false, error: 'মেম্বার আইডি আবশ্যক।' }, 400);
+
+      if (Number(id) === auth.id) {
+        return jsonResponse({ success: false, error: 'আপনি নিজের অ্যাকাউন্ট মুছতে পারবেন না।' }, 400);
+      }
+
+      const target = await env.DB.prepare("SELECT * FROM admin_users WHERE id = ?").bind(id).first();
+      if (!target) return jsonResponse({ success: false, error: 'মেম্বার খুঁজে পাওয়া যায়নি।' }, 404);
+
+      if (target.role === 'super_admin') {
+        const superCount = await env.DB.prepare(
+          "SELECT COUNT(*) as count FROM admin_users WHERE role = 'super_admin' AND status = 'active'"
+        ).first();
+        if (superCount && superCount.count <= 1) {
+          return jsonResponse({ success: false, error: 'সিস্টেমের সর্বশেষ Super Admin ডিলিট করা সম্ভব নয়।' }, 400);
+        }
+      }
+
+      await env.DB.prepare("DELETE FROM admin_users WHERE id = ?").bind(id).run();
+      return jsonResponse({ success: true, message: 'টিম মেম্বারকে সফলভাবে মুছে ফেলা হয়েছে।' });
     } catch (err) {
       return jsonResponse({ success: false, error: err.message }, 500);
     }
