@@ -203,11 +203,19 @@ export default function AdminBlogPage() {
 
   // Real Analytics State
   const [analytics, setAnalytics] = useState<AnalyticsData>({
-    totalVisits: 120,
-    todayVisits: 8,
+    totalVisits: 0,
+    todayVisits: 0,
     monthly: [],
     topPosts: [],
   });
+
+  // Username Customization & Security Prompt
+  const [adminUsername, setAdminUsername] = useState('admin');
+  const [usernameChanged, setUsernameChanged] = useState(false);
+  const [newAdminUsername, setNewAdminUsername] = useState('admin');
+  const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
+  const [usernameMsg, setUsernameMsg] = useState({ text: '', type: '' });
+  const [showSecurityPrompt, setShowSecurityPrompt] = useState(false);
 
   // Settings State: Admin Profile, Author Profile, Password Change
   const [adminProfile, setAdminProfile] = useState<AdminProfile>({
@@ -829,9 +837,63 @@ export default function AdminBlogPage() {
         if (data.success && data.settings) {
           if (data.settings.adminProfile) setAdminProfile(data.settings.adminProfile);
           if (data.settings.authorProfile) setAuthorProfile(data.settings.authorProfile);
+          if (data.settings.adminUsername) {
+            setAdminUsername(data.settings.adminUsername);
+            setNewAdminUsername(data.settings.adminUsername);
+          }
+          if (typeof data.settings.usernameChanged !== 'undefined') {
+            const hasChanged = data.settings.usernameChanged === 1;
+            setUsernameChanged(hasChanged);
+            if (!hasChanged && !sessionStorage.getItem('dismiss_security_warning')) {
+              setShowSecurityPrompt(true);
+            }
+          }
         }
       }
     } catch (e) {}
+  };
+
+  // One-Time Admin Username Update
+  const handleUpdateUsername = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUsernameMsg({ text: '', type: '' });
+    if (!token) return;
+    if (usernameChanged) {
+      setUsernameMsg({ text: 'ইউজারনেম ইতিমধ্যে একবার পরিবর্তন করা হয়েছে এবং এটি স্থায়ীভাবে লক করা।', type: 'error' });
+      return;
+    }
+    const cleanUser = newAdminUsername.trim();
+    if (!cleanUser || cleanUser.length < 3) {
+      setUsernameMsg({ text: 'ইউজারনেম কমপক্ষে ৩ অক্ষরের হতে হবে।', type: 'error' });
+      return;
+    }
+    if (!confirm(`সতর্কতা: আপনি কি নিশ্চিত যে আপনার অ্যাডমিন ইউজারনেম "${cleanUser}" এ পরিবর্তন করতে চান? মনে রাখবেন, এটি শুধুমাত্র একবারই পরিবর্তন করা সম্ভব এবং পরবর্তীতে আর কখনো পরিবর্তন করা যাবে না!`)) {
+      return;
+    }
+    setIsUpdatingUsername(true);
+    try {
+      const res = await fetch('/api/blog/admin/update-username', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ newUsername: cleanUser })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAdminUsername(data.username);
+        setUsernameChanged(true);
+        setShowSecurityPrompt(false);
+        setUsernameMsg({ text: 'ইউজারনেম সফলভাবে পরিবর্তন ও লক করা হয়েছে! ভবিষ্যতে লগইন করার সময় এই ইউজারনেম ব্যবহার করুন।', type: 'success' });
+      } else {
+        setUsernameMsg({ text: data.error || 'ইউজারনেম পরিবর্তন ব্যর্থ হয়েছে', type: 'error' });
+      }
+    } catch (err: any) {
+      setUsernameMsg({ text: 'সার্ভারে সমস্যা হয়েছে', type: 'error' });
+    } finally {
+      setIsUpdatingUsername(false);
+    }
   };
 
   // Save Settings
@@ -1378,13 +1440,12 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
               <X className="w-5 h-5" />
             </button>
 
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shadow-xs">
                 <Mail className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900 font-sans">পাসওয়ার্ড রিসেট (Forgot Password)</h3>
-                <p className="text-xs text-slate-500 font-bangla">নিবন্ধিত ইমেইলে রিসেট লিংক পাঠানো হবে</p>
+                <h3 className="text-xl font-extrabold text-slate-900 font-sans tracking-tight">Forgot Password</h3>
               </div>
             </div>
 
@@ -1407,8 +1468,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
             <form onSubmit={handleRequestResetLink} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5 font-bangla">
-                  অ্যাডমিন ইমেইল ঠিকানা (Admin Email)
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5 font-sans">
+                  Admin Email Address
                 </label>
                 <input
                   type="email"
@@ -1416,10 +1477,10 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                   onChange={(e) => setForgotEmailInput(e.target.value)}
                   placeholder="ampabel.edp@gmail.com"
                   required
-                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm font-sans transition-all"
+                  className="w-full px-4 py-3 rounded-2xl bg-slate-50 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm font-sans transition-all"
                 />
-                <p className="text-[11px] text-slate-400 mt-1 font-bangla">
-                  শুধুমাত্র অনুমোদিত অ্যাডমিন ইমেইলে রিসেট লিংকটি পাঠানো হবে।
+                <p className="text-[11px] text-slate-400 mt-1.5 font-sans">
+                  A one-time secure password reset link will be dispatched to your registered address.
                 </p>
               </div>
 
@@ -1427,24 +1488,24 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 <button
                   type="button"
                   onClick={() => { setForgotModalOpen(false); setForgotMsg({ text: '', type: '' }); }}
-                  className="flex-1 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition-all cursor-pointer"
+                  className="flex-1 py-3 rounded-2xl border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold transition-all cursor-pointer font-sans"
                 >
-                  বাতিল
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSendingReset}
-                  className="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-md shadow-emerald-600/25 flex items-center justify-center gap-2 cursor-pointer font-sans"
                 >
                   {isSendingReset ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>পাঠানো হচ্ছে...</span>
+                      <span>Sending...</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-4 h-4" />
-                      <span>রিসেট লিংক পাঠান</span>
+                      <span>Send Reset Link</span>
                     </>
                   )}
                 </button>
@@ -1933,6 +1994,47 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 </button>
               </div>
 
+              {/* First-Time Security Recommendation Banner */}
+              {showSecurityPrompt && (
+                <div className="bg-gradient-to-r from-emerald-50 via-teal-50/70 to-emerald-50 border border-emerald-200/90 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-extrabold text-slate-900 font-sans flex items-center gap-2">
+                        <span>নিরাপত্তা সুপারিশ (Security Notice)</span>
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                          Recommended
+                        </span>
+                      </h4>
+                      <p className="text-xs text-slate-600 font-bangla mt-1 leading-relaxed">
+                        আপনি ডিফল্ট ইউজারনেম ব্যবহার করছেন। অ্যাকাউন্টের সর্বোচ্চ সুরক্ষার জন্য এখনই আপনার পছন্দমতো ব্যক্তিগত ইউজারনেম এবং শক্তিশালী পাসওয়ার্ড সেট করে নিন।
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-auto">
+                    <button
+                      onClick={() => { setActiveNav('settings'); setShowSecurityPrompt(false); }}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-bangla transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>সেটিংসে পরিবর্তন করুন</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowSecurityPrompt(false);
+                        sessionStorage.setItem('dismiss_security_warning', '1');
+                      }}
+                      className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-white/80 transition-colors cursor-pointer"
+                      title="এখন নয়"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Top 5 Metrics Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5 items-stretch">
                 
@@ -2057,18 +2159,20 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                         {/* Stat 1: Total / New Visitors */}
                         <div>
                           <span className="text-2xl sm:text-3xl font-black text-slate-900 font-sans block leading-none">
-                            {analytics.totalVisits >= 1000 ? `${(analytics.totalVisits / 1000).toFixed(0)}K` : analytics.totalVisits || '250K'}
+                            {analytics.totalVisits >= 1000 
+                              ? `${(analytics.totalVisits / 1000).toFixed(1)}K` 
+                              : (analytics.totalVisits > 0 ? analytics.totalVisits : totalViews)}
                           </span>
-                          <span className="text-xs text-slate-400 font-medium mt-1.5 block">New Visitors</span>
+                          <span className="text-xs text-slate-400 font-medium mt-1.5 block">Total Visitors</span>
                         </div>
 
                         {/* Stat 2: Visitors Increase % */}
                         <div>
                           <span className="text-2xl sm:text-3xl font-black text-emerald-500 font-sans flex items-center gap-1 leading-none">
-                            <span>{analytics.increasePct || '2.5%'}</span>
+                            <span>{analytics.increasePct || '100%'}</span>
                             <span className="text-xl">↑</span>
                           </span>
-                          <span className="text-xs text-slate-400 font-medium mt-1.5 block">Visitors Increase</span>
+                          <span className="text-xs text-slate-400 font-medium mt-1.5 block">Growth Rate</span>
                         </div>
 
                         {/* Pill Toggle: D, M, Y */}
@@ -2568,65 +2672,6 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 </div>
               </div>
 
-              {/* Google Search Console & Analytics Integration Hub */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Search Console Card */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center text-amber-600 font-bold">
-                        G
-                      </div>
-                      <h4 className="font-bold text-slate-900 text-sm font-sans">Google Search Console</h4>
-                    </div>
-                    <p className="text-xs text-slate-500 font-bangla leading-relaxed">
-                      গুগল সার্চে আপনার ব্লগের ইমপ্রেশন, ক্লিক, কিওয়ার্ড র‍্যাঙ্কিং এবং ইনডেক্সিং স্ট্যাটাস দেখুন।
-                    </p>
-                  </div>
-
-                  <div className="pt-2">
-                    <a
-                      href="https://search.google.com/search-console"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold font-bangla transition-all shadow-xs cursor-pointer"
-                    >
-                      <span>Search Console খুলুন</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                </div>
-
-                {/* Google Analytics Card */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 font-bold">
-                        GA
-                      </div>
-                      <h4 className="font-bold text-slate-900 text-sm font-sans">Google Analytics 4 (GA4)</h4>
-                    </div>
-                    <p className="text-xs text-slate-500 font-bangla leading-relaxed">
-                      লাইভ রিয়েলটাইম ইউজার, বাউন্স রেট, ডিভাইস (মোবাইল/পিসি) ও দেশভিত্তিক বিস্তারিত অ্যানালিটিক্স রিপোর্ট।
-                    </p>
-                  </div>
-
-                  <div className="pt-2">
-                    <a
-                      href="https://analytics.google.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold font-bangla transition-all shadow-xs cursor-pointer"
-                    >
-                      <span>Google Analytics খুলুন</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                </div>
-
-              </div>
-
             </div>
           )}
 
@@ -3083,89 +3128,199 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                   </div>
                 </div>
 
-                {/* Section 2: Password */}
-                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
-                  <h2 className="text-lg font-bold text-slate-900 font-sans border-b border-slate-100 pb-3">
-                    Password
-                  </h2>
-                </div>
+                {/* Section 2: Security, Username & Password */}
+                <div className="space-y-8">
+                  {/* Card 1: Username (One-Time Update) */}
+                  <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-5">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h2 className="text-lg font-bold text-slate-900 font-sans flex items-center gap-2">
+                        <User className="w-5 h-5 text-emerald-600" />
+                        <span>Username</span>
+                      </h2>
+                      {usernameChanged ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold border border-slate-200">
+                          <Lock className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Locked</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+                          <span>1 Change Allowed</span>
+                        </span>
+                      )}
+                    </div>
 
-                {passwordMsg.success && (
-                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bangla flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{passwordMsg.success}</span>
+                    {usernameMsg.text && (
+                      <div
+                        className={`p-3.5 rounded-2xl text-xs font-bangla flex items-start gap-2.5 ${
+                          usernameMsg.type === 'success'
+                            ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                            : 'bg-rose-50 border border-rose-200 text-rose-800'
+                        }`}
+                      >
+                        {usernameMsg.type === 'success' ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        )}
+                        <span>{usernameMsg.text}</span>
+                      </div>
+                    )}
+
+                    {usernameChanged ? (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5 font-sans">
+                            Current Username
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              disabled
+                              value={adminUsername}
+                              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-500 text-sm font-mono cursor-not-allowed"
+                            />
+                            <Lock className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-400 font-bangla leading-relaxed flex items-center gap-1.5">
+                          <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>আপনার অ্যাকাউন্টের ইউজারনেম একবার পরিবর্তন করার পর স্থায়ীভাবে লক করা হয়েছে।</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <form onSubmit={handleUpdateUsername} className="space-y-4">
+                        <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200/80 text-amber-900 text-xs font-bangla leading-relaxed flex items-start gap-2.5">
+                          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <span>
+                            <strong>সতর্কতা:</strong> আপনি শুধুমাত্র <strong>একবারই</strong> আপনার অ্যাডমিন ইউজারনেম পরিবর্তন করতে পারবেন। একবার সেভ করার পর এটি আর পরিবর্তন করা যাবে না।
+                          </span>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5 font-sans">
+                            New Username (নতুন ইউজারনেম)
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            minLength={3}
+                            value={newAdminUsername}
+                            onChange={(e) => setNewAdminUsername(e.target.value)}
+                            placeholder="যেমন: pabel_admin"
+                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                          />
+                          <p className="text-[11px] text-slate-400 mt-1 font-sans">
+                            Only English letters, numbers, and symbols (_ . -) are allowed.
+                          </p>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isUpdatingUsername}
+                          className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs font-bangla transition-all cursor-pointer shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2"
+                        >
+                          {isUpdatingUsername ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>সংরক্ষণ ও লক করা হচ্ছে...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>ইউজারনেম সেভ ও লক করুন (একবার পরিবর্তনযোগ্য)</span>
+                            </>
+                          )}
+                        </button>
+                      </form>
+                    )}
                   </div>
-                )}
 
-                {passwordMsg.error && (
-                  <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bangla flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                    <span>{passwordMsg.error}</span>
+                  {/* Card 2: Password */}
+                  <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+                    <h2 className="text-lg font-bold text-slate-900 font-sans border-b border-slate-100 pb-3 flex items-center gap-2">
+                      <Key className="w-5 h-5 text-emerald-600" />
+                      <span>Password</span>
+                    </h2>
+
+                    {passwordMsg.success && (
+                      <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bangla flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{passwordMsg.success}</span>
+                      </div>
+                    )}
+
+                    {passwordMsg.error && (
+                      <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bangla flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>{passwordMsg.error}</span>
+                      </div>
+                    )}
+
+                    <form onSubmit={handleChangePassword} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                          বর্তমান পাসওয়ার্ড (Current Password)
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          value={currentPassword}
+                          onChange={e => setCurrentPassword(e.target.value)}
+                          placeholder="••••••••••••"
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                          নতুন পাসওয়ার্ড (New Password)
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          minLength={6}
+                          value={newPassword}
+                          onChange={e => setNewPassword(e.target.value)}
+                          placeholder="কমপক্ষে ৬ অক্ষরের নতুন পাসওয়ার্ড"
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                          নতুন পাসওয়ার্ড নিশ্চিত করুন (Confirm Password)
+                        </label>
+                        <input
+                          type="password"
+                          required
+                          minLength={6}
+                          value={confirmPassword}
+                          onChange={e => setConfirmPassword(e.target.value)}
+                          placeholder="পুনরায় নতুন পাসওয়ার্ড লিখুন"
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs font-bangla transition-all cursor-pointer shadow-md shadow-emerald-600/20"
+                      >
+                        পাসওয়ার্ড আপডেট করুন
+                      </button>
+                    </form>
+
+                    <div className="p-4 rounded-2xl bg-emerald-50/80 border border-emerald-100 text-xs text-emerald-950 font-bangla leading-relaxed space-y-1.5">
+                      <div className="font-bold flex items-center gap-1.5 text-emerald-800">
+                        <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                        <span>ইমেইলে পাসওয়ার্ড রিসেট লিংক:</span>
+                      </div>
+                      <p className="text-slate-600">
+                        ভবিষ্যতে পাসওয়ার্ড ভুলে গেলে লগইন স্ক্রিনের &quot;পাসওয়ার্ড ভুলে গেছেন?&quot; বোতাম ব্যবহার করে আপনার নিবন্ধিত ইমেইলে (`{adminProfile.email}`) সিকিউর ওয়ান-টাইম রিসেট লিংক পাঠিয়ে পাসওয়ার্ড রিসেট করতে পারবেন।
+                      </p>
+                    </div>
                   </div>
-                )}
-
-                <form onSubmit={handleChangePassword} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
-                      বর্তমান পাসওয়ার্ড (Current Password)
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={currentPassword}
-                      onChange={e => setCurrentPassword(e.target.value)}
-                      placeholder="••••••••••••"
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
-                      নতুন পাসওয়ার্ড (New Password)
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={newPassword}
-                      onChange={e => setNewPassword(e.target.value)}
-                      placeholder="কমপক্ষে ৬ অক্ষরের নতুন পাসওয়ার্ড"
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
-                      নতুন পাসওয়ার্ড নিশ্চিত করুন (Confirm Password)
-                    </label>
-                    <input
-                      type="password"
-                      required
-                      value={confirmPassword}
-                      onChange={e => setConfirmPassword(e.target.value)}
-                      placeholder="পুনরায় নতুন পাসওয়ার্ড লিখুন"
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs font-bangla transition-all cursor-pointer shadow-md shadow-blue-600/20"
-                  >
-                    পাসওয়ার্ড আপডেট করুন
-                  </button>
-                </form>
-
-                <div className="p-4 rounded-2xl bg-blue-50 border border-blue-100 text-xs text-blue-900 font-bangla leading-relaxed space-y-1.5">
-                  <div className="font-bold flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-blue-600" />
-                    <span>ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানোর সুবিধা:</span>
-                  </div>
-                  <p className="text-slate-600">
-                    ভবিষ্যতে পাসওয়ার্ড ভুলে গেলে আপনার নিবন্ধিত ইমেইলে (`{adminProfile.email}`) সিকিউর ওয়ান-টাইম রিসেট লিংক পাঠানোর সেটআপের জন্য বিস্তারিত গাইড দেখতে পারবেন।
-                  </p>
                 </div>
               </div>
-
             </div>
           )}
 

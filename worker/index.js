@@ -317,7 +317,7 @@ function verifyAdminAuth(request, env) {
     if (!decoded.u || !decoded.exp || decoded.exp < Date.now()) {
       return false;
     }
-    return decoded.u === 'admin';
+    return Boolean(decoded.u);
   } catch (e) {
     return false;
   }
@@ -371,9 +371,20 @@ async function handleBlogApi(request, env, ctx, url) {
   if (pathname === '/api/blog/auth/login' && request.method === 'POST') {
     try {
       const { username, password } = await request.json();
+      let expectedUsername = 'admin';
       let expectedPassword = env.BLOG_ADMIN_PASSWORD || 'banglish@2026';
+      let usernameChanged = 0;
+
       if (env.DB) {
         try {
+          const userRow = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_username'").first();
+          if (userRow && userRow.value) {
+            expectedUsername = userRow.value.trim();
+          }
+          const changedRow = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'username_changed'").first();
+          if (changedRow && changedRow.value) {
+            usernameChanged = Number(changedRow.value);
+          }
           const customPass = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_password'").first();
           if (customPass && customPass.value) {
             expectedPassword = customPass.value;
@@ -381,18 +392,24 @@ async function handleBlogApi(request, env, ctx, url) {
         } catch (e) {}
       }
 
-      if (username === 'admin' && password === expectedPassword) {
+      const inputUser = (username || '').trim();
+      if (inputUser === expectedUsername && password === expectedPassword) {
         // Issue 7-day token
         const token = btoa(
           JSON.stringify({
-            u: 'admin',
+            u: expectedUsername,
             exp: Date.now() + 7 * 24 * 60 * 60 * 1000,
           })
         );
         return jsonResponse({
           success: true,
           token,
-          user: { username: 'admin', role: 'admin' },
+          user: { 
+            username: expectedUsername, 
+            role: 'admin',
+            isDefaultCredentials: (expectedUsername === 'admin' && expectedPassword === 'banglish@2026'),
+            usernameChanged: usernameChanged === 1
+          },
         });
       }
       return jsonResponse({ success: false, error: 'ভুল ইউজারনেম বা পাসওয়ার্ড' }, 401);
@@ -429,6 +446,11 @@ async function handleBlogApi(request, env, ctx, url) {
         }, 400);
       }
 
+      // Invalidate any previous unused tokens for this email to enforce single-active token
+      await env.DB.prepare(
+        "UPDATE password_resets SET used = 1 WHERE email = ? AND used = 0"
+      ).bind(registeredEmail).run();
+
       // Ensure password_resets table exists
       await env.DB.prepare(
         `CREATE TABLE IF NOT EXISTS password_resets (
@@ -463,56 +485,67 @@ async function handleBlogApi(request, env, ctx, url) {
       let emailError = null;
 
       if (resendApiKey) {
-        try {
-          const emailRes = await fetch('https://api.resend.com/emails', {
+        const emailHtml = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 24px; overflow: hidden; box-shadow: 0 10px 30px -5px rgba(0,0,0,0.06);">
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 36px 28px; text-align: center;">
+              <div style="width: 58px; height: 58px; background: #ffffff; border-radius: 18px; margin: 0 auto 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(0,0,0,0.1); padding: 5px;">
+                <img src="https://banglish.bd/assets/banglish-logo-192.png" alt="Banglish Logo" style="width: 48px; height: 48px; object-fit: contain; display: block; margin: auto;" />
+              </div>
+              <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">Banglish Admin Portal</h1>
+              <p style="color: #d1fae5; margin: 6px 0 0 0; font-size: 13px; font-weight: 500;">Admin Security Notification</p>
+            </div>
+            
+            <div style="padding: 34px 30px; color: #1e293b; line-height: 1.65;">
+              <p style="font-size: 15px; margin-top: 0; font-weight: 600;">Hello A M Pabel,</p>
+              <p style="font-size: 14px; color: #475569;">
+                A request was received to reset your Banglish Admin Portal password. To set a new password for your account, please click the button below:
+              </p>
+              
+              <div style="text-align: center; margin: 32px 0;">
+                <a href="${resetLink}" style="display: inline-block; background-color: #10b981; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 14px 34px; border-radius: 12px; box-shadow: 0 4px 14px rgba(16,185,129,0.35); letter-spacing: 0.2px;">
+                  Reset Password
+                </a>
+              </div>
+
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
+                <p style="font-size: 12px; color: #64748b; margin: 0 0 6px 0; font-weight: 600;">If the button above does not work, copy and paste this link into your browser:</p>
+                <p style="font-size: 11px; font-family: monospace; word-break: break-all; color: #059669; margin: 0;">${resetLink}</p>
+              </div>
+
+              <p style="font-size: 12px; color: #94a3b8; margin: 24px 0 0 0; padding-top: 18px; border-top: 1px solid #f1f5f9; line-height: 1.5;">
+                ⚠️ This link will expire in <strong>1 hour</strong>. If you did not make this request, please disregard this email; your current password will remain unchanged.
+              </p>
+            </div>
+
+            <div style="background-color: #f8fafc; padding: 18px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
+              © ${new Date().getFullYear()} Banglish Keyboard (banglish.bd). All rights reserved.
+            </div>
+          </div>
+        `;
+
+        // Send with custom domain first, fallback to onboarding@resend.dev if not yet verified
+        const sendAttempt = async (fromSender) => {
+          return await fetch('https://api.resend.com/emails', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${resendApiKey}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              from: 'Banglish Security <onboarding@resend.dev>',
+              from: fromSender,
               to: [registeredEmail],
-              subject: '🔐 বাংলিশ অ্যাডমিন পাসওয়ার্ড রিসেট লিংক',
-              html: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 580px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05);">
-                  <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 36px 28px; text-align: center;">
-                    <div style="width: 54px; height: 54px; background: rgba(255,255,255,0.2); border-radius: 16px; margin: 0 auto 12px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
-                      বা
-                    </div>
-                    <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px;">Banglish Admin Portal</h1>
-                    <p style="color: #d1fae5; margin: 6px 0 0 0; font-size: 13px; font-weight: 500;">অ্যাডমিন নিরাপত্তা নোটিফিকেশন</p>
-                  </div>
-                  
-                  <div style="padding: 32px 30px; color: #1e293b; line-height: 1.65;">
-                    <p style="font-size: 15px; margin-top: 0; font-weight: 600;">প্রিয় A M Pabel,</p>
-                    <p style="font-size: 14px; color: #475569;">
-                      আপনার বাংলিশ অ্যাডমিন পোর্টালের পাসওয়ার্ড রিসেট করার জন্য একটি অনুরোধ পাওয়া গেছে। আপনার অ্যাকাউন্টে নতুন পাসওয়ার্ড সেট করতে নিচের বোতামটিতে ক্লিক করুন:
-                    </p>
-                    
-                    <div style="text-align: center; margin: 32px 0;">
-                      <a href="${resetLink}" style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 14px 32px; border-radius: 12px; box-shadow: 0 4px 14px rgba(37,99,235,0.3); letter-spacing: 0.2px;">
-                        পাসওয়ার্ড রিসেট করুন (Reset Password)
-                      </a>
-                    </div>
-
-                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px;">
-                      <p style="font-size: 12px; color: #64748b; margin: 0 0 6px 0; font-weight: 600;">বোতামে কাজ না করলে নিচের লিংকটি ব্রাউজারে পেস্ট করুন:</p>
-                      <p style="font-size: 11px; font-family: monospace; word-break: break-all; color: #2563eb; margin: 0;">${resetLink}</p>
-                    </div>
-
-                    <p style="font-size: 12px; color: #94a3b8; margin: 24px 0 0 0; padding-top: 18px; border-top: 1px solid #f1f5f9; line-height: 1.5;">
-                      ⚠️ এই লিংকটির মেয়াদ আগামী <strong>১ ঘণ্টার</strong> জন্য কার্যকর থাকবে। আপনি যদি এই অনুরোধ না করে থাকেন, তবে অবিলম্বে এই ইমেইলটি উপেক্ষা করুন; আপনার বর্তমান পাসওয়ার্ড অপরিবর্তিত থাকবে।
-                    </p>
-                  </div>
-
-                  <div style="background-color: #f8fafc; padding: 18px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
-                    © ${new Date().getFullYear()} Banglish Keyboard (banglish.bd) • Secured with Cloudflare & Resend
-                  </div>
-                </div>
-              `
+              subject: 'Banglish Security',
+              html: emailHtml
             })
           });
+        };
+
+        try {
+          let emailRes = await sendAttempt('Banglish Security <security@banglish.bd>');
+          if (!emailRes.ok) {
+            // Fallback to onboarding@resend.dev if domain not yet verified in Resend
+            emailRes = await sendAttempt('Banglish Security <onboarding@resend.dev>');
+          }
 
           if (emailRes.ok) {
             emailSent = true;
@@ -583,6 +616,45 @@ async function handleBlogApi(request, env, ctx, url) {
       await env.DB.prepare(
         "UPDATE password_resets SET used = 1 WHERE id = ?"
       ).bind(resetRow.id).run();
+
+      // Send Security Confirmation Email via Resend
+      if (env.RESEND_API_KEY && resetRow.email && ctx && ctx.waitUntil) {
+        ctx.waitUntil((async () => {
+          try {
+            const alertHtml = `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 560px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 26px 20px; text-align: center;">
+                  <h2 style="color: #ffffff; margin: 0; font-size: 20px; font-weight: 800;">Banglish Security Alert</h2>
+                  <p style="color: #d1fae5; margin: 4px 0 0 0; font-size: 12px;">Password Update Confirmation</p>
+                </div>
+                <div style="padding: 28px 24px; color: #1e293b; font-size: 14px; line-height: 1.6;">
+                  <p style="margin-top: 0; font-weight: 600;">Hello A M Pabel,</p>
+                  <p>The password for your Banglish Admin account was successfully changed just now.</p>
+                  <p style="color: #64748b; font-size: 12px; margin-top: 20px; padding-top: 14px; border-top: 1px solid #f1f5f9;">
+                    If you initiated this change, no further action is required. If you did NOT make this change, please immediately use the password reset link to re-secure your account.
+                  </p>
+                </div>
+                <div style="background: #f8fafc; padding: 14px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9;">
+                  © ${new Date().getFullYear()} Banglish Keyboard (banglish.bd). All rights reserved.
+                </div>
+              </div>
+            `;
+            await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                from: 'Banglish Security <onboarding@resend.dev>',
+                to: [resetRow.email],
+                subject: 'Banglish Security: Password Changed Successfully',
+                html: alertHtml
+              })
+            });
+          } catch(e) {}
+        })());
+      }
 
       return jsonResponse({
         success: true,
@@ -1126,6 +1198,8 @@ async function handleBlogApi(request, env, ctx, url) {
       return jsonResponse({
         success: true,
         settings: {
+          adminUsername: map.admin_username || 'admin',
+          usernameChanged: Number(map.username_changed || 0),
           adminProfile: map.admin_profile ? JSON.parse(map.admin_profile) : {
             name: 'A M Pabel',
             email: 'ampabel.edp@gmail.com',
@@ -1139,6 +1213,47 @@ async function handleBlogApi(request, env, ctx, url) {
             avatar: '/assets/pabel_light_avatar.webp'
           }
         }
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 18.1 Update Admin Username (One-Time Only): POST /api/blog/admin/update-username
+  if (pathname === '/api/blog/admin/update-username' && request.method === 'POST') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    try {
+      const { newUsername } = await request.json();
+      const trimmed = (newUsername || '').trim();
+      if (!trimmed || trimmed.length < 3) {
+        return jsonResponse({ success: false, error: 'ইউজারনেম কমপক্ষে ৩ অক্ষরের হতে হবে' }, 400);
+      }
+      if (!/^[a-zA-Z0-9_.-]+$/.test(trimmed)) {
+        return jsonResponse({ success: false, error: 'ইউজারনেমে শুধুমাত্র ইংরেজি অক্ষর, সংখ্যা এবং _ . - ব্যবহার করা যাবে' }, 400);
+      }
+
+      // Check if already changed once
+      const changedRow = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'username_changed'").first();
+      if (changedRow && Number(changedRow.value) === 1) {
+        return jsonResponse({ success: false, error: 'ইউজারনেম ইতিমধ্যে একবার পরিবর্তন করা হয়েছে। এটি আর পরিবর্তন করা যাবে না।' }, 403);
+      }
+
+      // Save new username and set username_changed = 1
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('admin_username', ?, CURRENT_TIMESTAMP)"
+      ).bind(trimmed).run();
+
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('username_changed', '1', CURRENT_TIMESTAMP)"
+      ).run();
+
+      return jsonResponse({
+        success: true,
+        message: 'ইউজারনেম সফলভাবে পরিবর্তন ও লক করা হয়েছে!',
+        username: trimmed,
+        usernameChanged: 1
       });
     } catch (err) {
       return jsonResponse({ success: false, error: err.message }, 500);
