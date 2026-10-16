@@ -9,7 +9,8 @@ import { BlogPost, blogPosts as allStaticPosts } from '@/data/blogData';
 import { 
   Clock, ArrowLeft, Share2, 
   MessageCircle, Copy, Check, ChevronRight, Eye, BookOpen,
-  Heart, MessageSquare, Send, CheckCircle2, AlertCircle, RefreshCw
+  Heart, MessageSquare, Send, CheckCircle2, AlertCircle, RefreshCw,
+  Phone
 } from 'lucide-react';
 
 interface Props {
@@ -48,6 +49,15 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [commentSuccessMsg, setCommentSuccessMsg] = useState('');
   const [commentErrorMsg, setCommentErrorMsg] = useState('');
+
+  // Direct Inquiry Form State (Directly sent to Admin Portal Inbox)
+  const [directName, setDirectName] = useState('');
+  const [directCountryCode, setDirectCountryCode] = useState('+880');
+  const [directPhone, setDirectPhone] = useState('');
+  const [directMessage, setDirectMessage] = useState('');
+  const [isSubmittingDirect, setIsSubmittingDirect] = useState(false);
+  const [directSuccessMsg, setDirectSuccessMsg] = useState('');
+  const [directErrorMsg, setDirectErrorMsg] = useState('');
 
   // Visitor Hash for Likes & Analytics
   const [visitorHash, setVisitorHash] = useState('');
@@ -206,6 +216,58 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
       setCommentErrorMsg('সার্ভারের সাথে যোগাযোগ করতে সমস্যা হয়েছে');
     } finally {
       setIsSubmittingComment(false);
+    }
+  };
+
+  // Submit Direct Inquiry / Contact Message (Direct to Admin Portal Inbox)
+  const handleSubmitDirectMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDirectSuccessMsg('');
+    setDirectErrorMsg('');
+
+    if (!directName.trim()) {
+      setDirectErrorMsg('অনুগ্রহ করে আপনার নাম লিখুন');
+      return;
+    }
+
+    const cleanNumber = directPhone.replace(/\D/g, '');
+    if (!cleanNumber || cleanNumber.length < 8) {
+      setDirectErrorMsg('অনুগ্রহ করে সঠিক মোবাইল নম্বর প্রদান করুন');
+      return;
+    }
+
+    if (!directMessage.trim()) {
+      setDirectErrorMsg('অনুগ্রহ করে আপনার মেসেজ লিখুন');
+      return;
+    }
+
+    setIsSubmittingDirect(true);
+    try {
+      const fullPhone = `${directCountryCode} ${directPhone.trim()}`;
+      const res = await fetch('/api/blog/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postSlug: slug,
+          authorName: directName.trim(),
+          phoneNumber: fullPhone,
+          content: directMessage.trim(),
+          isDirect: true,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setDirectSuccessMsg(data.message || 'আপনার মেসেজটি সফলভাবে আমাদের ইনবক্সে পৌঁছেছে! আমরা শীঘ্রই আপনার নম্বরে যোগাযোগ করব।');
+        setDirectName('');
+        setDirectPhone('');
+        setDirectMessage('');
+      } else {
+        setDirectErrorMsg(data.error || 'মেসেজ পাঠাতে সমস্যা হয়েছে');
+      }
+    } catch (err) {
+      setDirectErrorMsg('সার্ভারের সাথে যোগাযোগ করতে সমস্যা হয়েছে');
+    } finally {
+      setIsSubmittingDirect(false);
     }
   };
 
@@ -521,88 +583,216 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
             )}
           </div>
 
-          {/* Comment Submission Form */}
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-sm">
-            <h4 className="font-bold text-slate-900 font-bangla text-base sm:text-lg mb-4">
-              একটি মন্তব্য লিখুন
-            </h4>
-
-            {commentSuccessMsg && (
-              <div className="mb-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bangla flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{commentSuccessMsg}</span>
-              </div>
-            )}
-
-            {commentErrorMsg && (
-              <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-sm font-bangla flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                <span>{commentErrorMsg}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmitComment} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
-                    আপনার নাম *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={commentName}
-                    onChange={e => setCommentName(e.target.value)}
-                    placeholder="আপনার নাম লিখুন"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
-                    ইমেইল (ঐচ্ছিক)
-                  </label>
-                  <input
-                    type="email"
-                    value={commentEmail}
-                    onChange={e => setCommentEmail(e.target.value)}
-                    placeholder="email@example.com"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-
+          {/* Side-by-Side Grid: Public Comments & Direct Admin Message */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            
+            {/* Column 1: Public Blog Comment Submission Form */}
+            <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-sm flex flex-col justify-between h-full">
               <div>
-                <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
-                  মন্তব্যের বিবরণ *
-                </label>
-                <textarea
-                  required
-                  rows={3}
-                  value={commentText}
-                  onChange={e => setCommentText(e.target.value)}
-                  placeholder="আর্টিকেলটি সম্পর্কে আপনার মতামত বা প্রশ্ন লিখুন..."
-                  className="w-full p-4 rounded-2xl border border-slate-200 text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 leading-relaxed"
-                />
-              </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <MessageSquare className="w-5 h-5 text-emerald-600" />
+                  <h4 className="font-bold text-slate-900 font-bangla text-base sm:text-lg">
+                    একটি মন্তব্য লিখুন
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-400 font-bangla mb-4">
+                  আপনার মন্তব্যটি ব্লগের নিচে সকলের জন্য প্রকাশিত হবে।
+                </p>
 
-              <button
-                type="submit"
-                disabled={isSubmittingComment}
-                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all shadow-md shadow-emerald-600/20 font-bangla cursor-pointer flex items-center gap-2 disabled:opacity-60"
-              >
-                {isSubmittingComment ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>পাঠানো হচ্ছে...</span>
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4" />
-                    <span>মন্তব্য প্রকাশ করুন</span>
-                  </>
+                {commentSuccessMsg && (
+                  <div className="mb-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bangla flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{commentSuccessMsg}</span>
+                  </div>
                 )}
-              </button>
-            </form>
+
+                {commentErrorMsg && (
+                  <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-sm font-bangla flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{commentErrorMsg}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmitComment} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                        আপনার নাম *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={commentName}
+                        onChange={e => setCommentName(e.target.value)}
+                        placeholder="আপনার নাম লিখুন"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                        ইমেইল (ঐচ্ছিক)
+                      </label>
+                      <input
+                        type="email"
+                        value={commentEmail}
+                        onChange={e => setCommentEmail(e.target.value)}
+                        placeholder="email@example.com"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                      মন্তব্যের বিবরণ *
+                    </label>
+                    <textarea
+                      required
+                      rows={4}
+                      value={commentText}
+                      onChange={e => setCommentText(e.target.value)}
+                      placeholder="আর্টিকেলটি সম্পর্কে আপনার মতামত বা প্রশ্ন লিখুন..."
+                      className="w-full p-4 rounded-2xl border border-slate-200 text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 leading-relaxed"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingComment}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all shadow-md shadow-emerald-600/20 font-bangla cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {isSubmittingComment ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>পাঠানো হচ্ছে...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        <span>মন্তব্য প্রকাশ করুন</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            {/* Column 2: Direct Admin Message Form with Real Mobile Validation */}
+            <div className="bg-gradient-to-br from-blue-50/70 via-white to-sky-50/40 p-6 sm:p-8 rounded-3xl border border-blue-200/80 shadow-sm flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-7 h-7 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                    <Send className="w-3.5 h-3.5" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 font-bangla text-base sm:text-lg">
+                    সরাসরি আমাদের মেসেজ পাঠান
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-500 font-bangla mb-4">
+                  আপনার মেসেজটি সরাসরি আমাদের অ্যাডমিন পোর্টালে যাবে। প্রয়োজনে যোগাযোগ করতে সঠিক মোবাইল নম্বর দিন।
+                </p>
+
+                {directSuccessMsg && (
+                  <div className="mb-4 p-4 rounded-2xl bg-blue-50 border border-blue-200 text-blue-900 text-sm font-bangla flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span>{directSuccessMsg}</span>
+                  </div>
+                )}
+
+                {directErrorMsg && (
+                  <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-sm font-bangla flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{directErrorMsg}</span>
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmitDirectMessage} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                      আপনার নাম *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={directName}
+                      onChange={e => setDirectName(e.target.value)}
+                      placeholder="আপনার নাম লিখুন"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                      মোবাইল নম্বর (বাধ্যতামূলক) *
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={directCountryCode}
+                        onChange={e => setDirectCountryCode(e.target.value)}
+                        className="px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-mono font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shrink-0"
+                      >
+                        <option value="+880">🇧🇩 +880 (BD)</option>
+                        <option value="+91">🇮🇳 +91 (IN)</option>
+                        <option value="+1">🇺🇸 +1 (US/CA)</option>
+                        <option value="+44">🇬🇧 +44 (UK)</option>
+                        <option value="+966">🇸🇦 +966 (KSA)</option>
+                        <option value="+971">🇦🇪 +971 (UAE)</option>
+                        <option value="+60">🇲🇾 +60 (MY)</option>
+                        <option value="+65">🇸🇬 +65 (SG)</option>
+                        <option value="+61">🇦🇺 +61 (AU)</option>
+                        <option value="+49">🇩🇪 +49 (DE)</option>
+                      </select>
+
+                      <input
+                        type="tel"
+                        required
+                        value={directPhone}
+                        onChange={e => setDirectPhone(e.target.value)}
+                        placeholder="017XXXXXXXX"
+                        className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                    <p className="text-[11px] text-slate-400 font-bangla mt-1">
+                      যোগাযোগের সুবিধার্থে একটি সচল ও সঠিক নম্বর প্রদান করুন।
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                      আপনার বার্তা / প্রশ্ন *
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={directMessage}
+                      onChange={e => setDirectMessage(e.target.value)}
+                      placeholder="কী বিষয়ে জানতে বা যোগাযোগ করতে চান লিখুন..."
+                      className="w-full p-4 rounded-2xl border border-slate-200 bg-white text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 leading-relaxed"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingDirect}
+                    className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm transition-all shadow-md shadow-blue-600/20 font-bangla cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {isSubmittingDirect ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>পাঠানো হচ্ছে...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>মেসেজ পাঠান</span>
+                      </>
+                    )}
+                  </button>
+                </form>
+              </div>
+            </div>
+
           </div>
         </section>
 

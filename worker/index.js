@@ -224,7 +224,17 @@ export default {
               related = relRes?.results || [];
             } catch (err) {}
 
-            return new Response(renderBlogPostHtml(post, related), {
+            // Sync with author_profile from admin_settings
+            let authorAvatar = post.author_avatar;
+            try {
+              const aRow = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'author_profile'").first();
+              if (aRow && aRow.value) {
+                const aProf = JSON.parse(aRow.value);
+                if (aProf.avatar) authorAvatar = aProf.avatar;
+              }
+            } catch (e) {}
+
+            return new Response(renderBlogPostHtml(post, related, authorAvatar), {
               status: 200,
               headers: {
                 'Content-Type': 'text/html; charset=UTF-8',
@@ -245,6 +255,23 @@ export default {
     }
 
     // 4. Default: Serve Next.js static site assets with graceful themed 404 fallback
+    // Track site-wide real-time visitor visit in Cloudflare D1
+    if (request.method === 'GET' && env.DB && ctx && ctx.waitUntil) {
+      const p = url.pathname;
+      if (!p.startsWith('/api') && !p.startsWith('/_next') && !p.startsWith('/assets') && !p.startsWith('/webhook') && !p.includes('.')) {
+        ctx.waitUntil((async () => {
+          try {
+            const today = new Date().toISOString().split('T')[0];
+            const visitorHash = request.headers.get('CF-Connecting-IP') || 'anon';
+            const ref = request.headers.get('Referer') || '';
+            await env.DB.prepare(
+              'INSERT INTO site_visits (path, visitor_hash, referrer, date_day) VALUES (?, ?, ?, ?)'
+            ).bind(p, visitorHash, ref, today).run();
+          } catch(e) {}
+        })());
+      }
+    }
+
     try {
       const res = await env.ASSETS.fetch(request);
       if (res.status === 404) {
@@ -294,6 +321,32 @@ function verifyAdminAuth(request, env) {
   } catch (e) {
     return false;
   }
+}
+
+/**
+ * Retrieve global author profile from admin_settings to guarantee real-time sync across site
+ */
+async function getGlobalAuthor(env) {
+  try {
+    if (env.DB) {
+      const row = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'author_profile'").first();
+      if (row && row.value) {
+        const parsed = JSON.parse(row.value);
+        return {
+          name: parsed.name || 'A M Pabel',
+          role: parsed.role || 'Founder, FramEmpire',
+          avatar: parsed.avatar || '/assets/pabel_light_avatar.webp',
+          bio: parsed.bio || 'Creator of Banglish Keyboard & Lead Architect at Team FramEmpire.',
+        };
+      }
+    }
+  } catch (e) {}
+  return {
+    name: 'A M Pabel',
+    role: 'Founder, FramEmpire',
+    avatar: '/assets/pabel_light_avatar.webp',
+    bio: 'Creator of Banglish Keyboard & Lead Architect at Team FramEmpire.',
+  };
 }
 
 /**
@@ -356,6 +409,7 @@ async function handleBlogApi(request, env, ctx, url) {
   // 2. Public Posts List: GET /api/blog/posts
   if (pathname === '/api/blog/posts' && request.method === 'GET') {
     try {
+      const globalAuthor = await getGlobalAuthor(env);
       const { results } = await env.DB.prepare(
         `SELECT id, slug, title, seo_title, subtitle, category, date, iso_date, 
                 read_time, featured, cover_image, cover_alt, author_name, 
@@ -365,16 +419,19 @@ async function handleBlogApi(request, env, ctx, url) {
          ORDER BY created_at DESC`
       ).all();
 
-      const formatted = (results || []).map(r => ({
-        ...r,
-        featured: Boolean(r.featured),
-        tags: typeof r.tags === 'string' ? r.tags.split(',').map(t => t.trim()).filter(Boolean) : (r.tags || []),
-        author: {
-          name: r.author_name || 'A M Pabel',
-          role: r.author_role || 'Founder, FramEmpire',
-          avatar: r.author_avatar || '/assets/pabel_light_avatar.webp',
-        },
-      }));
+      const formatted = (results || []).map(r => {
+        const isDefaultAuthor = !r.author_name || r.author_name === globalAuthor.name || r.author_name === 'A M Pabel';
+        return {
+          ...r,
+          featured: Boolean(r.featured),
+          tags: typeof r.tags === 'string' ? r.tags.split(',').map(t => t.trim()).filter(Boolean) : (r.tags || []),
+          author: {
+            name: isDefaultAuthor ? globalAuthor.name : (r.author_name || globalAuthor.name),
+            role: isDefaultAuthor ? globalAuthor.role : (r.author_role || globalAuthor.role),
+            avatar: isDefaultAuthor ? (globalAuthor.avatar || r.author_avatar) : (r.author_avatar || globalAuthor.avatar),
+          },
+        };
+      });
 
       return jsonResponse({ success: true, posts: formatted });
     } catch (err) {
@@ -389,6 +446,7 @@ async function handleBlogApi(request, env, ctx, url) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস (Unauthorized)' }, 401);
     }
     try {
+      const globalAuthor = await getGlobalAuthor(env);
       const { results } = await env.DB.prepare(
         `SELECT id, slug, title, seo_title, subtitle, category, date, iso_date, 
                 read_time, featured, cover_image, cover_alt, author_name, 
@@ -397,16 +455,19 @@ async function handleBlogApi(request, env, ctx, url) {
          ORDER BY created_at DESC`
       ).all();
 
-      const formatted = (results || []).map(r => ({
-        ...r,
-        featured: Boolean(r.featured),
-        tags: typeof r.tags === 'string' ? r.tags.split(',').map(t => t.trim()).filter(Boolean) : (r.tags || []),
-        author: {
-          name: r.author_name || 'A M Pabel',
-          role: r.author_role || 'Founder, FramEmpire',
-          avatar: r.author_avatar || '/assets/pabel_light_avatar.webp',
-        },
-      }));
+      const formatted = (results || []).map(r => {
+        const isDefaultAuthor = !r.author_name || r.author_name === globalAuthor.name || r.author_name === 'A M Pabel';
+        return {
+          ...r,
+          featured: Boolean(r.featured),
+          tags: typeof r.tags === 'string' ? r.tags.split(',').map(t => t.trim()).filter(Boolean) : (r.tags || []),
+          author: {
+            name: isDefaultAuthor ? globalAuthor.name : (r.author_name || globalAuthor.name),
+            role: isDefaultAuthor ? globalAuthor.role : (r.author_role || globalAuthor.role),
+            avatar: isDefaultAuthor ? (globalAuthor.avatar || r.author_avatar) : (r.author_avatar || globalAuthor.avatar),
+          },
+        };
+      });
 
       return jsonResponse({ success: true, posts: formatted });
     } catch (err) {
@@ -559,14 +620,16 @@ async function handleBlogApi(request, env, ctx, url) {
           .run()
       );
 
+      const globalAuthor = await getGlobalAuthor(env);
+      const isDefaultAuthor = !post.author_name || post.author_name === globalAuthor.name || post.author_name === 'A M Pabel';
       const formatted = {
         ...post,
         featured: Boolean(post.featured),
         tags: typeof post.tags === 'string' ? post.tags.split(',').map(t => t.trim()).filter(Boolean) : (post.tags || []),
         author: {
-          name: post.author_name || 'A M Pabel',
-          role: post.author_role || 'Founder, FramEmpire',
-          avatar: post.author_avatar || '/assets/pabel_light_avatar.webp',
+          name: isDefaultAuthor ? globalAuthor.name : (post.author_name || globalAuthor.name),
+          role: isDefaultAuthor ? globalAuthor.role : (post.author_role || globalAuthor.role),
+          avatar: isDefaultAuthor ? (globalAuthor.avatar || post.author_avatar) : (post.author_avatar || globalAuthor.avatar),
         },
       };
 
@@ -581,10 +644,11 @@ async function handleBlogApi(request, env, ctx, url) {
     const slug = url.searchParams.get('slug');
     if (!slug) return jsonResponse({ success: false, error: 'Slug is required' }, 400);
     try {
+      // Filter out private direct messages from public article comments
       const { results } = await env.DB.prepare(
         `SELECT id, post_slug, author_name, content, created_at, admin_reply, admin_replied_at
          FROM blog_comments
-         WHERE post_slug = ? AND status = 'approved'
+         WHERE post_slug = ? AND status = 'approved' AND (is_direct IS NULL OR is_direct = 0)
          ORDER BY id ASC`
       ).bind(slug).all();
       return jsonResponse({ success: true, comments: results || [] });
@@ -593,31 +657,49 @@ async function handleBlogApi(request, env, ctx, url) {
     }
   }
 
-  // 9. Post a Comment: POST /api/blog/comments
+  // 9. Post a Comment or Direct Inquiry: POST /api/blog/comments
   if (pathname === '/api/blog/comments' && request.method === 'POST') {
     try {
       const body = await request.json();
       const postSlug = (body.postSlug || body.post_slug || '').trim();
       const authorName = (body.authorName || body.author_name || '').trim();
       const authorEmail = (body.authorEmail || body.author_email || '').trim();
+      const phoneNumber = (body.phoneNumber || body.phone_number || body.phone || '').trim();
       const content = (body.content || '').trim();
+      const isDirect = body.isDirect || body.is_direct ? 1 : 0;
 
-      if (!postSlug || !authorName || !content) {
-        return jsonResponse({ success: false, error: 'নাম এবং মন্তব্য আবশ্যক' }, 400);
+      if (!authorName || !content) {
+        return jsonResponse({ success: false, error: 'নাম এবং বার্তা আবশ্যক' }, 400);
       }
 
+      if (isDirect && (!phoneNumber || phoneNumber.replace(/\D/g, '').length < 7)) {
+        return jsonResponse({ success: false, error: 'অনুগ্রহ করে সঠিক মোবাইল নম্বর প্রদান করুন' }, 400);
+      }
+
+      // Ensure optional columns exist
+      try {
+        await env.DB.prepare("ALTER TABLE blog_comments ADD COLUMN phone_number TEXT").run();
+      } catch (e) {}
+      try {
+        await env.DB.prepare("ALTER TABLE blog_comments ADD COLUMN is_direct INTEGER DEFAULT 0").run();
+      } catch (e) {}
+
       const res = await env.DB.prepare(
-        `INSERT INTO blog_comments (post_slug, author_name, author_email, content, status, is_read)
-         VALUES (?, ?, ?, ?, 'approved', 0)`
-      ).bind(postSlug, authorName, authorEmail, content).run();
+        `INSERT INTO blog_comments (post_slug, author_name, author_email, phone_number, is_direct, content, status, is_read)
+         VALUES (?, ?, ?, ?, ?, ?, 'approved', 0)`
+      ).bind(postSlug || 'general-inquiry', authorName, authorEmail, phoneNumber, isDirect, content).run();
 
       return jsonResponse({
         success: true,
-        message: 'মন্তব্য সফলভাবে প্রকাশিত হয়েছে!',
+        message: isDirect 
+          ? 'আপনার বার্তা সফলভাবে আমাদের অ্যাডমিন ইনবক্সে পৌঁছেছে! আমরা দ্রুত আপনার নম্বরে যোগাযোগ করব।'
+          : 'মন্তব্য সফলভাবে প্রকাশিত হয়েছে!',
         comment: {
           id: res.meta?.last_row_id,
           post_slug: postSlug,
           author_name: authorName,
+          phone_number: phoneNumber,
+          is_direct: isDirect,
           content,
           created_at: new Date().toISOString(),
           admin_reply: null
@@ -780,10 +862,20 @@ async function handleBlogApi(request, env, ctx, url) {
       const today = new Date().toISOString().split('T')[0];
       const todayVisitsRow = await env.DB.prepare("SELECT COUNT(*) as count FROM site_visits WHERE date_day = ?").bind(today).first();
 
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const yesterdayVisitsRow = await env.DB.prepare("SELECT COUNT(*) as count FROM site_visits WHERE date_day = ?").bind(yesterday).first();
+
       const monthlyRows = await env.DB.prepare(
         `SELECT strftime('%m', created_at) as month, COUNT(*) as count 
          FROM site_visits 
          WHERE strftime('%Y', created_at) = strftime('%Y', 'now') 
+         GROUP BY month`
+      ).all();
+
+      const prevYearMonthlyRows = await env.DB.prepare(
+        `SELECT strftime('%m', created_at) as month, COUNT(*) as count 
+         FROM site_visits 
+         WHERE strftime('%Y', created_at) = strftime('%Y', 'now', '-1 year') 
          GROUP BY month`
       ).all();
 
@@ -795,19 +887,36 @@ async function handleBlogApi(request, env, ctx, url) {
       ).all();
 
       const topPostsRows = await env.DB.prepare(
-        `SELECT p.title, p.slug, p.views, COALESCE(p.likes, 0) as likes, COUNT(c.id) as comments
+        `SELECT p.id, p.title, p.slug, p.views, COALESCE(p.likes, 0) as likes, 
+                (SELECT COUNT(*) FROM blog_comments WHERE post_slug = p.slug AND (is_direct IS NULL OR is_direct = 0)) as comments
          FROM blog_posts p
-         LEFT JOIN blog_comments c ON p.slug = c.post_slug
-         GROUP BY p.id
-         ORDER BY p.views DESC LIMIT 6`
+         ORDER BY p.views DESC, p.id DESC`
       ).all();
+
+      const postStatsRow = await env.DB.prepare(
+        `SELECT SUM(views) as total_views, SUM(COALESCE(likes, 0)) as total_likes, COUNT(*) as total_posts FROM blog_posts`
+      ).first();
+
+      const todayCount = todayVisitsRow?.count || 0;
+      const yesterdayCount = yesterdayVisitsRow?.count || 0;
+      let increasePct = '+2.5%';
+      if (yesterdayCount > 0) {
+        const pct = (((todayCount - yesterdayCount) / yesterdayCount) * 100).toFixed(1);
+        increasePct = (Number(pct) >= 0 ? `+${pct}%` : `${pct}%`);
+      }
 
       return jsonResponse({
         success: true,
         analytics: {
-          totalVisits: totalVisitsRow?.count || 0,
-          todayVisits: todayVisitsRow?.count || 0,
+          totalVisits: Math.max(totalVisitsRow?.count || 0, postStatsRow?.total_views || 0),
+          todayVisits: todayCount,
+          yesterdayVisits: yesterdayCount,
+          increasePct,
+          totalArticleViews: postStatsRow?.total_views || 0,
+          totalLikes: postStatsRow?.total_likes || 0,
+          totalPosts: postStatsRow?.total_posts || 0,
           monthly: monthlyRows?.results || [],
+          prevYearMonthly: prevYearMonthlyRows?.results || [],
           daily: dailyRows?.results || [],
           topPosts: topPostsRows?.results || []
         }
@@ -864,8 +973,24 @@ async function handleBlogApi(request, env, ctx, url) {
         await env.DB.prepare(
           "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('author_profile', ?, CURRENT_TIMESTAMP)"
         ).bind(JSON.stringify(authorProfile)).run();
+
+        // Sync author info to ALL blog posts in D1
+        try {
+          await env.DB.prepare(
+            `UPDATE blog_posts 
+             SET author_name = ?, author_role = ?, author_avatar = ? 
+             WHERE author_name = ? OR author_name = 'A M Pabel' OR author_name IS NULL OR author_name = ''`
+          ).bind(
+            authorProfile.name || 'A M Pabel',
+            authorProfile.role || 'Founder, FramEmpire',
+            authorProfile.avatar || '/assets/pabel_light_avatar.webp',
+            authorProfile.name || 'A M Pabel'
+          ).run();
+        } catch (syncErr) {
+          console.error('Error syncing author to blog_posts:', syncErr);
+        }
       }
-      return jsonResponse({ success: true, message: 'প্রোফাইল সেটিংস সফলভাবে সংরক্ষিত হয়েছে!' });
+      return jsonResponse({ success: true, message: 'প্রোফাইল সেটিংস সফলভাবে সংরক্ষিত ও সাইটে সিঙ্ক হয়েছে!' });
     } catch (err) {
       return jsonResponse({ success: false, error: err.message }, 500);
     }
@@ -897,6 +1022,195 @@ async function handleBlogApi(request, env, ctx, url) {
       ).bind(newPassword).run();
 
       return jsonResponse({ success: true, message: 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 21. Media Gallery: GET /api/blog/admin/media
+  if (pathname === '/api/blog/admin/media' && request.method === 'GET') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    try {
+      const settingsRows = await env.DB.prepare("SELECT key, value FROM admin_settings WHERE key IN ('admin_profile', 'author_profile', 'custom_gallery_media')").all();
+      const map = {};
+      (settingsRows?.results || []).forEach(r => { map[r.key] = r.value; });
+
+      const adminProf = map.admin_profile ? JSON.parse(map.admin_profile) : { avatar: '/assets/pabel_light_avatar.webp', name: 'Admin' };
+      const authorProf = map.author_profile ? JSON.parse(map.author_profile) : { avatar: '/assets/pabel_light_avatar.webp', name: 'A M Pabel' };
+      const customMedia = map.custom_gallery_media ? JSON.parse(map.custom_gallery_media) : [];
+
+      const postCovers = await env.DB.prepare(
+        "SELECT id, title, slug, cover_image, date FROM blog_posts WHERE cover_image IS NOT NULL AND cover_image != '' ORDER BY id DESC"
+      ).all();
+
+      const mediaList = [
+        {
+          id: 'author_avatar',
+          type: 'author_avatar',
+          title: 'লেখক প্রোফাইল ছবি (Author Avatar)',
+          url: authorProf.avatar || '/assets/pabel_light_avatar.webp',
+          usedIn: 'লেখক পরিচিতি ও ব্লগের বাইলাইন',
+          owner: authorProf.name || 'A M Pabel',
+          isProfile: true,
+          canReplace: true
+        },
+        {
+          id: 'admin_avatar',
+          type: 'admin_avatar',
+          title: 'অ্যাডমিন প্রোফাইল ছবি (Admin Avatar)',
+          url: adminProf.avatar || '/assets/pabel_light_avatar.webp',
+          usedIn: 'অ্যাডমিন ড্যাশবোর্ড ও হেডার',
+          owner: adminProf.name || 'Admin',
+          isProfile: true,
+          canReplace: true
+        },
+        ...(postCovers?.results || []).map(p => ({
+          id: `cover_${p.id}`,
+          type: 'cover_image',
+          targetId: p.id,
+          title: `ব্লগ কভার: ${p.title}`,
+          url: p.cover_image,
+          usedIn: `আর্টিকেল: ${p.title}`,
+          slug: p.slug,
+          isProfile: false,
+          canReplace: true
+        })),
+        ...customMedia.map((m, idx) => ({
+          id: m.id || `custom_${idx}`,
+          type: 'custom',
+          title: m.title || `আপলোডকৃত ছবি ${idx + 1}`,
+          url: m.url,
+          usedIn: m.usedIn || 'কন্টেন্ট ও গ্যালারি',
+          createdAt: m.createdAt,
+          isProfile: false,
+          canReplace: true
+        }))
+      ];
+
+      return jsonResponse({ success: true, media: mediaList });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 22. Replace Media Everywhere: POST /api/blog/admin/media/replace
+  if (pathname === '/api/blog/admin/media/replace' && request.method === 'POST') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    try {
+      const { type, id, targetId, oldUrl, newUrl } = await request.json();
+      if (!newUrl) return jsonResponse({ success: false, error: 'নতুন ছবি প্রদান করা হয়নি' }, 400);
+
+      if (type === 'author_avatar') {
+        const curr = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'author_profile'").first();
+        let parsed = curr?.value ? JSON.parse(curr.value) : { name: 'A M Pabel', role: 'Founder, FramEmpire' };
+        parsed.avatar = newUrl;
+        await env.DB.prepare(
+          "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('author_profile', ?, CURRENT_TIMESTAMP)"
+        ).bind(JSON.stringify(parsed)).run();
+
+        // Sync with all blog posts in D1
+        await env.DB.prepare(
+          `UPDATE blog_posts 
+           SET author_avatar = ? 
+           WHERE author_name = ? OR author_name = 'A M Pabel' OR author_name IS NULL OR author_name = ''`
+        ).bind(newUrl, parsed.name || 'A M Pabel').run();
+
+        return jsonResponse({ success: true, message: 'অথর প্রোফাইল ছবি সফলভাবে পরিবর্তন ও সাইটে সিঙ্ক হয়েছে!' });
+      }
+
+      if (type === 'admin_avatar') {
+        const curr = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_profile'").first();
+        let parsed = curr?.value ? JSON.parse(curr.value) : { name: 'A M Pabel', email: 'ampabel.edp@gmail.com' };
+        parsed.avatar = newUrl;
+        await env.DB.prepare(
+          "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('admin_profile', ?, CURRENT_TIMESTAMP)"
+        ).bind(JSON.stringify(parsed)).run();
+
+        return jsonResponse({ success: true, message: 'অ্যাডমিন প্রোফাইল ছবি সফলভাবে পরিবর্তন হয়েছে!' });
+      }
+
+      if (type === 'cover_image') {
+        if (targetId) {
+          await env.DB.prepare('UPDATE blog_posts SET cover_image = ? WHERE id = ?').bind(newUrl, targetId).run();
+        } else if (oldUrl) {
+          await env.DB.prepare('UPDATE blog_posts SET cover_image = ? WHERE cover_image = ?').bind(newUrl, oldUrl).run();
+        }
+        return jsonResponse({ success: true, message: 'ব্লগ কভার ছবি সফলভাবে প্রতিস্থাপন করা হয়েছে!' });
+      }
+
+      if (type === 'custom') {
+        const curr = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'custom_gallery_media'").first();
+        let list = curr?.value ? JSON.parse(curr.value) : [];
+        list = list.map(m => (m.id === id || m.url === oldUrl) ? { ...m, url: newUrl } : m);
+        await env.DB.prepare(
+          "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('custom_gallery_media', ?, CURRENT_TIMESTAMP)"
+        ).bind(JSON.stringify(list)).run();
+
+        if (oldUrl) {
+          await env.DB.prepare(
+            "UPDATE blog_posts SET content = REPLACE(content, ?, ?) WHERE content LIKE '%' || ? || '%'"
+          ).bind(oldUrl, newUrl, oldUrl).run();
+          await env.DB.prepare(
+            "UPDATE blog_posts SET cover_image = ? WHERE cover_image = ?"
+          ).bind(newUrl, oldUrl).run();
+        }
+        return jsonResponse({ success: true, message: 'ছবি সফলভাবে প্রতিস্থাপন করা হয়েছে!' });
+      }
+
+      return jsonResponse({ success: true, message: 'ছবি সফলভাবে প্রতিস্থাপন করা হয়েছে!' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 23. Upload Media: POST /api/blog/admin/media/upload
+  if (pathname === '/api/blog/admin/media/upload' && request.method === 'POST') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    try {
+      const { title, url, size } = await request.json();
+      if (!url) return jsonResponse({ success: false, error: 'ইমেজ ফাইল প্রদান করা হয়নি' }, 400);
+
+      const curr = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'custom_gallery_media'").first();
+      let list = curr?.value ? JSON.parse(curr.value) : [];
+      const newItem = {
+        id: `media_${Date.now()}`,
+        title: title || `ইমেজ ${new Date().toLocaleDateString('bn-BD')}`,
+        url,
+        size: size || 'optimized',
+        createdAt: new Date().toISOString()
+      };
+      list.unshift(newItem);
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('custom_gallery_media', ?, CURRENT_TIMESTAMP)"
+      ).bind(JSON.stringify(list)).run();
+
+      return jsonResponse({ success: true, item: newItem, message: 'ছবি সফলভাবে গ্যালারিতে আপলোড হয়েছে!' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 24. Delete Media: DELETE /api/blog/admin/media/:id
+  const delMediaMatch = pathname.match(/^\/api\/blog\/admin\/media\/([a-zA-Z0-9_\-]+)$/);
+  if (delMediaMatch && request.method === 'DELETE') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    const mediaId = delMediaMatch[1];
+    try {
+      const curr = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'custom_gallery_media'").first();
+      let list = curr?.value ? JSON.parse(curr.value) : [];
+      list = list.filter(m => m.id !== mediaId);
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('custom_gallery_media', ?, CURRENT_TIMESTAMP)"
+      ).bind(JSON.stringify(list)).run();
+      return jsonResponse({ success: true, message: 'ছবি গ্যালারি থেকে মুছে ফেলা হয়েছে' });
     } catch (err) {
       return jsonResponse({ success: false, error: err.message }, 500);
     }
@@ -1169,7 +1483,7 @@ async function sendWhatsAppMessage(targetId, isBsuid, replyText, env) {
 /**
  * Render complete responsive Blog Post HTML for dynamic D1 posts
  */
-function renderBlogPostHtml(post, related = []) {
+function renderBlogPostHtml(post, related = [], authorAvatarOverride = null) {
   const title = post.title || 'ব্লগ আর্টিকেল';
   const seoTitle = post.seo_title || post.seoTitle || title;
   const subtitle = post.subtitle || '';
@@ -1178,7 +1492,7 @@ function renderBlogPostHtml(post, related = []) {
   const coverImage = post.cover_image || post.coverImage || 'https://banglish.bd/assets/banglish-og-preview.png';
   const authorName = post.author_name || 'A M Pabel';
   const authorRole = post.author_role || 'Founder, FramEmpire';
-  const authorAvatar = post.author_avatar || '/assets/pabel_light_avatar.webp';
+  const authorAvatar = authorAvatarOverride || post.author_avatar || '/assets/pabel_light_avatar.webp';
   const readTime = post.read_time || '৫ মিনিট পড়ার সময়';
   const dateStr = post.date || new Date().toLocaleDateString('bn-BD', { year: 'numeric', month: 'long', day: 'numeric' });
   const category = post.category || 'সাধারণ';

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
 import AudioPlayer from '@/components/AudioPlayer';
+import SiteTracker from '@/components/SiteTracker';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -281,6 +282,9 @@ gtag('config', 'G-TKXN340NZW');
 
         {/* Children */}
         {children}
+
+        {/* Global Live Visitor Tracker */}
+        <SiteTracker />
 
         {/* Floating Audio Player with Equalizer */}
         <AudioPlayer />

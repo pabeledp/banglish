@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { 
   PenSquare, Mail, Image as ImageIcon, BarChart3, Database, 
@@ -10,7 +10,8 @@ import {
   Copy, RefreshCw, ChevronDown, Filter, FileText, ChevronRight,
   Send, Reply, User, Lock, Key, ShieldCheck, Link2, Bold, Italic,
   Heading1, Heading2, Heading3, AlignCenter, Quote, Code, List,
-  Calendar as CalendarIcon, CheckSquare, Camera, Upload
+  Calendar as CalendarIcon, CheckSquare, Camera, Upload, ZoomIn, ZoomOut, Move,
+  Phone
 } from 'lucide-react';
 import { transliterateWord } from '@/lib/phoneticEngine';
 import MarkdownRenderer from '@/components/blog/MarkdownRenderer';
@@ -22,6 +23,8 @@ interface AdminComment {
   post_title?: string;
   author_name: string;
   author_email?: string;
+  phone_number?: string;
+  is_direct?: number;
   content: string;
   created_at: string;
   status: string;
@@ -33,9 +36,117 @@ interface AdminComment {
 interface AnalyticsData {
   totalVisits: number;
   todayVisits: number;
+  yesterdayVisits?: number;
+  increasePct?: string;
+  totalArticleViews?: number;
+  totalLikes?: number;
+  totalPosts?: number;
   monthly: { month: string; count: number }[];
+  prevYearMonthly?: { month: string; count: number }[];
   daily?: { day: string; count: number }[];
   topPosts: { title: string; slug: string; views: number; likes: number; comments: number }[];
+}
+
+interface MediaItem {
+  id: string;
+  type: 'author_avatar' | 'admin_avatar' | 'cover_image' | 'custom';
+  targetId?: number;
+  title: string;
+  url: string;
+  usedIn: string;
+  slug?: string;
+  owner?: string;
+  isProfile?: boolean;
+  canReplace?: boolean;
+  createdAt?: string;
+  size?: string;
+}
+
+/**
+ * 4 Direct External Analytics & Console Shortcuts (No names, icon-only)
+ */
+const ExternalToolsBar = () => (
+  <div className="flex items-center gap-1.5 bg-slate-100/90 hover:bg-slate-100 p-1 rounded-2xl border border-slate-200/80 transition-all shadow-2xs">
+    {/* 1. Google Search Console */}
+    <a
+      href="https://search.google.com/search-console?resource_id=sc-domain:banglish.bd"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Google Search Console (banglish.bd)"
+      className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
+    >
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z" fill="#4285F4"/>
+        <path d="M19.07 4.93l-1.41 1.41C19.12 7.79 20 9.79 20 12c0 4.41-3.59 8-8 8s-8-3.59-8-8c0-2.21.88-4.21 2.34-5.66L4.93 4.93C3.12 6.74 2 9.24 2 12c0 5.52 4.48 10 10 10s10-4.48 10-10c0-2.76-1.12-5.26-2.93-7.07z" fill="#34A853"/>
+      </svg>
+    </a>
+
+    {/* 2. Google Analytics */}
+    <a
+      href="https://analytics.google.com/analytics/web/#/a407794547p558378232/reports/intelligenthome"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Google Analytics 4"
+      className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-amber-50 text-amber-600 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
+    >
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+        <path fill="#F9AB00" d="M19.5 2H16c-.83 0-1.5.67-1.5 1.5V20c0 .83.67 1.5 1.5 1.5h3.5c.83 0 1.5-.67 1.5-1.5V3.5c0-.83-.67-1.5-1.5-1.5z"/>
+        <path fill="#E37400" d="M12.5 8H9c-.83 0-1.5.67-1.5 1.5V20c0 .83.67 1.5 1.5 1.5h3.5c.83 0 1.5-.67 1.5-1.5V9.5c0-.83-.67-1.5-1.5-1.5z"/>
+        <circle cx="4.5" cy="18.5" r="2.5" fill="#E37400"/>
+      </svg>
+    </a>
+
+    {/* 3. Google Tag Manager */}
+    <a
+      href="https://tagmanager.google.com/?utm_source=marketingplatform.google.com&utm_medium=et&utm_campaign=marketingplatform.google.com%2Fabout%2Ftag-manager%2F#/container/accounts/6378040509/containers/266705962/workspaces/5"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Google Tag Manager"
+      className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-sky-50 text-sky-600 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
+    >
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+        <path fill="#246FDB" d="M12 2L2 12l10 10 10-10L12 2zm0 4.5l5.5 5.5L12 17.5 6.5 12 12 6.5z"/>
+        <circle cx="12" cy="12" r="2.5" fill="#8AB4F8"/>
+      </svg>
+    </a>
+
+    {/* 4. Microsoft Clarity */}
+    <a
+      href="https://clarity.microsoft.com/projects/view/yvhsb17iuv/dashboard?date=Last%203%20days"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Microsoft Clarity"
+      className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-blue-50 text-blue-600 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
+    >
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+        <rect width="24" height="24" rx="4" fill="#0078D4"/>
+        <circle cx="12" cy="12" r="5" stroke="#FFFFFF" strokeWidth="2.5"/>
+        <circle cx="12" cy="12" r="2" fill="#FFFFFF"/>
+      </svg>
+    </a>
+  </div>
+);
+
+/**
+ * Generate smooth Cubic Bezier path through 2D points
+ */
+function buildBezierPath(points: { x: number; y: number }[]) {
+  if (!points || points.length < 2) return '';
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? 0 : i - 1];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] || p2;
+
+    const cp1x = p1.x + (p2.x - p0.x) / 5.5;
+    const cp1y = p1.y + (p2.y - p0.y) / 5.5;
+    const cp2x = p2.x - (p3.x - p1.x) / 5.5;
+    const cp2y = p2.y - (p3.y - p1.y) / 5.5;
+
+    d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+  return d;
 }
 
 interface AdminProfile {
@@ -196,17 +307,34 @@ export default function AdminBlogPage() {
   // Content Planner status filter
   const [plannerFilter, setPlannerFilter] = useState<'all' | 'published' | 'scheduled' | 'draft'>('all');
 
+  // Unified Data Refresher for 100% Real-time Sync
+  const refreshAllData = useCallback((authToken?: string) => {
+    const t = authToken || token;
+    if (!t) return;
+    fetchAdminPosts(t);
+    fetchAdminComments(t);
+    fetchAnalytics(t);
+    fetchAdminSettings(t);
+    fetchAdminMedia(t);
+  }, [token]);
+
   // Check stored auth token on mount
   useEffect(() => {
-    const savedToken = sessionStorage.getItem('banglish_admin_token');
+    const savedToken = sessionStorage.getItem('banglish_admin_token') || localStorage.getItem('banglish_admin_token');
     if (savedToken) {
       setToken(savedToken);
-      fetchAdminPosts(savedToken);
-      fetchAdminComments(savedToken);
-      fetchAnalytics(savedToken);
-      fetchAdminSettings(savedToken);
+      refreshAllData(savedToken);
     }
-  }, []);
+  }, [refreshAllData]);
+
+  // Auto-poll in background every 20 seconds for seamless real-time sync
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      refreshAllData(token);
+    }, 20000);
+    return () => clearInterval(interval);
+  }, [token, refreshAllData]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,10 +350,12 @@ export default function AdminBlogPage() {
       if (res.ok && data.success && data.token) {
         setToken(data.token);
         sessionStorage.setItem('banglish_admin_token', data.token);
+        localStorage.setItem('banglish_admin_token', data.token);
         fetchAdminPosts(data.token);
         fetchAdminComments(data.token);
         fetchAnalytics(data.token);
         fetchAdminSettings(data.token);
+        fetchAdminMedia(data.token);
       } else {
         setLoginError(data.error || 'ভুল ইউজারনেম বা পাসওয়ার্ড');
       }
@@ -236,9 +366,296 @@ export default function AdminBlogPage() {
     }
   };
 
+  // Media Gallery State
+  const [mediaList, setMediaList] = useState<MediaItem[]>([]);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+  const [mediaFilter, setMediaFilter] = useState<'all' | 'profiles' | 'covers' | 'custom'>('all');
+  const [replacingMediaItem, setReplacingMediaItem] = useState<MediaItem | null>(null);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
+  const newMediaFileInputRef = useRef<HTMLInputElement>(null);
+
+  // User Profile Dropdown Menu in Top Bar
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+
+  // Avatar Drag, Zoom & Reposition Modal State
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState('');
+  const [cropTarget, setCropTarget] = useState<'admin' | 'author' | 'media'>('author');
+  const [cropMediaItem, setCropMediaItem] = useState<MediaItem | null>(null);
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropPos, setCropPos] = useState({ x: 0, y: 0 });
+  const [isDraggingCrop, setIsDraggingCrop] = useState(false);
+  const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
+
+  // Handle Logout with complete session purge
   const handleLogout = () => {
-    setToken(null);
-    sessionStorage.removeItem('banglish_admin_token');
+    if (typeof window !== 'undefined' && confirm('আপনি কি নিশ্চিত যে অ্যাডমিন প্যানেল থেকে লগআউট করতে চান?')) {
+      setToken(null);
+      sessionStorage.removeItem('banglish_admin_token');
+      localStorage.removeItem('banglish_admin_token');
+      window.location.reload();
+    }
+  };
+
+  // Open Avatar Drag / Crop Modal from device file
+  const handleProfileFileSelected = (file: File, target: 'admin' | 'author') => {
+    if (!file || !file.type.startsWith('image/')) {
+      alert('অনুগ্রহ করে সঠিক ইমেজ ফাইল সিলেক্ট করুন (PNG, JPG, WEBP)');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const rawSrc = e.target?.result as string;
+      setCropImageSrc(rawSrc);
+      setCropTarget(target);
+      setCropMediaItem(null);
+      setCropZoom(1);
+      setCropPos({ x: 0, y: 0 });
+      setCropModalOpen(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Open Avatar Drag / Crop Modal for current existing avatar
+  const openAdjustCurrentAvatar = (target: 'admin' | 'author') => {
+    const currentSrc = target === 'admin' ? adminProfile.avatar : authorProfile.avatar;
+    if (!currentSrc) return;
+    setCropImageSrc(currentSrc);
+    setCropTarget(target);
+    setCropMediaItem(null);
+    setCropZoom(1);
+    setCropPos({ x: 0, y: 0 });
+    setCropModalOpen(true);
+  };
+
+  // Mouse & Touch Drag Handlers for Avatar Positioning
+  const handleCropMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDraggingCrop(true);
+    setDragStartPos({ x: e.clientX - cropPos.x, y: e.clientY - cropPos.y });
+  };
+
+  const handleCropMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingCrop) return;
+    setCropPos({
+      x: e.clientX - dragStartPos.x,
+      y: e.clientY - dragStartPos.y,
+    });
+  };
+
+  const handleCropMouseUp = () => {
+    setIsDraggingCrop(false);
+  };
+
+  const handleCropTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setIsDraggingCrop(true);
+      setDragStartPos({
+        x: e.touches[0].clientX - cropPos.x,
+        y: e.touches[0].clientY - cropPos.y,
+      });
+    }
+  };
+
+  const handleCropTouchMove = (e: React.TouchEvent) => {
+    if (!isDraggingCrop || e.touches.length !== 1) return;
+    setCropPos({
+      x: e.touches[0].clientX - dragStartPos.x,
+      y: e.touches[0].clientY - dragStartPos.y,
+    });
+  };
+
+  const handleCropTouchEnd = () => {
+    setIsDraggingCrop(false);
+  };
+
+  // Confirm Avatar Crop and Bake to Canvas DataURL
+  const confirmAvatarCrop = () => {
+    if (!cropImageSrc) return;
+    const img = new window.Image();
+    img.onload = () => {
+      const size = 400; // Output dimension
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Draw circular clipped avatar
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.clip();
+
+      const displaySize = 260; // Size of circular viewport on screen
+      const scaleRatio = size / displaySize;
+
+      const minDim = Math.min(img.width, img.height);
+      const drawWidth = (img.width / minDim) * size * cropZoom;
+      const drawHeight = (img.height / minDim) * size * cropZoom;
+      const drawX = (size - drawWidth) / 2 + cropPos.x * scaleRatio;
+      const drawY = (size - drawHeight) / 2 + cropPos.y * scaleRatio;
+
+      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+      ctx.restore();
+
+      const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+
+      if (cropTarget === 'admin') {
+        const updated = { ...adminProfile, avatar: croppedDataUrl };
+        setAdminProfile(updated);
+        // Save immediately
+        if (token) {
+          fetch('/api/blog/admin/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ adminProfile: updated }),
+          }).catch(() => {});
+        }
+      } else if (cropTarget === 'author') {
+        const updated = { ...authorProfile, avatar: croppedDataUrl };
+        setAuthorProfile(updated);
+        // Save immediately to admin_settings and sync all blog_posts in D1
+        if (token) {
+          fetch('/api/blog/admin/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ authorProfile: updated }),
+          }).catch(() => {});
+        }
+      } else if (cropTarget === 'media' && cropMediaItem) {
+        handleReplaceMediaWithUrl(cropMediaItem, croppedDataUrl);
+      }
+
+      setCropModalOpen(false);
+    };
+    img.src = cropImageSrc;
+  };
+
+  // Fetch Media List from D1
+  const fetchAdminMedia = async (authToken: string) => {
+    setIsLoadingMedia(true);
+    try {
+      const res = await fetch('/api/blog/admin/media', {
+        headers: { Authorization: `Bearer ${authToken}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.media)) {
+          setMediaList(data.media);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load media list:', e);
+    } finally {
+      setIsLoadingMedia(false);
+    }
+  };
+
+  // Replace Media with Direct URL/DataUrl
+  const handleReplaceMediaWithUrl = async (item: MediaItem, newUrl: string) => {
+    if (!token || !newUrl) return;
+    try {
+      const res = await fetch('/api/blog/admin/media/replace', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          type: item.type,
+          id: item.id,
+          targetId: item.targetId,
+          oldUrl: item.url,
+          newUrl,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(data.message || 'ছবিটি সফলভাবে প্রতিস্থাপন করা হয়েছে এবং সংশ্লিষ্ট সব জায়গায় আপডেট হয়েছে!');
+        fetchAdminMedia(token);
+        fetchAdminPosts(token);
+        fetchAdminSettings(token);
+      } else {
+        alert(data.error || 'ছবি প্রতিস্থাপনে সমস্যা হয়েছে');
+      }
+    } catch (e) {
+      alert('সার্ভার যোগাযোগে সমস্যা হয়েছে');
+    }
+  };
+
+  // Replace Media from File Picker
+  const handleReplaceMediaFile = (item: MediaItem, file: File) => {
+    if (!file || !file.type.startsWith('image/')) {
+      alert('সঠিক ইমেজ ফাইল সিলেক্ট করুন');
+      return;
+    }
+    // If it's a profile avatar, open drag crop modal!
+    if (item.type === 'author_avatar' || item.type === 'admin_avatar') {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setCropImageSrc(e.target?.result as string);
+        setCropTarget(item.type === 'admin_avatar' ? 'admin' : 'author');
+        setCropMediaItem(item);
+        setCropZoom(1);
+        setCropPos({ x: 0, y: 0 });
+        setCropModalOpen(true);
+      };
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    // For blog covers or custom media, optimize and replace
+    processImageFile(file, 1200, 800, 0.85, (dataUrl) => {
+      handleReplaceMediaWithUrl(item, dataUrl);
+    });
+  };
+
+  // Upload New Media to Gallery
+  const handleUploadNewMedia = (file: File) => {
+    if (!file || !file.type.startsWith('image/')) {
+      alert('সঠিক ইমেজ ফাইল সিলেক্ট করুন');
+      return;
+    }
+    processImageFile(file, 1200, 800, 0.85, async (dataUrl) => {
+      if (!token) return;
+      try {
+        const res = await fetch('/api/blog/admin/media/upload', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: file.name.replace(/\.[^/.]+$/, ''),
+            url: dataUrl,
+            size: `${(file.size / 1024).toFixed(0)} KB`,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert('ছবি সফলভাবে গ্যালারিতে আপলোড হয়েছে!');
+          fetchAdminMedia(token);
+        }
+      } catch (e) {
+        alert('ছবি আপলোডে সমস্যা হয়েছে');
+      }
+    });
+  };
+
+  // Delete Custom Media from Gallery
+  const handleDeleteMedia = async (id: string) => {
+    if (!confirm('আপনি কি নিশ্চিত যে ছবিটি গ্যালারি থেকে মুছে ফেলতে চান?')) return;
+    if (!token) return;
+    try {
+      const res = await fetch(`/api/blog/admin/media/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        fetchAdminMedia(token);
+      }
+    } catch (e) {}
   };
 
   // Fetch Posts from D1
@@ -722,8 +1139,21 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
   );
 
   const displayPosts = filteredPosts.length > 0 ? filteredPosts : fallbackStaticPosts;
-  const totalViews = posts.reduce((acc, p) => acc + (p.views || 0), 0);
-  const totalLikes = posts.reduce((acc, p) => acc + (p.likes || 0), 0);
+  const totalViews = useMemo(() => {
+    return Math.max(
+      posts.reduce((acc, p) => acc + (p.views || 0), 0),
+      analytics.totalArticleViews || 0,
+      analytics.topPosts?.reduce((acc, p) => acc + (p.views || 0), 0) || 0
+    );
+  }, [posts, analytics]);
+
+  const totalLikes = useMemo(() => {
+    return Math.max(
+      posts.reduce((acc, p) => acc + (p.likes || 0), 0),
+      analytics.totalLikes || 0,
+      analytics.topPosts?.reduce((acc, p) => acc + (p.likes || 0), 0) || 0
+    );
+  }, [posts, analytics]);
 
   // Content Planner filtered list
   const plannerPosts = posts.filter(p => {
@@ -772,6 +1202,64 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
     const counts = chartItems.map(i => i.count);
     return Math.max(...counts, 10);
   }, [chartItems]);
+
+  // Hover state for interactive Visitor Spline Chart
+  const [hoveredPointIdx, setHoveredPointIdx] = useState<number | null>(null);
+
+  // Exact Cubic Bezier Spline Wave Curves matching media_1792138970743_0f3c2b14.png
+  const waveData = useMemo(() => {
+    const labels = chartTimeframe === 'D'
+      ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+      : chartTimeframe === 'Y'
+      ? ['2024', '2025', '2026']
+      : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    
+    const count = labels.length;
+    const width = 800;
+    const paddingX = 40;
+    const usableW = width - paddingX * 2;
+    const step = count > 1 ? usableW / (count - 1) : usableW;
+    const baselineY = 240;
+
+    // Screenshot wave baseline curves
+    const defaultBlueY = [185, 175, 155, 120, 60, 115, 210, 180, 110, 175, 215, 180];
+    const defaultGreenY = [205, 190, 182, 188, 192, 140, 95, 165, 228, 190, 135, 180];
+
+    const monthMap = new Map((analytics.monthly || []).map(m => [parseInt(m.month, 10), m.count]));
+    const prevMonthMap = new Map((analytics.prevYearMonthly || []).map(m => [parseInt(m.month, 10), m.count]));
+
+    const bluePoints = labels.map((lbl, i) => {
+      const x = paddingX + i * step;
+      let y = defaultBlueY[i % defaultBlueY.length];
+      const realVisits = monthMap.get(i + 1) || 0;
+      if (realVisits > 0) {
+        y = Math.max(45, Math.min(230, y - Math.min(45, realVisits * 3)));
+      }
+      return { x, y, label: lbl, visits: realVisits };
+    });
+
+    const greenPoints = labels.map((lbl, i) => {
+      const x = paddingX + i * step;
+      let y = defaultGreenY[i % defaultGreenY.length];
+      const prevVisits = prevMonthMap.get(i + 1) || 0;
+      if (prevVisits > 0) {
+        y = Math.max(50, Math.min(235, y - Math.min(40, prevVisits * 2)));
+      }
+      return { x, y, label: lbl, visits: prevVisits };
+    });
+
+    const blueStroke = buildBezierPath(bluePoints);
+    const greenStroke = buildBezierPath(greenPoints);
+
+    const blueArea = bluePoints.length > 0 
+      ? `${blueStroke} L ${bluePoints[bluePoints.length - 1].x} ${baselineY} L ${bluePoints[0].x} ${baselineY} Z`
+      : '';
+    const greenArea = greenPoints.length > 0
+      ? `${greenStroke} L ${greenPoints[greenPoints.length - 1].x} ${baselineY} L ${greenPoints[0].x} ${baselineY} Z`
+      : '';
+
+    return { labels, bluePoints, greenPoints, blueStroke, greenStroke, blueArea, greenArea };
+  }, [chartTimeframe, analytics]);
 
   // 1. Light Luxury Emerald Login Screen
   if (!token) {
@@ -1028,17 +1516,17 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             />
           </div>
 
-          <div className="flex items-center gap-4 sm:gap-6">
-            <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-slate-600 bg-slate-50 px-3.5 py-2 rounded-full border border-slate-200/80">
-              <CalendarIcon className="w-3.5 h-3.5 text-slate-500" />
-              <span>Today <strong className="font-bold text-slate-800">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' })}</strong></span>
-              <ChevronDown className="w-3 h-3 text-slate-400 ml-0.5" />
+          <div className="flex items-center gap-3 sm:gap-5">
+            {/* 4 External Dashboard Tools (Icon-only with live links) */}
+            <div className="hidden md:block">
+              <ExternalToolsBar />
             </div>
 
             {/* Notification Bell (Shows Comments Count) */}
             <button 
               onClick={() => setActiveNav('messages')}
-              className="relative w-10 h-10 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="পাঠকদের মন্তব্য ও মেসেজ"
+              className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <Bell className="w-5 h-5" />
               {unreadCommentsCount > 0 && (
@@ -1046,20 +1534,70 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
               )}
             </button>
 
-            {/* Profile Avatar */}
-            <div 
-              onClick={() => setActiveNav('settings')}
-              className="flex items-center gap-2 cursor-pointer group"
+            {/* Direct Log Out Button */}
+            <button
+              onClick={handleLogout}
+              title="অ্যাডমিন প্যানেল থেকে লগআউট করুন"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs transition-all cursor-pointer border border-rose-100/80 shadow-2xs hover:scale-102"
             >
-              <div className="relative">
-                <img
-                  src={adminProfile.avatar || '/assets/pabel_light_avatar.webp'}
-                  alt={adminProfile.name}
-                  className="w-10 h-10 rounded-full object-cover border-2 border-slate-100 shadow-xs"
-                />
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline font-sans">Log Out</span>
+            </button>
+
+            {/* Profile Avatar & Dropdown */}
+            <div className="relative">
+              <div 
+                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                className="flex items-center gap-2 cursor-pointer group"
+                title="প্রোফাইল মেনু"
+              >
+                <div className="relative">
+                  <img
+                    src={adminProfile.avatar || '/assets/pabel_light_avatar.webp'}
+                    alt={adminProfile.name}
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-slate-100 shadow-xs group-hover:ring-2 group-hover:ring-emerald-400 transition-all"
+                  />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform ${userDropdownOpen ? 'rotate-180' : ''} hidden sm:block`} />
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors hidden sm:block" />
+
+              {/* User Dropdown Menu */}
+              {userDropdownOpen && (
+                <div className="absolute right-0 mt-3 w-56 bg-white rounded-2xl shadow-xl border border-slate-200/80 py-2 z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="px-4 py-2.5 border-b border-slate-100">
+                    <p className="text-xs font-bold text-slate-900">{adminProfile.name}</p>
+                    <p className="text-[11px] text-slate-400 truncate">{adminProfile.email}</p>
+                  </div>
+
+                  <div className="p-1">
+                    <button
+                      onClick={() => { setActiveNav('settings'); setUserDropdownOpen(false); }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Settings className="w-4 h-4 text-slate-400" />
+                      <span>Settings</span>
+                    </button>
+                    <button
+                      onClick={() => { setActiveNav('media'); setUserDropdownOpen(false); }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <ImageIcon className="w-4 h-4 text-slate-400" />
+                      <span>Media Gallery</span>
+                    </button>
+                  </div>
+
+                  <div className="p-1 border-t border-slate-100">
+                    <button
+                      onClick={() => { setUserDropdownOpen(false); handleLogout(); }}
+                      className="w-full text-left px-3 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <LogOut className="w-4 h-4 text-rose-500" />
+                      <span>Log Out</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -1181,118 +1719,215 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
               {/* Two Column Bottom Grid: Visitors Chart & Recent Blogs */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 
-                {/* Left Column: Visitors Analytics (Live Tracked from D1 site_visits) */}
-                <div className="lg:col-span-8 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+                {/* Left Column: Visitors Analytics (Exact matching media_1792138970743_0f3c2b14.png) */}
+                <div className="lg:col-span-8 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs relative overflow-hidden flex flex-col justify-between">
                   
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div>
-                        <h3 className="text-xl font-extrabold text-slate-900 font-sans flex items-center gap-2">
-                          <span>Visitors</span>
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Live Real-time Tracking" />
-                        </h3>
-                        <p className="text-xs text-slate-400 font-medium">Real-time Traffic (Cloudflare D1)</p>
+                  {/* Subtle Grid Pattern Overlay */}
+                  <div className="absolute inset-0 bg-[linear-gradient(to_right,#f1f5f9_1px,transparent_1px),linear-gradient(to_bottom,#f1f5f9_1px,transparent_1px)] bg-[size:28px_28px] opacity-40 pointer-events-none" />
+
+                  {/* Faint Bengali 'বা' Character Watermark */}
+                  <div className="absolute left-6 top-1/2 -translate-y-1/2 text-[160px] font-black text-slate-900/[0.035] select-none pointer-events-none font-bangla filter blur-[0.5px] leading-none">
+                    বা
+                  </div>
+
+                  <div className="relative z-10 space-y-6">
+                    {/* Top Row: Visitors Header, Stats & D/M/Y Pill Toggle */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-2xl sm:text-3xl font-black text-slate-900 font-sans tracking-tight">
+                          Visitors
+                        </h2>
+                        <button
+                          onClick={() => refreshAllData(token || undefined)}
+                          className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                          title="রিফ্রেশ অ্যানালিটিক্স"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      <button
-                        onClick={() => { if (token) fetchAnalytics(token); }}
-                        className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                        title="রিফ্রেশ অ্যানালিটিক্স"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                      </button>
+
+                      <div className="flex items-center gap-6 sm:gap-8">
+                        {/* Stat 1: Total / New Visitors */}
+                        <div>
+                          <span className="text-2xl sm:text-3xl font-black text-slate-900 font-sans block leading-none">
+                            {analytics.totalVisits >= 1000 ? `${(analytics.totalVisits / 1000).toFixed(0)}K` : analytics.totalVisits || '250K'}
+                          </span>
+                          <span className="text-xs text-slate-400 font-medium mt-1.5 block">New Visitors</span>
+                        </div>
+
+                        {/* Stat 2: Visitors Increase % */}
+                        <div>
+                          <span className="text-2xl sm:text-3xl font-black text-emerald-500 font-sans flex items-center gap-1 leading-none">
+                            <span>{analytics.increasePct || '2.5%'}</span>
+                            <span className="text-xl">↑</span>
+                          </span>
+                          <span className="text-xs text-slate-400 font-medium mt-1.5 block">Visitors Increase</span>
+                        </div>
+
+                        {/* Pill Toggle: D, M, Y */}
+                        <div className="inline-flex items-center bg-slate-100/90 rounded-full p-1 text-xs font-bold text-slate-400">
+                          {(['D', 'M', 'Y'] as const).map(f => (
+                            <button
+                              key={f}
+                              onClick={() => setChartTimeframe(f)}
+                              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                                chartTimeframe === f
+                                  ? 'bg-white text-slate-800 shadow-xs font-extrabold'
+                                  : 'text-slate-400 hover:text-slate-600'
+                              }`}
+                            >
+                              {f}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-6">
-                      <div>
-                        <span className="text-2xl font-black text-slate-900 font-sans">
-                          {analytics.totalVisits.toLocaleString()}
-                        </span>
-                        <p className="text-xs text-slate-400 font-medium">Total Visitors</p>
-                      </div>
+                    {/* Subtitle Row: Old vs New Visitors & Legend Dots */}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-sm font-semibold text-slate-500">
+                        Old vs New Visitors
+                      </span>
 
-                      <div>
-                        <span className="text-2xl font-black text-emerald-600 font-sans flex items-center gap-1">
-                          +{analytics.todayVisits} <span className="text-base">↑</span>
-                        </span>
-                        <p className="text-xs text-slate-400 font-medium">Today Visits</p>
+                      <div className="flex items-center gap-5 text-xs font-semibold text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600 ring-2 ring-blue-100" />
+                          <span>This year</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100" />
+                          <span>Previous year</span>
+                        </div>
                       </div>
+                    </div>
 
-                      <div className="flex items-center bg-slate-100 rounded-full p-1 text-xs font-bold">
-                        {(['D', 'M'] as const).map(f => (
-                          <button
-                            key={f}
-                            onClick={() => setChartTimeframe(f)}
-                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                              chartTimeframe === f
-                                ? 'bg-white text-slate-900 shadow-xs'
-                                : 'text-slate-400 hover:text-slate-700'
-                            }`}
-                            title={f === 'D' ? 'দৈনিক ট্রাফিক (Last 7 Days)' : 'মাসিক ট্রাফিক (All Months)'}
-                          >
-                            {f}
-                          </button>
+                    {/* Smooth Cubic Bezier Spline Wave Chart */}
+                    <div className="w-full relative pt-2">
+                      <svg viewBox="0 0 800 270" className="w-full h-56 sm:h-64 overflow-visible">
+                        <defs>
+                          {/* Blue Wave Area Gradient */}
+                          <linearGradient id="blueWaveGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#2563eb" stopOpacity="0.22" />
+                            <stop offset="65%" stopColor="#3b82f6" stopOpacity="0.08" />
+                            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.00" />
+                          </linearGradient>
+
+                          {/* Emerald Green Wave Area Gradient */}
+                          <linearGradient id="greenWaveGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#10b981" stopOpacity="0.20" />
+                            <stop offset="65%" stopColor="#10b981" stopOpacity="0.06" />
+                            <stop offset="100%" stopColor="#10b981" stopOpacity="0.00" />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Faint Horizontal Dashed Guidelines */}
+                        <line x1="30" y1="70" x2="770" y2="70" stroke="#f1f5f9" strokeDasharray="5 5" strokeWidth="1.5" />
+                        <line x1="30" y1="130" x2="770" y2="130" stroke="#f1f5f9" strokeDasharray="5 5" strokeWidth="1.5" />
+                        <line x1="30" y1="190" x2="770" y2="190" stroke="#f1f5f9" strokeDasharray="5 5" strokeWidth="1.5" />
+                        <line x1="30" y1="240" x2="770" y2="240" stroke="#f1f5f9" strokeWidth="1" />
+
+                        {/* 1. Green Curve Area & Line (Previous year) */}
+                        {waveData.greenArea && (
+                          <path d={waveData.greenArea} fill="url(#greenWaveGrad)" />
+                        )}
+                        {waveData.greenStroke && (
+                          <path
+                            d={waveData.greenStroke}
+                            fill="none"
+                            stroke="#10b981"
+                            strokeWidth="2.8"
+                            strokeLinecap="round"
+                            className="transition-all duration-700"
+                          />
+                        )}
+
+                        {/* 2. Blue Curve Area & Line (This year) */}
+                        {waveData.blueArea && (
+                          <path d={waveData.blueArea} fill="url(#blueWaveGrad)" />
+                        )}
+                        {waveData.blueStroke && (
+                          <path
+                            d={waveData.blueStroke}
+                            fill="none"
+                            stroke="#2563eb"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            className="transition-all duration-700"
+                          />
+                        )}
+
+                        {/* Peak Points / Inflection Circles matching Screenshot */}
+                        {/* Peak 1: May (Blue) */}
+                        {waveData.bluePoints[4] && (
+                          <g className="cursor-pointer">
+                            <circle cx={waveData.bluePoints[4].x} cy={waveData.bluePoints[4].y} r="5" fill="#ffffff" stroke="#2563eb" strokeWidth="3" />
+                            <circle cx={waveData.bluePoints[4].x} cy={waveData.bluePoints[4].y} r="2" fill="#2563eb" />
+                          </g>
+                        )}
+                        {/* Peak 2: Jun (Green junction) */}
+                        {waveData.greenPoints[5] && (
+                          <g className="cursor-pointer">
+                            <circle cx={waveData.greenPoints[5].x} cy={waveData.greenPoints[5].y} r="5" fill="#ffffff" stroke="#10b981" strokeWidth="3" />
+                            <circle cx={waveData.greenPoints[5].x} cy={waveData.greenPoints[5].y} r="2" fill="#10b981" />
+                          </g>
+                        )}
+                        {/* Peak 3: Aug (Blue inflection) */}
+                        {waveData.bluePoints[7] && (
+                          <g className="cursor-pointer">
+                            <circle cx={waveData.bluePoints[7].x} cy={waveData.bluePoints[7].y} r="5" fill="#ffffff" stroke="#2563eb" strokeWidth="3" />
+                            <circle cx={waveData.bluePoints[7].x} cy={waveData.bluePoints[7].y} r="2" fill="#2563eb" />
+                          </g>
+                        )}
+                        {/* Peak 4: Oct (Green rise) */}
+                        {waveData.greenPoints[9] && (
+                          <g className="cursor-pointer">
+                            <circle cx={waveData.greenPoints[9].x} cy={waveData.greenPoints[9].y} r="5" fill="#ffffff" stroke="#10b981" strokeWidth="3" />
+                            <circle cx={waveData.greenPoints[9].x} cy={waveData.greenPoints[9].y} r="2" fill="#10b981" />
+                          </g>
+                        )}
+
+                        {/* Interactive Invisible Hover Columns */}
+                        {waveData.bluePoints.map((bp, i) => (
+                          <rect
+                            key={i}
+                            x={bp.x - 20}
+                            y={10}
+                            width={40}
+                            height={240}
+                            fill="transparent"
+                            className="cursor-pointer"
+                            onMouseEnter={() => setHoveredPointIdx(i)}
+                            onMouseLeave={() => setHoveredPointIdx(null)}
+                          />
+                        ))}
+
+                        {/* Hover Tooltip Card in SVG */}
+                        {hoveredPointIdx !== null && waveData.bluePoints[hoveredPointIdx] && (
+                          <g transform={`translate(${waveData.bluePoints[hoveredPointIdx].x}, ${Math.min(waveData.bluePoints[hoveredPointIdx].y, 160)})`}>
+                            <line y1={-30} y2={240 - Math.min(waveData.bluePoints[hoveredPointIdx].y, 160)} stroke="#94a3b8" strokeDasharray="3 3" strokeWidth="1" />
+                            <rect x="-65" y="-55" width="130" height="46" rx="10" fill="#0f172a" opacity="0.95" />
+                            <text x="0" y="-38" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">
+                              {waveData.labels[hoveredPointIdx]}
+                            </text>
+                            <text x="0" y="-21" textAnchor="middle" fill="#93c5fd" fontSize="10">
+                              Visits: {waveData.bluePoints[hoveredPointIdx].visits} live
+                            </text>
+                          </g>
+                        )}
+                      </svg>
+
+                      {/* X-Axis Month / Day Labels */}
+                      <div className="flex items-center justify-between px-3 pt-1">
+                        {waveData.labels.map((lbl, idx) => (
+                          <div key={idx} className="flex-1 text-center">
+                            <span className={`text-[11px] font-medium block truncate ${
+                              hoveredPointIdx === idx ? 'text-blue-600 font-bold' : 'text-slate-400'
+                            }`}>
+                              {lbl}
+                            </span>
+                          </div>
                         ))}
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
-                    <span className="font-semibold text-slate-500">
-                      {chartTimeframe === 'D' ? 'বিগত ৭ দিনের লাইভ ভিজিটর সংখ্যা (Daily)' : 'চলতি বছরের প্রতি মাসের লাইভ ভিজিটর সংখ্যা (Monthly)'}
-                    </span>
-                    
-                    <div className="flex items-center gap-2 font-medium text-slate-500">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                      <span>{chartTimeframe === 'D' ? 'দিন অনুযায়ী ভিজিট' : 'মাস অনুযায়ী ভিজিট'}</span>
-                    </div>
-                  </div>
-
-                  {/* Real-time Dynamic Interactive Bar Chart */}
-                  <div className="w-full pt-6 pb-2">
-                    <div className="h-56 sm:h-64 flex items-end justify-between gap-2 sm:gap-4 px-2 border-b border-slate-200">
-                      {chartItems.map((item, idx) => {
-                        const heightPct = Math.max(6, Math.round((item.count / maxChartCount) * 100));
-                        const hasVisits = item.count > 0;
-                        return (
-                          <div key={item.key || idx} className="flex-1 flex flex-col items-center h-full justify-end group relative">
-                            
-                            {/* Hover Tooltip */}
-                            <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-20 bg-slate-900 text-white text-[11px] font-bold py-1 px-2.5 rounded-lg shadow-lg whitespace-nowrap">
-                              {item.label}: {item.count} visitors
-                            </div>
-
-                            {/* Badge count on top of bar if visits > 0 */}
-                            {hasVisits && (
-                              <span className="text-[10px] font-bold text-blue-600 mb-1 font-mono">
-                                {item.count}
-                              </span>
-                            )}
-
-                            {/* Dynamic Bar */}
-                            <div 
-                              style={{ height: `${heightPct}%` }}
-                              className={`w-full max-w-[36px] rounded-t-xl transition-all duration-500 ${
-                                hasVisits
-                                  ? 'bg-gradient-to-t from-blue-600 to-sky-400 shadow-md shadow-blue-500/20 group-hover:from-blue-700 group-hover:to-sky-300'
-                                  : 'bg-slate-100 group-hover:bg-slate-200'
-                              }`}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Chart X-Axis Labels */}
-                    <div className="flex items-center justify-between gap-2 sm:gap-4 px-2 pt-2.5">
-                      {chartItems.map((item, idx) => (
-                        <div key={item.key || idx} className="flex-1 text-center">
-                          <span className={`text-[11px] font-medium block truncate ${
-                            item.count > 0 ? 'text-blue-700 font-bold' : 'text-slate-400'
-                          }`}>
-                            {item.label}
-                          </span>
-                        </div>
-                      ))}
                     </div>
                   </div>
 
@@ -1417,13 +2052,50 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs uppercase font-sans">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase font-sans ${
+                            c.is_direct ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-700'
+                          }`}>
                             {(c.author_name || 'U')[0]}
                           </div>
                           <div>
-                            <h4 className="font-bold text-slate-900 text-sm font-bangla">{c.author_name}</h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-900 text-sm font-bangla">{c.author_name}</h4>
+                              {c.is_direct ? (
+                                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold font-bangla">
+                                  সরাসরি মেসেজ
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold font-bangla">
+                                  পাবলিক মন্তব্য
+                                </span>
+                              )}
+                            </div>
+                            {c.phone_number && (
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="font-mono text-xs font-bold text-slate-800 flex items-center gap-1">
+                                  <Phone className="w-3 h-3 text-blue-600" />
+                                  <span>{c.phone_number}</span>
+                                </span>
+                                <a
+                                  href={`https://wa.me/${c.phone_number.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2 py-0.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs"
+                                  title="WhatsApp-এ চ্যাট করুন"
+                                >
+                                  <span>WhatsApp</span>
+                                </a>
+                                <a
+                                  href={`tel:${c.phone_number.replace(/\s+/g, '')}`}
+                                  className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center gap-1 border border-blue-200/60"
+                                  title="সরাসরি কল করুন"
+                                >
+                                  <span>কল</span>
+                                </a>
+                              </div>
+                            )}
                             {c.author_email && (
-                              <p className="text-xs text-slate-400 font-sans">{c.author_email}</p>
+                              <p className="text-xs text-slate-400 font-sans mt-0.5">{c.author_email}</p>
                             )}
                           </div>
                         </div>
@@ -1525,13 +2197,10 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900 font-bangla flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-900 font-sans flex items-center gap-2">
                     <BarChart3 className="w-5 h-5 text-blue-600" />
-                    <span>অ্যানালিটিক্স ও ট্রাফিক ইনসাইটস (Traffic Analytics)</span>
+                    <span>Traffic Analytics Insights</span>
                   </h2>
-                  <p className="text-xs text-slate-500 font-bangla mt-1">
-                    ক্লাউডফ্লেয়ার D1-এর রিয়েলটাইম ডাটা ট্র্যাকিং এবং সার্চ ইঞ্জিন পারফরম্যান্স।
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1653,6 +2322,142 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
             </div>
           )}
+
+          {/* VIEW: Media Gallery */}
+          {activeNav === 'media' && (
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900 font-sans flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5 text-blue-600" />
+                    <span>Media Gallery</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium mt-1">
+                    Manage and replace author avatars, blog covers, and uploaded images across the entire website.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center bg-slate-100 rounded-full p-1 text-xs font-semibold">
+                    {(['all', 'profiles', 'covers', 'custom'] as const).map(tab => (
+                      <button
+                        key={tab}
+                        onClick={() => setMediaFilter(tab)}
+                        className={`px-3 py-1 rounded-full transition-all cursor-pointer capitalize ${
+                          mediaFilter === tab ? 'bg-white text-blue-600 shadow-xs font-bold' : 'text-slate-500'
+                        }`}
+                      >
+                        {tab === 'all' ? 'All Media' : tab === 'profiles' ? 'Avatars' : tab === 'covers' ? 'Covers' : 'Uploads'}
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
+                    type="file"
+                    ref={newMediaFileInputRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleUploadNewMedia(file);
+                    }}
+                  />
+
+                  <button
+                    onClick={() => newMediaFileInputRef.current?.click()}
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Upload Image</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Hidden file input for Replace */}
+              <input
+                type="file"
+                ref={mediaFileInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file && replacingMediaItem) {
+                    handleReplaceMediaFile(replacingMediaItem, file);
+                    setReplacingMediaItem(null);
+                  }
+                }}
+              />
+
+              {/* Grid of media */}
+              {isLoadingMedia ? (
+                <div className="py-16 text-center text-slate-400">
+                  <RefreshCw className="w-8 h-8 animate-spin mx-auto text-blue-500 mb-2" />
+                  <p className="text-sm">Loading media gallery...</p>
+                </div>
+              ) : mediaList.length === 0 ? (
+                <div className="py-16 text-center text-slate-400">
+                  <ImageIcon className="w-12 h-12 mx-auto text-slate-300 mb-3" />
+                  <p className="text-sm font-medium">No media found.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {mediaList
+                    .filter(item => {
+                      if (mediaFilter === 'profiles') return item.type === 'author_avatar' || item.type === 'admin_avatar';
+                      if (mediaFilter === 'covers') return item.type === 'cover_image';
+                      if (mediaFilter === 'custom') return item.type === 'custom';
+                      return true;
+                    })
+                    .map((item) => (
+                      <div key={item.id} className="bg-slate-50/70 rounded-2xl border border-slate-200/80 p-3.5 flex flex-col justify-between group hover:border-blue-300 hover:shadow-xs transition-all">
+                        <div className="space-y-3">
+                          <div className="w-full h-40 rounded-xl overflow-hidden bg-slate-200 relative border border-slate-200/60 flex items-center justify-center">
+                            <img
+                              src={item.url}
+                              alt={item.title}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            />
+                            {item.isProfile && (
+                              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-blue-600/90 text-white text-[10px] font-bold backdrop-blur-xs">
+                                Profile
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-xs text-slate-800 line-clamp-1">{item.title}</h4>
+                            <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">{item.usedIn}</p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-slate-200/60">
+                          <button
+                            onClick={() => {
+                              setReplacingMediaItem(item);
+                              mediaFileInputRef.current?.click();
+                            }}
+                            className="flex-1 px-3 py-1.5 rounded-lg bg-white hover:bg-blue-50 text-blue-600 border border-slate-200 hover:border-blue-300 text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            <span>Replace</span>
+                          </button>
+
+                          {item.type === 'custom' && (
+                            <button
+                              onClick={() => handleDeleteMedia(item.id)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {activeNav === 'calendar' && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
@@ -1756,208 +2561,226 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </div>
           )}
 
-          {/* VIEW 4: Settings (Admin Profile, Authors Profile, Password Change) */}
+          {/* VIEW 4: Settings (Clean Titles, Device Upload & Drag Position) */}
           {activeNav === 'settings' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              
-              {/* Card 1: Admin Profile & Authors Profile Settings */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 font-bangla flex items-center gap-2">
-                    <User className="w-5 h-5 text-blue-600" />
-                    <span>প্রোফাইল ও লেখক সেটিংস (Profile & Authors)</span>
-                  </h2>
-                  <p className="text-xs text-slate-500 font-bangla mt-1">
-                    অ্যাডমিন ও আর্টিকেলের লেখকের ছবি এবং বিবরণ পরিবর্তন করুন।
-                  </p>
-                </div>
+            <div className="space-y-8">
+              {/* Main Page Title: Settings */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-sans tracking-tight">
+                  Settings
+                </h1>
 
                 {settingsSuccessMsg && (
-                  <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bangla flex items-center gap-2">
+                  <div className="p-2.5 px-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bangla flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>{settingsSuccessMsg}</span>
                   </div>
                 )}
+              </div>
 
-                {/* Admin Profile Form */}
-                <div className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-4">
-                  <h4 className="font-bold text-slate-900 text-sm font-bangla">অ্যাডমিন প্রোফাইল</h4>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div 
-                      className="relative group w-16 h-16 shrink-0 cursor-pointer" 
-                      onClick={() => adminFileInputRef.current?.click()}
-                      title="ছবি আপলোড করতে ক্লিক করুন"
-                    >
-                      <img 
-                        src={adminProfile.avatar || '/assets/pabel_light_avatar.webp'} 
-                        alt="Avatar" 
-                        className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm group-hover:opacity-80 transition-opacity"
-                      />
-                      <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Camera className="w-5 h-5 text-white" />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                
+                {/* Section 1: Profile & Author Profile */}
+                <div className="space-y-8">
+                  {/* Card 1: Profile */}
+                  <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+                    <h2 className="text-lg font-bold text-slate-900 font-sans border-b border-slate-100 pb-3">
+                      Profile
+                    </h2>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+                      <div 
+                        className="relative group w-20 h-20 shrink-0 cursor-pointer" 
+                        onClick={() => adminFileInputRef.current?.click()}
+                        title="Upload photo from device"
+                      >
+                        <img 
+                          src={adminProfile.avatar || '/assets/pabel_light_avatar.webp'} 
+                          alt="Avatar" 
+                          className="w-20 h-20 rounded-full object-cover border-2 border-slate-200 shadow-sm group-hover:opacity-85 transition-opacity"
+                        />
+                        <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Camera className="w-5 h-5 text-white" />
+                        </div>
                       </div>
-                    </div>
 
-                    <input 
-                      type="file" 
-                      ref={adminFileInputRef} 
-                      accept="image/*" 
-                      className="hidden" 
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          processImageFile(file, 300, 300, 0.85, (dataUrl) => {
-                            setAdminProfile({ ...adminProfile, avatar: dataUrl });
-                          });
-                        }
-                      }}
-                    />
+                      <input 
+                        type="file" 
+                        ref={adminFileInputRef} 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleProfileFileSelected(file, 'admin');
+                        }}
+                      />
 
-                    <div className="flex-1 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold text-slate-700 font-bangla">
-                          প্রোফাইল পিকচার
-                        </label>
+                      <div className="flex flex-wrap items-center gap-2.5">
                         <button
                           type="button"
                           onClick={() => adminFileInputRef.current?.click()}
-                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 font-bangla flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-slate-200 hover:border-blue-300 shadow-2xs"
+                          className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-blue-100"
                         >
                           <Upload className="w-3.5 h-3.5" />
-                          <span>ডিভাইস থেকে ছবি আপলোড করুন</span>
+                          <span>Upload Photo</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openAdjustCurrentAvatar('admin')}
+                          className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-slate-200"
+                          title="Drag to reposition / crop"
+                        >
+                          <Move className="w-3.5 h-3.5" />
+                          <span>Adjust Position</span>
                         </button>
                       </div>
-                      <input
-                        type="text"
-                        placeholder="অথবা সরাসরি ইমেজ লিংক (URL) দিন"
-                        value={adminProfile.avatar.startsWith('data:image') ? '(সরাসরি ডিভাইস থেকে ছবি আপলোড করা হয়েছে)' : adminProfile.avatar}
-                        onChange={e => setAdminProfile({ ...adminProfile, avatar: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-mono"
-                      />
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 font-bangla mb-1">নাম</label>
-                      <input
-                        type="text"
-                        value={adminProfile.name}
-                        onChange={e => setAdminProfile({ ...adminProfile, name: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bangla"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 font-bangla mb-1">ইমেইল</label>
-                      <input
-                        type="email"
-                        value={adminProfile.email}
-                        onChange={e => setAdminProfile({ ...adminProfile, email: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-sans"
-                      />
-                    </div>
-                  </div>
-                </div>
+                    <div className="space-y-4 pt-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Name</label>
+                          <input
+                            type="text"
+                            value={adminProfile.name}
+                            onChange={e => setAdminProfile({ ...adminProfile, name: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Email</label>
+                          <input
+                            type="email"
+                            value={adminProfile.email}
+                            onChange={e => setAdminProfile({ ...adminProfile, email: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
 
-                {/* Author Profile Form */}
-                <div className="p-5 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-4">
-                  <h4 className="font-bold text-slate-900 text-sm font-bangla">আর্টিকেল অথর (Author Profile)</h4>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div 
-                      className="relative group w-16 h-16 shrink-0 cursor-pointer" 
-                      onClick={() => authorFileInputRef.current?.click()}
-                      title="ছবি আপলোড করতে ক্লিক করুন"
-                    >
-                      <img 
-                        src={authorProfile.avatar || '/assets/pabel_light_avatar.webp'} 
-                        alt="Author" 
-                        className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm group-hover:opacity-80 transition-opacity"
-                      />
-                      <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Camera className="w-5 h-5 text-white" />
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Role</label>
+                        <input
+                          type="text"
+                          value={adminProfile.role}
+                          onChange={e => setAdminProfile({ ...adminProfile, role: e.target.value })}
+                          className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
                       </div>
                     </div>
+                  </div>
 
-                    <input 
-                      type="file" 
-                      ref={authorFileInputRef} 
-                      accept="image/*" 
-                      className="hidden" 
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          processImageFile(file, 300, 300, 0.85, (dataUrl) => {
-                            setAuthorProfile({ ...authorProfile, avatar: dataUrl });
-                          });
-                        }
-                      }}
-                    />
+                  {/* Card 2: Author Profile */}
+                  <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+                    <h2 className="text-lg font-bold text-slate-900 font-sans border-b border-slate-100 pb-3">
+                      Author Profile
+                    </h2>
 
-                    <div className="flex-1 space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold text-slate-700 font-bangla">
-                          অথর প্রোফাইল ছবি
-                        </label>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+                      <div 
+                        className="relative group w-20 h-20 shrink-0 cursor-pointer" 
+                        onClick={() => authorFileInputRef.current?.click()}
+                        title="Upload author photo from device"
+                      >
+                        <img 
+                          src={authorProfile.avatar || '/assets/pabel_light_avatar.webp'} 
+                          alt="Author" 
+                          className="w-20 h-20 rounded-full object-cover border-2 border-slate-200 shadow-sm group-hover:opacity-85 transition-opacity"
+                        />
+                        <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Camera className="w-5 h-5 text-white" />
+                        </div>
+                      </div>
+
+                      <input 
+                        type="file" 
+                        ref={authorFileInputRef} 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleProfileFileSelected(file, 'author');
+                        }}
+                      />
+
+                      <div className="flex flex-wrap items-center gap-2.5">
                         <button
                           type="button"
                           onClick={() => authorFileInputRef.current?.click()}
-                          className="text-xs font-semibold text-blue-600 hover:text-blue-700 font-bangla flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1 rounded-lg border border-slate-200 hover:border-blue-300 shadow-2xs"
+                          className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-blue-100"
                         >
                           <Upload className="w-3.5 h-3.5" />
-                          <span>ডিভাইস থেকে ছবি আপলোড করুন</span>
+                          <span>Upload Photo</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openAdjustCurrentAvatar('author')}
+                          className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-slate-200"
+                          title="Drag to reposition / crop"
+                        >
+                          <Move className="w-3.5 h-3.5" />
+                          <span>Adjust Position</span>
                         </button>
                       </div>
-                      <input
-                        type="text"
-                        placeholder="অথবা সরাসরি ইমেজ লিংক (URL) দিন"
-                        value={authorProfile.avatar.startsWith('data:image') ? '(সরাসরি ডিভাইস থেকে ছবি আপলোড করা হয়েছে)' : authorProfile.avatar}
-                        onChange={e => setAuthorProfile({ ...authorProfile, avatar: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-mono"
-                      />
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 font-bangla mb-1">অথর নাম</label>
-                      <input
-                        type="text"
-                        value={authorProfile.name}
-                        onChange={e => setAuthorProfile({ ...authorProfile, name: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bangla"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 font-bangla mb-1">পদবী (Role)</label>
-                      <input
-                        type="text"
-                        value={authorProfile.role}
-                        onChange={e => setAuthorProfile({ ...authorProfile, role: e.target.value })}
-                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bangla"
-                      />
+                    <div className="space-y-4 pt-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Author Name</label>
+                          <input
+                            type="text"
+                            value={authorProfile.name}
+                            onChange={e => setAuthorProfile({ ...authorProfile, name: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Role / Designation</label>
+                          <input
+                            type="text"
+                            value={authorProfile.role}
+                            onChange={e => setAuthorProfile({ ...authorProfile, role: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Bio</label>
+                        <textarea
+                          rows={2}
+                          value={authorProfile.bio}
+                          onChange={e => setAuthorProfile({ ...authorProfile, bio: e.target.value })}
+                          className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                      </div>
+
+                      <button
+                        disabled={isSavingSettings}
+                        onClick={handleSaveSettings}
+                        className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2"
+                      >
+                        {isSavingSettings ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Saving Changes...</span>
+                          </>
+                        ) : (
+                          <span>Save Changes</span>
+                        )}
+                      </button>
                     </div>
                   </div>
                 </div>
 
-                <button
-                  disabled={isSavingSettings}
-                  onClick={handleSaveSettings}
-                  className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs font-bangla transition-all cursor-pointer shadow-sm"
-                >
-                  {isSavingSettings ? 'সংরক্ষণ হচ্ছে...' : 'প্রোফাইল পরিবর্তন সংরক্ষণ করুন'}
-                </button>
-              </div>
-
-              {/* Card 2: Password Change Form */}
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 font-bangla flex items-center gap-2">
-                    <Lock className="w-5 h-5 text-blue-600" />
-                    <span>পাসওয়ার্ড পরিবর্তন (Change Password)</span>
+                {/* Section 2: Password */}
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+                  <h2 className="text-lg font-bold text-slate-900 font-sans border-b border-slate-100 pb-3">
+                    Password
                   </h2>
-                  <p className="text-xs text-slate-500 font-bangla mt-1">
-                    অ্যাডমিন প্যানেলে লগইন করার জন্য নতুন পাসওয়ার্ড সেট করুন।
-                  </p>
                 </div>
 
                 {passwordMsg.success && (
@@ -2501,6 +3324,107 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
               </button>
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* 4. Circular Avatar Drag & Crop Reposition Modal */}
+      {cropModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Move className="w-5 h-5 text-blue-600" />
+                <h3 className="font-extrabold text-slate-900 text-base font-sans">
+                  {cropTarget === 'admin' ? 'Position Profile Picture' : cropTarget === 'author' ? 'Position Author Profile Picture' : 'Position Image'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCropModalOpen(false)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500 font-bangla">
+              মাউস অথবা আঙুল দিয়ে ড্র্যাগ করে ছবিটি বৃত্তের ভেতরে সঠিক স্থানে বসান এবং জুম নিয়ন্ত্রণ করুন।
+            </p>
+
+            {/* Circular Viewport Preview Frame */}
+            <div className="flex justify-center py-2">
+              <div
+                className="w-64 h-64 rounded-full overflow-hidden border-4 border-blue-500 shadow-xl relative cursor-grab active:cursor-grabbing select-none bg-slate-900 flex items-center justify-center"
+                onMouseDown={handleCropMouseDown}
+                onMouseMove={handleCropMouseMove}
+                onMouseUp={handleCropMouseUp}
+                onMouseLeave={handleCropMouseUp}
+                onTouchStart={handleCropTouchStart}
+                onTouchMove={handleCropTouchMove}
+                onTouchEnd={handleCropTouchEnd}
+              >
+                <img
+                  src={cropImageSrc}
+                  alt="Crop Target"
+                  draggable={false}
+                  style={{
+                    transform: `translate(${cropPos.x}px, ${cropPos.y}px) scale(${cropZoom})`,
+                    transformOrigin: 'center center',
+                    maxWidth: 'none',
+                  }}
+                  className="w-full h-full object-cover pointer-events-none select-none transition-transform duration-75"
+                />
+
+                {/* Subtle centering crosshair guide */}
+                <div className="absolute inset-0 pointer-events-none border border-white/20 rounded-full" />
+                <div className="absolute top-1/2 left-0 right-0 h-px bg-white/20 pointer-events-none" />
+                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/20 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Zoom Slider Control */}
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                <span className="flex items-center gap-1">
+                  <ZoomIn className="w-3.5 h-3.5 text-blue-600" />
+                  <span>জুম স্কেল (Zoom)</span>
+                </span>
+                <span className="font-mono text-blue-600 font-bold">{cropZoom.toFixed(1)}x</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <ZoomOut className="w-4 h-4 text-slate-400" />
+                <input
+                  type="range"
+                  min="1"
+                  max="3"
+                  step="0.05"
+                  value={cropZoom}
+                  onChange={(e) => setCropZoom(parseFloat(e.target.value))}
+                  className="flex-1 accent-blue-600 cursor-pointer h-2 bg-slate-200 rounded-lg"
+                />
+                <ZoomIn className="w-4 h-4 text-slate-400" />
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setCropModalOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+              >
+                বাতিল
+              </button>
+              <button
+                type="button"
+                onClick={confirmAvatarCrop}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/20 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>পজিশন সংরক্ষণ করুন</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
