@@ -7,7 +7,7 @@ import {
   CalendarDays, Settings, LogOut, Search, Bell, Plus, Edit3, Trash2, Eye, 
   Check, X, Sparkles, BookOpen, Layers, ExternalLink, ArrowUpRight,
   TrendingUp, MessageSquare, Heart, Clock, CheckCircle2, AlertCircle,
-  Copy, RefreshCw, ChevronDown, Filter, FileText, ChevronRight,
+  Copy, RefreshCw, ChevronDown, Filter, FileText, ChevronRight, ChevronLeft,
   Send, Reply, User, Lock, Key, ShieldCheck, Link2, Bold, Italic,
   Heading1, Heading2, Heading3, AlignCenter, Quote, Code, List,
   Calendar as CalendarIcon, CheckSquare, Camera, Upload, ZoomIn, ZoomOut, Move,
@@ -236,17 +236,17 @@ export default function AdminBlogPage() {
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Comments & Inquiries State
+  // Comments & Inquiries State (Meta Business Suite Style Inbox)
   const [comments, setComments] = useState<AdminComment[]>([]);
   const [unreadCommentsCount, setUnreadCommentsCount] = useState<number>(0);
-  const [inboxSubTab, setInboxSubTab] = useState<'inquiries' | 'comments'>('inquiries');
-  const [inquiryStatusFilter, setInquiryStatusFilter] = useState<'all' | 'pending' | 'ongoing' | 'completed'>('all');
-  const [replyingCommentId, setReplyingCommentId] = useState<number | null>(null);
+  const [inboxMainTab, setInboxMainTab] = useState<'all' | 'inquiries' | 'comments'>('all');
+  const [inboxStatusFilter, setInboxStatusFilter] = useState<'all' | 'unread' | 'pending' | 'ongoing' | 'completed'>('all');
+  const [inboxSearchQuery, setInboxSearchQuery] = useState('');
+  const [selectedCommentId, setSelectedCommentId] = useState<number | null>(null);
   const [adminReplyText, setAdminReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
 
-  // Inquiry Discussion Notes State
-  const [editingNoteCommentId, setEditingNoteCommentId] = useState<number | null>(null);
+  // Inquiry Discussion Notes State (Admin Only)
   const [inquiryNoteText, setInquiryNoteText] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
 
@@ -1222,7 +1222,7 @@ export default function AdminBlogPage() {
     }
   };
 
-  // Admin Reply to Comment
+  // Admin Reply to Comment (Public blog reply)
   const handleSendAdminReply = async (commentId: number) => {
     if (!adminReplyText.trim()) return;
     setIsSendingReply(true);
@@ -1236,12 +1236,18 @@ export default function AdminBlogPage() {
         body: JSON.stringify({ adminReply: adminReplyText.trim() }),
       });
       if (res.ok) {
-        setReplyingCommentId(null);
-        setAdminReplyText('');
-        if (token) fetchAdminComments(token);
+        setComments(prev => prev.map(c => c.id === commentId ? {
+          ...c,
+          admin_reply: adminReplyText.trim(),
+          admin_replied_at: new Date().toISOString(),
+          is_read: 1,
+        } : c));
+        showToast('পাবলিক মন্তব্যটির উত্তর সফলভাবে ব্লগে পোস্ট করা হয়েছে!');
+      } else {
+        showToast('রিপ্লাই পাঠাতে সমস্যা হয়েছে', 'error');
       }
     } catch (e) {
-      alert('রিপ্লাই পাঠাতে সমস্যা হয়েছে');
+      showToast('রিপ্লাই পাঠাতে সমস্যা হয়েছে', 'error');
     } finally {
       setIsSendingReply(false);
     }
@@ -1266,6 +1272,9 @@ export default function AdminBlogPage() {
           const data = await res.json();
           if (res.ok && data.success) {
             setComments(prev => prev.filter(c => c.id !== commentId));
+            if (selectedCommentId === commentId) {
+              setSelectedCommentId(null);
+            }
             showToast('সফলভাবে মুছে ফেলা হয়েছে!');
           } else {
             showToast(data.error || 'মুছে ফেলতে সমস্যা হয়েছে', 'error');
@@ -1303,7 +1312,7 @@ export default function AdminBlogPage() {
     }
   };
 
-  // Save Discussion Note on Inquiry
+  // Save Discussion Note on Inquiry (Admin Only)
   const handleSaveInquiryNote = async (commentId: number) => {
     if (!token) return;
     setIsSavingNote(true);
@@ -1325,9 +1334,7 @@ export default function AdminBlogPage() {
           admin_note_at: data.admin_note_at || new Date().toISOString(),
           is_read: 1,
         } : c));
-        setEditingNoteCommentId(null);
-        setInquiryNoteText('');
-        showToast('কথোপকথনের অভ্যন্তরীণ নোট সংরক্ষিত হয়েছে!');
+        showToast('অভ্যন্তরীণ অ্যাডমিন নোট সংরক্ষিত হয়েছে!');
       } else {
         showToast(data.error || 'নোট সংরক্ষণে সমস্যা হয়েছে', 'error');
       }
@@ -2838,445 +2845,627 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </>
           )}
 
-          {/* VIEW 2: Messages & Inquiries Inbox */}
+          {/* VIEW 2: Unified Messages & Inquiries Inbox (Meta Business Suite Style) */}
           {activeNav === 'messages' && (() => {
-            const inquiries = comments.filter(c => Boolean(c.is_direct));
-            const publicComments = comments.filter(c => !c.is_direct);
-            const filteredInquiries = inquiries.filter(c => {
-              if (inquiryStatusFilter === 'all') return true;
-              return (c.status || 'pending') === inquiryStatusFilter;
+            const allInquiries = comments.filter(c => Boolean(c.is_direct));
+            const allComments = comments.filter(c => !c.is_direct);
+
+            // Filter by Top Category Tab: 'all' | 'inquiries' | 'comments'
+            let categoryFiltered = comments;
+            if (inboxMainTab === 'inquiries') {
+              categoryFiltered = allInquiries;
+            } else if (inboxMainTab === 'comments') {
+              categoryFiltered = allComments;
+            }
+
+            // Filter by Status / Badge: 'all' | 'unread' | 'pending' | 'ongoing' | 'completed'
+            let statusFiltered = categoryFiltered.filter(c => {
+              if (inboxStatusFilter === 'all') return true;
+              if (inboxStatusFilter === 'unread') return !c.is_read;
+              if (inboxStatusFilter === 'pending') return Boolean(c.is_direct) && (c.status || 'pending') === 'pending';
+              if (inboxStatusFilter === 'ongoing') return Boolean(c.is_direct) && c.status === 'ongoing';
+              if (inboxStatusFilter === 'completed') return Boolean(c.is_direct) && c.status === 'completed';
+              return true;
             });
 
+            // Filter by Search Query
+            const finalFiltered = statusFiltered.filter(c => {
+              if (!inboxSearchQuery.trim()) return true;
+              const q = inboxSearchQuery.toLowerCase();
+              return (
+                c.author_name?.toLowerCase().includes(q) ||
+                c.phone_number?.toLowerCase().includes(q) ||
+                c.author_email?.toLowerCase().includes(q) ||
+                c.content?.toLowerCase().includes(q) ||
+                c.post_title?.toLowerCase().includes(q) ||
+                c.post_slug?.toLowerCase().includes(q) ||
+                c.admin_note?.toLowerCase().includes(q)
+              );
+            });
+
+            // Selected comment
+            const selectedItem = comments.find(c => c.id === selectedCommentId) || finalFiltered[0] || null;
+
+            // Counts for Badges
+            const unreadCount = comments.filter(c => !c.is_read).length;
+            const pendingCount = allInquiries.filter(c => (c.status || 'pending') === 'pending').length;
+            const ongoingCount = allInquiries.filter(c => c.status === 'ongoing').length;
+            const completedCount = allInquiries.filter(c => c.status === 'completed').length;
+
             return (
-              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+              <div className="space-y-5">
                 
-                {/* Header with Title and Refresh */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-900 font-bangla flex items-center gap-2">
-                      <Mail className="w-5 h-5 text-blue-600" />
-                      <span>ইনবক্স ও কাস্টমার রেসপন্স হাব</span>
-                      <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
-                        {comments.length}
-                      </span>
-                    </h2>
-                    <p className="text-xs text-slate-500 font-bangla mt-1">
-                      গ্রাহকদের সরাসরি মেসেজের অ্যাকশন স্ট্যাটাস ট্র্যাক করুন, অভ্যন্তরীণ নোট রাখুন এবং পাবলিক কমেন্ট পরিচালনা করুন।
-                    </p>
+                {/* Inbox Header Card */}
+                <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5 font-sans">
+                        <span>Inbox</span>
+                        <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                          {comments.length}
+                        </span>
+                        {unreadCount > 0 && (
+                          <span className="text-[11px] font-bangla font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 animate-pulse">
+                            {unreadCount}টি অপঠিত
+                          </span>
+                        )}
+                      </h1>
+                      <p className="text-xs sm:text-sm text-slate-500 font-bangla mt-1">
+                        Respond to messages, manage inquiries and track customer interactions.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => { if (token) fetchAdminComments(token); }}
+                      className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold font-bangla transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-2xs"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>রিফ্রেশ</span>
+                    </button>
                   </div>
 
-                  <button
-                    onClick={() => { if (token) fetchAdminComments(token); }}
-                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold font-bangla transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>রিফ্রেশ</span>
-                  </button>
+                  {/* Top Category Tabs (Like Meta Business Suite: All | Inquiries | Comments) */}
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => { setInboxMainTab('all'); setSelectedCommentId(null); }}
+                      className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
+                        inboxMainTab === 'all'
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
+                      }`}
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>সকল বার্তা (All messages)</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                        inboxMainTab === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {comments.length}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => { setInboxMainTab('inquiries'); setSelectedCommentId(null); }}
+                      className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
+                        inboxMainTab === 'inquiries'
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
+                      }`}
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>সরাসরি মেসেজ (Inquiries)</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                        inboxMainTab === 'inquiries' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {allInquiries.length}
+                      </span>
+                      {pendingCount > 0 && (
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => { setInboxMainTab('comments'); setSelectedCommentId(null); }}
+                      className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
+                        inboxMainTab === 'comments'
+                          ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                          : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
+                      }`}
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>পাবলিক মন্তব্য (Comments)</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                        inboxMainTab === 'comments' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {allComments.length}
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Main Inbox Sub-Tabs */}
-                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
-                  <button
-                    onClick={() => setInboxSubTab('inquiries')}
-                    className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
-                      inboxSubTab === 'inquiries'
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
-                    }`}
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>সরাসরি ইনকোয়ারি (Inquiries)</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
-                      inboxSubTab === 'inquiries' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {inquiries.length}
-                    </span>
-                    {inquiries.some(c => (c.status || 'pending') === 'pending' || !c.is_read) && (
-                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                    )}
-                  </button>
+                {/* Main Split CRM Workspace (Left: List, Right: Detail + Side Notes) */}
+                <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col lg:flex-row min-h-[720px]">
+                  
+                  {/* LEFT COLUMN: Message List */}
+                  <div className="w-full lg:w-[350px] xl:w-[380px] border-r border-slate-100 bg-slate-50/40 flex flex-col shrink-0">
+                    
+                    {/* Search Bar */}
+                    <div className="p-3 bg-white border-b border-slate-100">
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={inboxSearchQuery}
+                          onChange={e => setInboxSearchQuery(e.target.value)}
+                          placeholder="Search (নাম, ফোন, বার্তা...)"
+                          className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bangla focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        />
+                        {inboxSearchQuery && (
+                          <button
+                            onClick={() => setInboxSearchQuery('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
 
-                  <button
-                    onClick={() => setInboxSubTab('comments')}
-                    className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
-                      inboxSubTab === 'comments'
-                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
-                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
-                    }`}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>পাবলিক কমেন্টস (Blog Comments)</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
-                      inboxSubTab === 'comments' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {publicComments.length}
-                    </span>
-                  </button>
-                </div>
-
-                {/* TAB 1: Direct Inquiries View */}
-                {inboxSubTab === 'inquiries' && (
-                  <div className="space-y-4">
-                    {/* Status Filter Bar */}
-                    <div className="flex flex-wrap items-center gap-2 pb-2">
-                      <span className="text-xs font-bold text-slate-500 font-bangla mr-1">ফিল্টার:</span>
+                    {/* Filter Pills Under Search */}
+                    <div className="p-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-slate-100 bg-slate-50/70">
                       {[
-                        { id: 'all', label: 'সকল ইনকোয়ারি', count: inquiries.length },
-                        { id: 'pending', label: 'অপেক্ষমান (Pending)', count: inquiries.filter(c => (c.status || 'pending') === 'pending').length },
-                        { id: 'ongoing', label: 'চলমান (Ongoing)', count: inquiries.filter(c => c.status === 'ongoing').length },
-                        { id: 'completed', label: 'সম্পন্ন (Completed)', count: inquiries.filter(c => c.status === 'completed').length },
+                        { id: 'all', label: 'All', count: categoryFiltered.length },
+                        { id: 'unread', label: 'Unread', count: unreadCount },
+                        { id: 'pending', label: 'Pending', count: pendingCount },
+                        { id: 'ongoing', label: 'Ongoing', count: ongoingCount },
+                        { id: 'completed', label: 'Completed', count: completedCount },
                       ].map(f => (
                         <button
                           key={f.id}
-                          onClick={() => setInquiryStatusFilter(f.id as any)}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-bangla font-semibold transition-all cursor-pointer ${
-                            inquiryStatusFilter === f.id
-                              ? 'bg-slate-900 text-white shadow-xs'
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                          onClick={() => setInboxStatusFilter(f.id as any)}
+                          className={`px-3 py-1 rounded-xl text-[11px] font-bangla font-bold whitespace-nowrap transition-all cursor-pointer ${
+                            inboxStatusFilter === f.id
+                              ? 'bg-slate-900 text-white shadow-2xs'
+                              : 'bg-white hover:bg-slate-200 text-slate-600 border border-slate-200/60'
                           }`}
                         >
-                          {f.label} ({f.count})
+                          {f.label} {f.count > 0 ? `(${f.count})` : ''}
                         </button>
                       ))}
                     </div>
 
-                    {filteredInquiries.length === 0 ? (
-                      <div className="py-16 text-center text-slate-400 font-bangla bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                        <Send className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                        <p className="text-sm">এই স্ট্যাটাসে কোনো সরাসরি ইনকোয়ারি মেসেজ নেই।</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {filteredInquiries.map(c => {
+                    {/* Scrollable Conversation List */}
+                    <div className="flex-1 overflow-y-auto divide-y divide-slate-100/80 max-h-[660px]">
+                      {finalFiltered.length === 0 ? (
+                        <div className="py-20 px-4 text-center text-slate-400 font-bangla">
+                          <Mail className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                          <p className="text-xs">কোনো বার্তা বা মন্তব্য পাওয়া যায়নি।</p>
+                        </div>
+                      ) : (
+                        finalFiltered.map(c => {
+                          const isSelected = selectedItem?.id === c.id;
                           const currentStatus = c.status || 'pending';
                           return (
-                            <div
+                            <button
                               key={c.id}
-                              className={`p-5 rounded-2xl border transition-all ${
-                                !c.is_read
-                                  ? 'bg-blue-50/30 border-blue-200 shadow-xs'
-                                  : currentStatus === 'completed'
-                                  ? 'bg-emerald-50/20 border-emerald-200/80'
-                                  : currentStatus === 'ongoing'
-                                  ? 'bg-sky-50/20 border-sky-200/80'
-                                  : 'bg-white border-slate-200/80'
+                              type="button"
+                              onClick={() => {
+                                setSelectedCommentId(c.id);
+                                setInquiryNoteText(c.admin_note || '');
+                                setAdminReplyText(c.admin_reply || '');
+                                if (!c.is_read) handleMarkAsRead(c.id);
+                              }}
+                              className={`w-full text-left p-3.5 transition-all flex items-start gap-3 cursor-pointer relative ${
+                                isSelected
+                                  ? 'bg-blue-50/80 border-l-4 border-l-blue-600 shadow-xs'
+                                  : 'hover:bg-white bg-slate-50/20 border-l-4 border-l-transparent'
                               }`}
                             >
-                              {/* Customer Header */}
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                                <div className="flex items-center gap-3">
-                                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs uppercase font-sans ${
-                                    currentStatus === 'completed'
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : currentStatus === 'ongoing'
-                                      ? 'bg-blue-100 text-blue-800'
-                                      : 'bg-amber-100 text-amber-800'
+                              {/* Avatar */}
+                              <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-xs uppercase shrink-0 shadow-xs ${
+                                c.is_direct
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-emerald-600 text-white'
+                              }`}>
+                                {(c.author_name || 'U')[0]}
+                              </div>
+
+                              {/* Content Snippet */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-1 mb-0.5">
+                                  <h4 className={`text-xs font-bangla truncate ${
+                                    !c.is_read ? 'font-black text-slate-900' : 'font-bold text-slate-800'
                                   }`}>
-                                    {(c.author_name || 'U')[0]}
-                                  </div>
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <h4 className="font-bold text-slate-900 text-sm font-bangla">{c.author_name}</h4>
-                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-bangla ${
-                                        currentStatus === 'completed'
-                                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200/60'
-                                          : currentStatus === 'ongoing'
-                                          ? 'bg-blue-100 text-blue-800 border border-blue-200/60'
-                                          : 'bg-amber-100 text-amber-800 border border-amber-200/60'
-                                      }`}>
-                                        {currentStatus === 'completed' ? '✅ সম্পন্ন' : currentStatus === 'ongoing' ? '🔄 চলমান' : '⏳ পেন্ডিং'}
-                                      </span>
-                                    </div>
-                                    {c.phone_number && (
-                                      <div className="flex items-center gap-2 mt-1">
-                                        <span className="font-mono text-xs font-bold text-slate-800 flex items-center gap-1">
-                                          <Phone className="w-3 h-3 text-blue-600" />
-                                          <span>{c.phone_number}</span>
-                                        </span>
-                                        <a
-                                          href={`https://wa.me/${c.phone_number.replace(/\D/g, '')}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="px-2 py-0.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs"
-                                          title="WhatsApp-এ চ্যাট করুন"
-                                        >
-                                          <span>WhatsApp</span>
-                                        </a>
-                                        <a
-                                          href={`tel:${c.phone_number.replace(/\s+/g, '')}`}
-                                          className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center gap-1 border border-blue-200/60"
-                                          title="সরাসরি কল করুন"
-                                        >
-                                          <span>কল</span>
-                                        </a>
-                                      </div>
-                                    )}
-                                  </div>
+                                    {c.author_name}
+                                  </h4>
+                                  <span className="text-[10px] text-slate-400 shrink-0 font-sans">
+                                    {new Date(c.created_at).toLocaleDateString('bn-BD', { month: 'short', day: 'numeric' })}
+                                  </span>
                                 </div>
 
-                                <div className="flex items-center gap-2 text-xs text-slate-400 font-bangla self-start sm:self-auto">
-                                  <Link
-                                    href={`/blog/${c.post_slug}`}
-                                    target="_blank"
-                                    className="text-blue-600 hover:underline font-semibold"
-                                  >
-                                    {c.post_title || c.post_slug}
-                                  </Link>
-                                  <span>•</span>
-                                  <span>{new Date(c.created_at).toLocaleString('bn-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                                </div>
-                              </div>
+                                {/* Channel Tag & Status */}
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-bangla ${
+                                    c.is_direct
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-emerald-100 text-emerald-800'
+                                  }`}>
+                                    {c.is_direct ? 'ফর্ম মেসেজ' : 'কমেন্ট'}
+                                  </span>
 
-                              {/* Customer Message */}
-                              <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 text-sm text-slate-800 font-bangla leading-relaxed my-3">
-                                {c.content}
-                              </div>
-
-                              {/* Action Status Pills Switcher */}
-                              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[11px] font-bold text-slate-500 font-bangla">অ্যাকশন স্ট্যাটাস:</span>
-                                  <div className="inline-flex rounded-xl p-0.5 bg-slate-100 border border-slate-200/60">
-                                    {(['pending', 'ongoing', 'completed'] as const).map(st => (
-                                      <button
-                                        key={st}
-                                        onClick={() => handleUpdateInquiryStatus(c.id, st)}
-                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold font-bangla transition-all cursor-pointer ${
-                                          currentStatus === st
-                                            ? st === 'completed'
-                                              ? 'bg-emerald-600 text-white shadow-xs'
-                                              : st === 'ongoing'
-                                              ? 'bg-blue-600 text-white shadow-xs'
-                                              : 'bg-amber-600 text-white shadow-xs'
-                                            : 'text-slate-600 hover:text-slate-900'
-                                        }`}
-                                      >
-                                        {st === 'pending' ? '⏳ পেন্ডিং' : st === 'ongoing' ? '🔄 চলমান' : '✅ সম্পন্ন'}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                  {!c.is_read && (
-                                    <button
-                                      onClick={() => handleMarkAsRead(c.id)}
-                                      className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 cursor-pointer font-bangla"
-                                    >
-                                      পড়া হয়েছে
-                                    </button>
+                                  {c.is_direct && (
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded font-bangla ${
+                                      currentStatus === 'completed'
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : currentStatus === 'ongoing'
+                                        ? 'bg-sky-100 text-sky-800'
+                                        : 'bg-amber-100 text-amber-800'
+                                    }`}>
+                                      {currentStatus === 'completed' ? '✅ সম্পন্ন' : currentStatus === 'ongoing' ? '🔄 চলমান' : '⏳ পেন্ডিং'}
+                                    </span>
                                   )}
-                                  <button
-                                    onClick={() => handleDeleteComment(c.id, true)}
-                                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
-                                    title="ইনকোয়ারি মুছে ফেলুন"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+
+                                  {c.admin_note && (
+                                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bangla">
+                                      📝 নোট আছে
+                                    </span>
+                                  )}
                                 </div>
+
+                                <p className="text-xs text-slate-500 font-bangla truncate leading-relaxed">
+                                  {c.content}
+                                </p>
                               </div>
 
-                              {/* Internal Discussion Note Section (Shared with all Portal Admins) */}
-                              <div className="mt-3 pt-3 border-t border-slate-100">
-                                {editingNoteCommentId === c.id ? (
-                                  <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2.5 animate-in fade-in duration-150">
-                                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 font-bangla">
-                                      <Edit3 className="w-3.5 h-3.5 text-amber-700" />
-                                      <span>গ্রাহকের সাথে কী কথা হয়েছে তার অভ্যন্তরীণ নোট লিখুন:</span>
-                                    </div>
-                                    <textarea
-                                      value={inquiryNoteText}
-                                      onChange={e => setInquiryNoteText(e.target.value)}
-                                      rows={2}
-                                      placeholder="যেমন: ফোনে কথা হয়েছে, কাস্টমার বাংলা কিবোর্ডের ম্যাক ভার্সন ডাউনলোড ও ইনস্টলেশনে সাহায্য চেয়েছেন..."
-                                      className="w-full p-3 rounded-xl border border-amber-200 bg-white text-xs font-bangla focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 leading-relaxed"
-                                    />
-                                    <div className="flex items-center justify-end gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => { setEditingNoteCommentId(null); setInquiryNoteText(''); }}
-                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer font-bangla"
-                                      >
-                                        বাতিল
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={isSavingNote}
-                                        onClick={() => handleSaveInquiryNote(c.id)}
-                                        className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold font-bangla flex items-center gap-1.5 cursor-pointer disabled:opacity-60 shadow-xs"
-                                      >
-                                        <Check className="w-3 h-3" />
-                                        <span>নোট সংরক্ষণ করুন</span>
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : c.admin_note ? (
-                                  <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200/70 flex flex-col sm:flex-row sm:items-start justify-between gap-2.5">
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-900 font-bangla">
-                                        <FileText className="w-3.5 h-3.5 text-amber-700" />
-                                        <span>অভ্যন্তরীণ কথোপকথন নোট:</span>
-                                        <span className="text-[10px] text-amber-700/80 font-normal">
-                                          (লিখেছেন: {c.admin_note_by || 'Admin'}{c.admin_note_at ? ` • ${new Date(c.admin_note_at).toLocaleString('bn-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''})
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-slate-800 font-bangla leading-relaxed pl-5">
-                                        {c.admin_note}
-                                      </p>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditingNoteCommentId(c.id); setInquiryNoteText(c.admin_note || ''); }}
-                                      className="px-3 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 text-[11px] font-bold font-bangla transition-colors cursor-pointer self-start shrink-0 flex items-center gap-1"
-                                    >
-                                      <Edit3 className="w-3 h-3" />
-                                      <span>নোট এডিট করুন</span>
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <button
-                                    type="button"
-                                    onClick={() => { setEditingNoteCommentId(c.id); setInquiryNoteText(''); }}
-                                    className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-semibold font-bangla hover:underline cursor-pointer"
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>গ্রাহকের সাথে কী কথা হয়েছে তার নোট যোগ করুন (পোর্টালে সকলে দেখতে পারবে)</span>
-                                  </button>
-                                )}
-                              </div>
-                            </div>
+                              {/* Unread Blue Dot */}
+                              {!c.is_read && (
+                                <span className="w-2 h-2 rounded-full bg-blue-600 ring-4 ring-blue-100 shrink-0 mt-1.5" />
+                              )}
+                            </button>
                           );
-                        })}
-                      </div>
-                    )}
+                        })
+                      )}
+                    </div>
                   </div>
-                )}
 
-                {/* TAB 2: Public Blog Comments View */}
-                {inboxSubTab === 'comments' && (
-                  <div className="space-y-4">
-                    {publicComments.length === 0 ? (
-                      <div className="py-16 text-center text-slate-400 font-bangla bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-                        <MessageSquare className="w-10 h-10 mx-auto text-slate-300 mb-2" />
-                        <p className="text-sm">এখনও কোনো পাবলিক ব্লগ কমেন্ট আসেনি।</p>
+                  {/* RIGHT COLUMN: Active Thread & Admin Notes Panel */}
+                  <div className="flex-1 flex flex-col bg-white overflow-hidden">
+                    {!selectedItem ? (
+                      <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-slate-400">
+                        <Mail className="w-14 h-14 text-slate-300 mb-3" />
+                        <h3 className="text-base font-bold text-slate-700 font-bangla">কোনো মেসেজ নির্বাচিত নেই</h3>
+                        <p className="text-xs text-slate-400 font-bangla mt-1 max-w-sm">
+                          বাম পাশের তালিকা থেকে যেকোনো মেসেজ বা কমেন্ট নির্বাচন করে বিস্তারিত তথ্য দেখুন।
+                        </p>
                       </div>
                     ) : (
-                      <div className="space-y-4">
-                        {publicComments.map(c => (
-                          <div 
-                            key={c.id} 
-                            className={`p-5 rounded-2xl border transition-all ${
-                              c.is_read ? 'bg-white border-slate-200/80' : 'bg-blue-50/40 border-blue-200'
-                            }`}
-                          >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase font-sans bg-blue-100 text-blue-700">
-                                  {(c.author_name || 'U')[0]}
+                      <>
+                        {/* Conversation Header */}
+                        <div className="p-4 sm:p-5 border-b border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm uppercase text-white shadow-xs ${
+                              selectedItem.is_direct ? 'bg-blue-600' : 'bg-emerald-600'
+                            }`}>
+                              {(selectedItem.author_name || 'U')[0]}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-extrabold text-slate-900 text-base font-bangla">
+                                  {selectedItem.author_name}
+                                </h3>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full font-bangla ${
+                                  selectedItem.is_direct ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'
+                                }`}>
+                                  {selectedItem.is_direct ? 'সরাসরি ফর্ম ইনকোয়ারি' : 'পাবলিক ব্লগ মন্তব্য'}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 font-bangla mt-0.5">
+                                <span>{new Date(selectedItem.created_at).toLocaleString('bn-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                <span>•</span>
+                                <Link
+                                  href={`/blog/${selectedItem.post_slug}`}
+                                  target="_blank"
+                                  className="text-blue-600 hover:underline flex items-center gap-1 font-semibold"
+                                >
+                                  <span>{selectedItem.post_title || selectedItem.post_slug}</span>
+                                  <ExternalLink className="w-3 h-3" />
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-start sm:self-auto">
+                            {!selectedItem.is_read ? (
+                              <button
+                                onClick={() => handleMarkAsRead(selectedItem.id)}
+                                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold font-bangla transition-colors cursor-pointer"
+                              >
+                                পড়া হয়েছে
+                              </button>
+                            ) : (
+                              <span className="text-[11px] font-bangla font-semibold text-slate-400 px-2">
+                                পঠিত
+                              </span>
+                            )}
+                            <button
+                              onClick={() => handleDeleteComment(selectedItem.id, Boolean(selectedItem.is_direct))}
+                              className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer border border-rose-100"
+                              title="মুছে ফেলুন"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Split Body: Left = Message & Action/Reply, Right = Admin Only Notes */}
+                        <div className="flex-1 grid grid-cols-1 xl:grid-cols-12 overflow-y-auto">
+                          
+                          {/* Main Left: Conversation & Action Section */}
+                          <div className="xl:col-span-7 p-5 sm:p-6 space-y-6 border-b xl:border-b-0 xl:border-r border-slate-100 flex flex-col justify-between">
+                            <div className="space-y-5">
+                              {/* Customer Message Bubble */}
+                              <div>
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 font-sans flex items-center gap-1.5">
+                                  <Mail className="w-3.5 h-3.5 text-blue-600" />
+                                  <span>গ্রাহকের মূল বার্তা:</span>
                                 </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-bold text-slate-900 text-sm font-bangla">{c.author_name}</h4>
-                                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold font-bangla">
-                                      পাবলিক মন্তব্য
-                                    </span>
-                                  </div>
-                                  {c.author_email && (
-                                    <p className="text-xs text-slate-400 font-sans mt-0.5">{c.author_email}</p>
-                                  )}
+                                <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/80 text-sm sm:text-base text-slate-900 font-bangla leading-relaxed shadow-2xs">
+                                  {selectedItem.content}
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-3 text-xs text-slate-400 font-bangla">
-                                <Link 
-                                  href={`/blog/${c.post_slug}`}
-                                  target="_blank"
-                                  className="text-blue-600 hover:underline font-semibold"
-                                >
-                                  {c.post_title || c.post_slug}
-                                </Link>
-                                <span>•</span>
-                                <span>{new Date(c.created_at).toLocaleString('bn-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                              {/* Customer Contact Card (If direct inquiry) */}
+                              {selectedItem.is_direct && selectedItem.phone_number && (
+                                <div className="p-4 rounded-2xl bg-blue-50/40 border border-blue-200/70 space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <Phone className="w-4 h-4 text-blue-600" />
+                                      <span className="text-xs font-bold text-slate-700 font-bangla">গ্রাহকের মোবাইল নম্বর:</span>
+                                      <span className="font-mono text-sm font-bold text-slate-900">{selectedItem.phone_number}</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                                    <a
+                                      href={`tel:${selectedItem.phone_number.replace(/\s+/g, '')}`}
+                                      className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold font-bangla flex items-center gap-1.5 shadow-xs transition-colors"
+                                    >
+                                      <Phone className="w-3.5 h-3.5" />
+                                      <span>সরাসরি কল করুন</span>
+                                    </a>
+                                    <a
+                                      href={`https://wa.me/${selectedItem.phone_number.replace(/\D/g, '')}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-bangla flex items-center gap-1.5 shadow-xs transition-colors"
+                                    >
+                                      <MessageCircle className="w-3.5 h-3.5" />
+                                      <span>WhatsApp চ্যাট</span>
+                                    </a>
+                                    <button
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(selectedItem.phone_number || '');
+                                        showToast('মোবাইল নম্বর কপি করা হয়েছে!');
+                                      }}
+                                      className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold font-bangla flex items-center gap-1.5 border border-slate-200 transition-colors cursor-pointer"
+                                    >
+                                      <Copy className="w-3.5 h-3.5" />
+                                      <span>কপি</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Customer Email (if provided) */}
+                              {selectedItem.author_email && (
+                                <div className="text-xs text-slate-500 font-bangla flex items-center gap-1.5">
+                                  <span>ইমেইল:</span>
+                                  <a href={`mailto:${selectedItem.author_email}`} className="text-blue-600 font-mono font-medium hover:underline">
+                                    {selectedItem.author_email}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Differentiated Bottom Interaction Area */}
+                            <div className="pt-6 border-t border-slate-100">
+                              {selectedItem.is_direct ? (
+                                /* CASE 1: FORM INQUIRY -> NO REPLY BOX, INSTEAD ACTION STATUS */
+                                <div className="space-y-3 bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80">
+                                  <div>
+                                    <h4 className="text-xs font-bold text-slate-900 font-bangla flex items-center gap-1.5">
+                                      <ShieldCheck className="w-4 h-4 text-blue-600" />
+                                      <span>অ্যাকশন স্ট্যাটাস (Action Status):</span>
+                                    </h4>
+                                    <p className="text-[11px] text-slate-500 font-bangla mt-0.5">
+                                      গ্রাহকের এই ইনকোয়ারির বর্তমান অগ্রগতি নির্ধারণ করুন (এখানে কোনো পাবলিক রিপ্লাই হবে না):
+                                    </p>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                                    {[
+                                      {
+                                        id: 'pending',
+                                        label: '⏳ অপেক্ষমান (Pending)',
+                                        sub: 'যোগাযোগ বাকি',
+                                        activeClass: 'bg-amber-600 text-white shadow-md shadow-amber-600/20 border-amber-600',
+                                        inactiveClass: 'bg-white hover:bg-amber-50/60 text-slate-700 border-slate-200',
+                                      },
+                                      {
+                                        id: 'ongoing',
+                                        label: '🔄 চলমান (Ongoing)',
+                                        sub: 'কথা চলছে',
+                                        activeClass: 'bg-blue-600 text-white shadow-md shadow-blue-600/20 border-blue-600',
+                                        inactiveClass: 'bg-white hover:bg-blue-50/60 text-slate-700 border-slate-200',
+                                      },
+                                      {
+                                        id: 'completed',
+                                        label: '✅ সম্পন্ন (Completed)',
+                                        sub: 'সমাপ্ত হয়েছে',
+                                        activeClass: 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20 border-emerald-600',
+                                        inactiveClass: 'bg-white hover:bg-emerald-50/60 text-slate-700 border-slate-200',
+                                      },
+                                    ].map(st => {
+                                      const isCurrent = (selectedItem.status || 'pending') === st.id;
+                                      return (
+                                        <button
+                                          key={st.id}
+                                          type="button"
+                                          onClick={() => handleUpdateInquiryStatus(selectedItem.id, st.id)}
+                                          className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                            isCurrent ? st.activeClass : st.inactiveClass
+                                          }`}
+                                        >
+                                          <div className="font-bold text-xs font-bangla">{st.label}</div>
+                                          <div className={`text-[10px] mt-0.5 font-bangla ${isCurrent ? 'text-white/80' : 'text-slate-400'}`}>
+                                            {st.sub}
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ) : (
+                                /* CASE 2: PUBLIC BLOG COMMENT -> PUBLIC REPLY BOX */
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="text-xs font-bold text-slate-900 font-bangla flex items-center gap-1.5">
+                                      <Reply className="w-4 h-4 text-emerald-600" />
+                                      <span>পাবলিক রিপ্লাই (ব্লগ পোস্টে সরাসরি প্রদর্শিত হবে):</span>
+                                    </h4>
+                                  </div>
+
+                                  {/* Existing Published Reply */}
+                                  {selectedItem.admin_reply && (
+                                    <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-xs text-slate-800 font-bangla space-y-1">
+                                      <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                        <span>প্রকাশিত রিপ্লাই:</span>
+                                      </div>
+                                      <p className="leading-relaxed pl-5">{selectedItem.admin_reply}</p>
+                                    </div>
+                                  )}
+
+                                  <div className="space-y-2">
+                                    <textarea
+                                      value={adminReplyText}
+                                      onChange={e => setAdminReplyText(e.target.value)}
+                                      rows={3}
+                                      placeholder="মন্তব্যকারীর জন্য উত্তর লিখুন (এটি ব্লগে পাঠকদের সামনে প্রদর্শিত হবে)..."
+                                      className="w-full p-3.5 rounded-xl border border-slate-200 text-xs font-bangla focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 leading-relaxed"
+                                    />
+                                    <div className="flex justify-end">
+                                      <button
+                                        type="button"
+                                        disabled={isSendingReply || !adminReplyText.trim()}
+                                        onClick={() => handleSendAdminReply(selectedItem.id)}
+                                        className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs font-bangla transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-60 shadow-xs"
+                                      >
+                                        {isSendingReply ? (
+                                          <>
+                                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                            <span>পোস্ট হচ্ছে...</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Send className="w-3.5 h-3.5" />
+                                            <span>পাবলিক রিপ্লাই পোস্ট করুন</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Side Panel: Admin-Only Internal Notes ("r pase note rakhbe for admin only") */}
+                          <div className="xl:col-span-5 p-5 sm:p-6 bg-amber-50/20 flex flex-col justify-between space-y-6">
+                            <div className="space-y-4">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <Lock className="w-4 h-4 text-amber-600" />
+                                  <h4 className="text-sm font-extrabold text-slate-900 font-bangla">
+                                    অভ্যন্তরীণ নোট (Admin Only)
+                                  </h4>
+                                  <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                                    গোপনীয়
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-500 font-bangla mt-1 leading-relaxed">
+                                  গ্রাহকের সাথে ফোনে বা হোয়াটসঅ্যাপে কী কথা হয়েছে তার নোট লিখে রাখুন। এটি পোর্টাল ছাড়া আর কোথাও দেখা যাবে না।
+                                </p>
+                              </div>
+
+                              {/* Saved Note Card */}
+                              {selectedItem.admin_note ? (
+                                <div className="p-4 rounded-2xl bg-white border border-amber-200/90 shadow-2xs space-y-2">
+                                  <div className="flex items-center justify-between text-[11px] font-bold text-amber-900 font-bangla">
+                                    <span className="flex items-center gap-1.5">
+                                      <FileText className="w-3.5 h-3.5 text-amber-600" />
+                                      <span>সংরক্ষিত নোট</span>
+                                    </span>
+                                    <span className="text-[10px] text-amber-700/80 font-normal">
+                                      {selectedItem.admin_note_by || 'Admin'}
+                                      {selectedItem.admin_note_at && ` • ${new Date(selectedItem.admin_note_at).toLocaleDateString('bn-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-800 font-bangla leading-relaxed pl-5 whitespace-pre-wrap">
+                                    {selectedItem.admin_note}
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="p-4 rounded-2xl bg-white/60 border border-dashed border-amber-200 text-center text-xs text-slate-400 font-bangla py-6">
+                                  এখনও কোনো অভ্যন্তরীণ নোট যোগ করা হয়নি।
+                                </div>
+                              )}
+
+                              {/* Note Editor */}
+                              <div className="space-y-2">
+                                <label className="block text-xs font-bold text-slate-700 font-bangla">
+                                  নোট লিখুন বা আপডেট করুন:
+                                </label>
+                                <textarea
+                                  value={inquiryNoteText}
+                                  onChange={e => setInquiryNoteText(e.target.value)}
+                                  rows={4}
+                                  placeholder="যেমন: ফোনে কথা হয়েছে, কাস্টমার ম্যাকবুক এম১-এ বাংলা টাইপিং লেগ সমস্যার সমাধান সম্পর্কে জানতে চেয়েছেন..."
+                                  className="w-full p-3.5 rounded-xl border border-amber-200 bg-white text-xs font-bangla focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 leading-relaxed shadow-2xs"
+                                />
                               </div>
                             </div>
 
-                            <p className="text-sm text-slate-800 font-bangla leading-relaxed pl-10 my-3">
-                              {c.content}
-                            </p>
-
-                            {/* Existing Public Admin Reply */}
-                            {c.admin_reply && (
-                              <div className="ml-10 p-4 rounded-xl bg-emerald-50 border border-emerald-200/80 text-xs text-slate-800 font-bangla mb-3">
-                                <div className="flex items-center gap-1.5 font-bold text-emerald-800 mb-1">
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>আপনার দেওয়া পাবলিক রিপ্লাই:</span>
-                                </div>
-                                <p className="text-slate-700 leading-relaxed">{c.admin_reply}</p>
-                              </div>
-                            )}
-
-                            {/* Reply Box if Active */}
-                            {replyingCommentId === c.id ? (
-                              <div className="ml-10 mt-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                                <label className="block text-xs font-bold text-slate-700 font-bangla">
-                                  পাবলিক উত্তর লিখুন:
-                                </label>
-                                <textarea
-                                  value={adminReplyText}
-                                  onChange={e => setAdminReplyText(e.target.value)}
-                                  rows={2}
-                                  placeholder="ধন্যবাদ আপনার মন্তব্যের জন্য..."
-                                  className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bangla focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                                />
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => setReplyingCommentId(null)}
-                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer font-bangla"
-                                  >
-                                    বাতিল
-                                  </button>
-                                  <button
-                                    disabled={isSendingReply}
-                                    onClick={() => handleSendAdminReply(c.id)}
-                                    className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold font-bangla flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
-                                  >
-                                    <Send className="w-3 h-3" />
-                                    <span>রিপ্লাই পোস্ট করুন</span>
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                                {!c.is_read && (
-                                  <button
-                                    onClick={() => handleMarkAsRead(c.id)}
-                                    className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer font-bangla"
-                                  >
-                                    পড়া হয়েছে মার্ক করুন
-                                  </button>
+                            {/* Note Save Button */}
+                            <div className="pt-3 border-t border-amber-200/60 flex items-center justify-between gap-3">
+                              <span className="text-[11px] text-slate-400 font-bangla">
+                                টিমের সবাই এই নোট দেখতে পারবে
+                              </span>
+                              <button
+                                type="button"
+                                disabled={isSavingNote || !inquiryNoteText.trim()}
+                                onClick={() => handleSaveInquiryNote(selectedItem.id)}
+                                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs font-bangla transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                              >
+                                {isSavingNote ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    <span>সেভ হচ্ছে...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>নোট সংরক্ষণ করুন</span>
+                                  </>
                                 )}
-                                <button
-                                  onClick={() => { setReplyingCommentId(c.id); setAdminReplyText(c.admin_reply || ''); }}
-                                  className="px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold font-bangla flex items-center gap-1 cursor-pointer"
-                                >
-                                  <Reply className="w-3 h-3" />
-                                  <span>রিপ্লাই দিন</span>
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteComment(c.id, false)}
-                                  className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
-                                  title="মুছে ফেলুন"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            )}
+                              </button>
+                            </div>
                           </div>
-                        ))}
-                      </div>
+
+                        </div>
+                      </>
                     )}
                   </div>
-                )}
+
+                </div>
 
               </div>
             );
