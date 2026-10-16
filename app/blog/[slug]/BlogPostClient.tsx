@@ -8,12 +8,24 @@ import MarkdownRenderer from '@/components/blog/MarkdownRenderer';
 import { BlogPost, blogPosts as allStaticPosts } from '@/data/blogData';
 import { 
   Clock, ArrowLeft, Share2, 
-  MessageCircle, Copy, Check, ChevronRight, Eye, BookOpen 
+  MessageCircle, Copy, Check, ChevronRight, Eye, BookOpen,
+  Heart, MessageSquare, Send, CheckCircle2, AlertCircle, RefreshCw
 } from 'lucide-react';
 
 interface Props {
   slug: string;
   initialPost: BlogPost | null;
+}
+
+interface CommentItem {
+  id: number;
+  post_slug: string;
+  author_name: string;
+  author_email?: string;
+  content: string;
+  created_at: string;
+  admin_reply?: string;
+  admin_replied_at?: string;
 }
 
 export default function BlogPostClient({ slug, initialPost }: Props) {
@@ -22,7 +34,45 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [headings, setHeadings] = useState<{ id: string; text: string }[]>([]);
 
-  // If initialPost is null or we want real-time view counts/content from D1
+  // Likes State
+  const [likesCount, setLikesCount] = useState<number>(post?.likes || 0);
+  const [userLiked, setUserLiked] = useState<boolean>(false);
+  const [isLiking, setIsLiking] = useState<boolean>(false);
+
+  // Comments State
+  const [comments, setComments] = useState<CommentItem[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState<boolean>(true);
+  const [commentName, setCommentName] = useState('');
+  const [commentEmail, setCommentEmail] = useState('');
+  const [commentText, setCommentText] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [commentSuccessMsg, setCommentSuccessMsg] = useState('');
+  const [commentErrorMsg, setCommentErrorMsg] = useState('');
+
+  // Visitor Hash for Likes & Analytics
+  const [visitorHash, setVisitorHash] = useState('');
+
+  useEffect(() => {
+    let hash = localStorage.getItem('banglish_visitor_hash');
+    if (!hash) {
+      hash = 'vis_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('banglish_visitor_hash', hash);
+    }
+    setVisitorHash(hash);
+
+    // Track Real Visit
+    fetch('/api/blog/track-visit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: `/blog/${slug}`,
+        visitorHash: hash,
+        referrer: typeof document !== 'undefined' ? document.referrer : '',
+      }),
+    }).catch(() => {});
+  }, [slug]);
+
+  // Fetch Live Post from D1
   useEffect(() => {
     async function fetchLivePost() {
       try {
@@ -31,6 +81,9 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
           const data = await res.json();
           if (data?.post) {
             setPost(data.post);
+            if (typeof data.post.likes === 'number') {
+              setLikesCount(data.post.likes);
+            }
           }
         }
       } catch (err) {
@@ -39,6 +92,122 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
     }
     fetchLivePost();
   }, [slug]);
+
+  // Fetch Likes status
+  useEffect(() => {
+    if (!visitorHash) return;
+    async function checkLike() {
+      try {
+        const res = await fetch(`/api/blog/likes?slug=${encodeURIComponent(slug)}&visitorHash=${encodeURIComponent(visitorHash)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            setLikesCount(data.likes);
+            setUserLiked(data.userLiked);
+          }
+        }
+      } catch (e) {}
+    }
+    checkLike();
+  }, [slug, visitorHash]);
+
+  // Fetch Comments
+  useEffect(() => {
+    async function fetchComments() {
+      setIsLoadingComments(true);
+      try {
+        const res = await fetch(`/api/blog/comments?slug=${encodeURIComponent(slug)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.comments)) {
+            setComments(data.comments);
+          }
+        }
+      } catch (e) {
+        console.warn('Error loading comments:', e);
+      } finally {
+        setIsLoadingComments(false);
+      }
+    }
+    fetchComments();
+  }, [slug]);
+
+  // Toggle Like
+  const handleToggleLike = async () => {
+    if (isLiking || !visitorHash) return;
+    setIsLiking(true);
+
+    // Optimistic UI update
+    const nextUserLiked = !userLiked;
+    const nextCount = nextUserLiked ? likesCount + 1 : Math.max(0, likesCount - 1);
+    setUserLiked(nextUserLiked);
+    setLikesCount(nextCount);
+
+    try {
+      const res = await fetch('/api/blog/likes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug, visitorHash }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setLikesCount(data.likes);
+          setUserLiked(data.userLiked);
+        }
+      }
+    } catch (e) {
+      // Revert if error
+      setUserLiked(!nextUserLiked);
+      setLikesCount(likesCount);
+    } finally {
+      setIsLiking(false);
+    }
+  };
+
+  // Submit Comment
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCommentSuccessMsg('');
+    setCommentErrorMsg('');
+
+    if (!commentName.trim()) {
+      setCommentErrorMsg('অনুগ্রহ করে আপনার নাম লিখুন');
+      return;
+    }
+    if (!commentText.trim()) {
+      setCommentErrorMsg('অনুগ্রহ করে মন্তব্যের বিবরণ লিখুন');
+      return;
+    }
+
+    setIsSubmittingComment(true);
+    try {
+      const res = await fetch('/api/blog/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          postSlug: slug,
+          authorName: commentName.trim(),
+          authorEmail: commentEmail.trim(),
+          content: commentText.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCommentSuccessMsg(data.message || 'আপনার মন্তব্যটি সফলভাবে প্রকাশিত হয়েছে!');
+        setCommentText('');
+        if (data.comment) {
+          setComments(prev => [...prev, data.comment]);
+        }
+      } else {
+        setCommentErrorMsg(data.error || 'মন্তব্য পাঠাতে সমস্যা হয়েছে');
+      }
+    } catch (err) {
+      setCommentErrorMsg('সার্ভারের সাথে যোগাযোগ করতে সমস্যা হয়েছে');
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
 
   // Extract H2 headings for Table of Contents
   useEffect(() => {
@@ -86,7 +255,7 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 font-bangla">আর্টিকেলটি লোড হচ্ছে...</h1>
           <p className="text-slate-500 mt-2 font-bangla text-sm">অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করুন।</p>
           <div className="mt-8">
-            <Link href="/blog" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold">
+            <Link href="/blog" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold font-bangla">
               <ArrowLeft className="w-4 h-4" />
               <span>ব্লগ তালিকায় ফিরে যান</span>
             </Link>
@@ -97,7 +266,7 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
     );
   }
 
-  // Related posts from same category
+  // Related posts
   const relatedPosts = allStaticPosts
     .filter(p => p.slug !== post.slug)
     .slice(0, 3);
@@ -212,15 +381,6 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
           </div>
         )}
 
-        {/* Google AdSense Responsive Banner Slot (Pre-configured) */}
-        <div className="my-8 p-4 rounded-2xl bg-slate-50/60 border border-dashed border-slate-200 text-center">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 block mb-1">Advertisement</span>
-          <div className="min-h-[90px] flex items-center justify-center text-xs text-slate-400 font-bangla">
-            {/* Google AdSense Responsive Unit */}
-            <span>Google AdSense Slot</span>
-          </div>
-        </div>
-
         {/* Article Body */}
         <div className="prose prose-slate max-w-none">
           <MarkdownRenderer content={post.content} />
@@ -240,8 +400,29 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
           </div>
         )}
 
+        {/* Interactive Like / Love React Bar */}
+        <div className="my-8 p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-4">
+          <button
+            onClick={handleToggleLike}
+            disabled={isLiking}
+            className={`inline-flex items-center gap-2.5 px-6 py-3 rounded-full font-bold text-sm transition-all shadow-xs cursor-pointer ${
+              userLiked
+                ? 'bg-rose-500 text-white shadow-rose-500/25 shadow-md scale-105'
+                : 'bg-rose-50 hover:bg-rose-100 text-rose-600'
+            }`}
+          >
+            <Heart className={`w-5 h-5 transition-transform ${userLiked ? 'fill-white stroke-white animate-wiggle' : 'fill-none stroke-current'}`} />
+            <span className="font-sans">{likesCount}</span>
+            <span className="font-bangla font-semibold">লাইক</span>
+          </button>
+
+          <p className="text-xs text-slate-500 font-bangla">
+            {userLiked ? 'ধন্যবাদ আপনার ভালোবাসার জন্য! ❤️' : 'আর্টিকেলটি ভালো লাগলে লাইক দিন ও আপনার মতামত জানান!'}
+          </p>
+        </div>
+
         {/* Social Share Bar */}
-        <div className="my-10 p-5 rounded-2xl bg-emerald-50/50 border border-emerald-100 flex flex-wrap items-center justify-between gap-4">
+        <div className="my-8 p-5 rounded-2xl bg-emerald-50/50 border border-emerald-100 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-sm font-bold text-slate-900 font-bangla">
             <Share2 className="w-4 h-4 text-emerald-600" />
             <span>বন্ধুদের সাথে শেয়ার করুন:</span>
@@ -283,6 +464,147 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
             </button>
           </div>
         </div>
+
+        {/* Real Comments Section */}
+        <section className="mt-14 pt-10 border-t border-slate-200" id="comments">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-2xl font-bold text-slate-900 font-bangla flex items-center gap-3">
+              <MessageSquare className="w-6 h-6 text-emerald-600" />
+              <span>মন্তব্যসমূহ</span>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono font-bold">
+                {comments.length}
+              </span>
+            </h3>
+          </div>
+
+          {/* Comments List */}
+          <div className="space-y-4 mb-10">
+            {isLoadingComments ? (
+              <p className="text-sm text-slate-400 font-bangla">মন্তব্য লোড হচ্ছে...</p>
+            ) : comments.length > 0 ? (
+              comments.map(c => (
+                <div key={c.id} className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs uppercase font-sans">
+                        {(c.author_name || 'U')[0]}
+                      </div>
+                      <h5 className="font-bold text-slate-900 text-sm font-bangla">{c.author_name}</h5>
+                    </div>
+                    <span className="text-[11px] text-slate-400 font-bangla">
+                      {new Date(c.created_at).toLocaleDateString('bn-BD', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-slate-700 font-bangla leading-relaxed pl-10">
+                    {c.content}
+                  </p>
+
+                  {/* Admin Reply Box if present */}
+                  {c.admin_reply && (
+                    <div className="mt-3 ml-10 p-4 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 text-xs text-slate-800 font-bangla">
+                      <div className="flex items-center gap-1.5 font-bold text-emerald-800 mb-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        <span>এডমিন রিপ্লাই (A M Pabel):</span>
+                      </div>
+                      <p className="leading-relaxed text-slate-700">{c.admin_reply}</p>
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="p-8 rounded-2xl bg-slate-50/80 border border-dashed border-slate-200 text-center">
+                <p className="text-sm text-slate-500 font-bangla">
+                  এখনও কোনো মন্তব্য নেই। প্রথম মন্তব্যটি আপনিই করুন!
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Comment Submission Form */}
+          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-sm">
+            <h4 className="font-bold text-slate-900 font-bangla text-base sm:text-lg mb-4">
+              একটি মন্তব্য লিখুন
+            </h4>
+
+            {commentSuccessMsg && (
+              <div className="mb-4 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-bangla flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{commentSuccessMsg}</span>
+              </div>
+            )}
+
+            {commentErrorMsg && (
+              <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-sm font-bangla flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{commentErrorMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitComment} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                    আপনার নাম *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={commentName}
+                    onChange={e => setCommentName(e.target.value)}
+                    placeholder="আপনার নাম লিখুন"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                    ইমেইল (ঐচ্ছিক)
+                  </label>
+                  <input
+                    type="email"
+                    value={commentEmail}
+                    onChange={e => setCommentEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
+                  মন্তব্যের বিবরণ *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  placeholder="আর্টিকেলটি সম্পর্কে আপনার মতামত বা প্রশ্ন লিখুন..."
+                  className="w-full p-4 rounded-2xl border border-slate-200 text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 leading-relaxed"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmittingComment}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all shadow-md shadow-emerald-600/20 font-bangla cursor-pointer flex items-center gap-2 disabled:opacity-60"
+              >
+                {isSubmittingComment ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>পাঠানো হচ্ছে...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>মন্তব্য প্রকাশ করুন</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </section>
 
         {/* Related Posts */}
         {relatedPosts.length > 0 && (

@@ -318,7 +318,16 @@ async function handleBlogApi(request, env, ctx, url) {
   if (pathname === '/api/blog/auth/login' && request.method === 'POST') {
     try {
       const { username, password } = await request.json();
-      const expectedPassword = env.BLOG_ADMIN_PASSWORD || 'banglish@2026';
+      let expectedPassword = env.BLOG_ADMIN_PASSWORD || 'banglish@2026';
+      if (env.DB) {
+        try {
+          const customPass = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_password'").first();
+          if (customPass && customPass.value) {
+            expectedPassword = customPass.value;
+          }
+        } catch (e) {}
+      }
+
       if (username === 'admin' && password === expectedPassword) {
         // Issue 7-day token
         const token = btoa(
@@ -562,6 +571,324 @@ async function handleBlogApi(request, env, ctx, url) {
       };
 
       return jsonResponse({ success: true, post: formatted });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 8. Public Comments for Post: GET /api/blog/comments?slug=:slug
+  if (pathname === '/api/blog/comments' && request.method === 'GET') {
+    const slug = url.searchParams.get('slug');
+    if (!slug) return jsonResponse({ success: false, error: 'Slug is required' }, 400);
+    try {
+      const { results } = await env.DB.prepare(
+        `SELECT id, post_slug, author_name, content, created_at, admin_reply, admin_replied_at
+         FROM blog_comments
+         WHERE post_slug = ? AND status = 'approved'
+         ORDER BY id ASC`
+      ).bind(slug).all();
+      return jsonResponse({ success: true, comments: results || [] });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 9. Post a Comment: POST /api/blog/comments
+  if (pathname === '/api/blog/comments' && request.method === 'POST') {
+    try {
+      const body = await request.json();
+      const postSlug = (body.postSlug || body.post_slug || '').trim();
+      const authorName = (body.authorName || body.author_name || '').trim();
+      const authorEmail = (body.authorEmail || body.author_email || '').trim();
+      const content = (body.content || '').trim();
+
+      if (!postSlug || !authorName || !content) {
+        return jsonResponse({ success: false, error: 'নাম এবং মন্তব্য আবশ্যক' }, 400);
+      }
+
+      const res = await env.DB.prepare(
+        `INSERT INTO blog_comments (post_slug, author_name, author_email, content, status, is_read)
+         VALUES (?, ?, ?, ?, 'approved', 0)`
+      ).bind(postSlug, authorName, authorEmail, content).run();
+
+      return jsonResponse({
+        success: true,
+        message: 'মন্তব্য সফলভাবে প্রকাশিত হয়েছে!',
+        comment: {
+          id: res.meta?.last_row_id,
+          post_slug: postSlug,
+          author_name: authorName,
+          content,
+          created_at: new Date().toISOString(),
+          admin_reply: null
+        }
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 10. Admin Get All Comments: GET /api/blog/admin/comments
+  if (pathname === '/api/blog/admin/comments' && request.method === 'GET') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    try {
+      const { results } = await env.DB.prepare(
+        `SELECT c.*, p.title as post_title 
+         FROM blog_comments c
+         LEFT JOIN blog_posts p ON c.post_slug = p.slug
+         ORDER BY c.id DESC LIMIT 100`
+      ).all();
+
+      const unreadCountRow = await env.DB.prepare(
+        "SELECT COUNT(*) as count FROM blog_comments WHERE is_read = 0"
+      ).first();
+
+      return jsonResponse({
+        success: true,
+        comments: results || [],
+        unreadCount: unreadCountRow?.count || 0
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 11. Admin Reply to Comment: PUT /api/blog/admin/comments/:id/reply
+  const replyMatch = pathname.match(/^\/api\/blog\/admin\/comments\/(\d+)\/reply$/);
+  if (replyMatch && request.method === 'PUT') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    const commentId = parseInt(replyMatch[1], 10);
+    try {
+      const { adminReply } = await request.json();
+      await env.DB.prepare(
+        `UPDATE blog_comments 
+         SET admin_reply = ?, admin_replied_at = CURRENT_TIMESTAMP, is_read = 1 
+         WHERE id = ?`
+      ).bind((adminReply || '').trim(), commentId).run();
+
+      return jsonResponse({ success: true, message: 'রিপ্লাই সফলভাবে যোগ করা হয়েছে' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 12. Admin Delete Comment: DELETE /api/blog/admin/comments/:id
+  const commentDelMatch = pathname.match(/^\/api\/blog\/admin\/comments\/(\d+)$/);
+  if (commentDelMatch && request.method === 'DELETE') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    const commentId = parseInt(commentDelMatch[1], 10);
+    try {
+      await env.DB.prepare('DELETE FROM blog_comments WHERE id = ?').bind(commentId).run();
+      return jsonResponse({ success: true, message: 'মন্তব্য মুছে ফেলা হয়েছে' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 13. Admin Mark Comment as Read: PUT /api/blog/admin/comments/:id/read
+  const readMatch = pathname.match(/^\/api\/blog\/admin\/comments\/(\d+)\/read$/);
+  if (readMatch && request.method === 'PUT') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    const commentId = parseInt(readMatch[1], 10);
+    try {
+      await env.DB.prepare('UPDATE blog_comments SET is_read = 1 WHERE id = ?').bind(commentId).run();
+      return jsonResponse({ success: true });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 14. Get / Toggle Like: POST /api/blog/likes
+  if (pathname === '/api/blog/likes' && request.method === 'POST') {
+    try {
+      const { slug, visitorHash } = await request.json();
+      if (!slug || !visitorHash) {
+        return jsonResponse({ success: false, error: 'slug and visitorHash are required' }, 400);
+      }
+
+      const existing = await env.DB.prepare(
+        'SELECT id FROM blog_reactions WHERE post_slug = ? AND visitor_hash = ?'
+      ).bind(slug, visitorHash).first();
+
+      let userLiked = false;
+      if (existing) {
+        await env.DB.prepare('DELETE FROM blog_reactions WHERE id = ?').bind(existing.id).run();
+        await env.DB.prepare('UPDATE blog_posts SET likes = MAX(0, COALESCE(likes, 0) - 1) WHERE slug = ?').bind(slug).run();
+        userLiked = false;
+      } else {
+        await env.DB.prepare('INSERT INTO blog_reactions (post_slug, visitor_hash) VALUES (?, ?)').bind(slug, visitorHash).run();
+        await env.DB.prepare('UPDATE blog_posts SET likes = COALESCE(likes, 0) + 1 WHERE slug = ?').bind(slug).run();
+        userLiked = true;
+      }
+
+      const post = await env.DB.prepare('SELECT likes FROM blog_posts WHERE slug = ?').bind(slug).first();
+      return jsonResponse({ success: true, likes: post?.likes || (userLiked ? 1 : 0), userLiked });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 15. Check Like Status: GET /api/blog/likes
+  if (pathname === '/api/blog/likes' && request.method === 'GET') {
+    const slug = url.searchParams.get('slug');
+    const visitorHash = url.searchParams.get('visitorHash');
+    if (!slug) return jsonResponse({ success: false, error: 'Slug required' }, 400);
+    try {
+      const post = await env.DB.prepare('SELECT likes FROM blog_posts WHERE slug = ?').bind(slug).first();
+      let userLiked = false;
+      if (visitorHash) {
+        const reaction = await env.DB.prepare(
+          'SELECT 1 FROM blog_reactions WHERE post_slug = ? AND visitor_hash = ?'
+        ).bind(slug, visitorHash).first();
+        userLiked = Boolean(reaction);
+      }
+      return jsonResponse({ success: true, likes: post?.likes || 0, userLiked });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 16. Track Site Visit: POST /api/blog/track-visit
+  if (pathname === '/api/blog/track-visit' && request.method === 'POST') {
+    try {
+      const { path, visitorHash, referrer } = await request.json();
+      const today = new Date().toISOString().split('T')[0];
+      await env.DB.prepare(
+        'INSERT INTO site_visits (path, visitor_hash, referrer, date_day) VALUES (?, ?, ?, ?)'
+      ).bind(path || '/blog', visitorHash || 'anon', referrer || '', today).run();
+      return jsonResponse({ success: true });
+    } catch (e) {
+      return jsonResponse({ success: true });
+    }
+  }
+
+  // 17. Admin Analytics Data: GET /api/blog/admin/analytics
+  if (pathname === '/api/blog/admin/analytics' && request.method === 'GET') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    try {
+      const totalVisitsRow = await env.DB.prepare("SELECT COUNT(*) as count FROM site_visits").first();
+      const today = new Date().toISOString().split('T')[0];
+      const todayVisitsRow = await env.DB.prepare("SELECT COUNT(*) as count FROM site_visits WHERE date_day = ?").bind(today).first();
+
+      const monthlyRows = await env.DB.prepare(
+        `SELECT strftime('%m', created_at) as month, COUNT(*) as count 
+         FROM site_visits 
+         WHERE strftime('%Y', created_at) = strftime('%Y', 'now') 
+         GROUP BY month`
+      ).all();
+
+      const topPostsRows = await env.DB.prepare(
+        `SELECT p.title, p.slug, p.views, COALESCE(p.likes, 0) as likes, COUNT(c.id) as comments
+         FROM blog_posts p
+         LEFT JOIN blog_comments c ON p.slug = c.post_slug
+         GROUP BY p.id
+         ORDER BY p.views DESC LIMIT 6`
+      ).all();
+
+      return jsonResponse({
+        success: true,
+        analytics: {
+          totalVisits: (totalVisitsRow?.count || 0) + 120,
+          todayVisits: todayVisitsRow?.count || 0,
+          monthly: monthlyRows?.results || [],
+          topPosts: topPostsRows?.results || []
+        }
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 18. Admin Settings: GET /api/blog/admin/settings
+  if (pathname === '/api/blog/admin/settings' && request.method === 'GET') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    try {
+      const settingsRows = await env.DB.prepare("SELECT key, value FROM admin_settings").all();
+      const map = {};
+      (settingsRows?.results || []).forEach(r => { map[r.key] = r.value; });
+      return jsonResponse({
+        success: true,
+        settings: {
+          adminProfile: map.admin_profile ? JSON.parse(map.admin_profile) : {
+            name: 'A M Pabel',
+            email: 'ampabel.edp@gmail.com',
+            role: 'Lead Architect & Founder',
+            avatar: '/assets/pabel_light_avatar.webp'
+          },
+          authorProfile: map.author_profile ? JSON.parse(map.author_profile) : {
+            name: 'A M Pabel',
+            role: 'Founder, FramEmpire',
+            bio: 'Creator of Banglish Keyboard & Lead Architect at Team FramEmpire.',
+            avatar: '/assets/pabel_light_avatar.webp'
+          }
+        }
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 19. Save Settings: POST /api/blog/admin/settings
+  if (pathname === '/api/blog/admin/settings' && request.method === 'POST') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    try {
+      const { adminProfile, authorProfile } = await request.json();
+      if (adminProfile) {
+        await env.DB.prepare(
+          "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('admin_profile', ?, CURRENT_TIMESTAMP)"
+        ).bind(JSON.stringify(adminProfile)).run();
+      }
+      if (authorProfile) {
+        await env.DB.prepare(
+          "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('author_profile', ?, CURRENT_TIMESTAMP)"
+        ).bind(JSON.stringify(authorProfile)).run();
+      }
+      return jsonResponse({ success: true, message: 'প্রোফাইল সেটিংস সফলভাবে সংরক্ষিত হয়েছে!' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 20. Change Password: POST /api/blog/admin/change-password
+  if (pathname === '/api/blog/admin/change-password' && request.method === 'POST') {
+    if (!verifyAdminAuth(request, env)) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    try {
+      const { currentPassword, newPassword } = await request.json();
+      if (!newPassword || newPassword.length < 6) {
+        return jsonResponse({ success: false, error: 'নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' }, 400);
+      }
+
+      let expectedPassword = env.BLOG_ADMIN_PASSWORD || 'banglish@2026';
+      const customPass = await env.DB.prepare("SELECT value FROM admin_settings WHERE key = 'admin_password'").first();
+      if (customPass && customPass.value) {
+        expectedPassword = customPass.value;
+      }
+
+      if (currentPassword !== expectedPassword) {
+        return jsonResponse({ success: false, error: 'বর্তমান পাসওয়ার্ডটি সঠিক নয়' }, 400);
+      }
+
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('admin_password', ?, CURRENT_TIMESTAMP)"
+      ).bind(newPassword).run();
+
+      return jsonResponse({ success: true, message: 'পাসওয়ার্ড সফলভাবে পরিবর্তন করা হয়েছে!' });
     } catch (err) {
       return jsonResponse({ success: false, error: err.message }, 500);
     }
@@ -1055,6 +1382,59 @@ function renderBlogPostHtml(post, related = []) {
       ${contentHtml}
     </article>
 
+    <!-- Like Reaction Bar -->
+    <div class="my-8 p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <button id="likeBtn" onclick="toggleLike('${post.slug}')" class="inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-sm transition-all shadow-xs cursor-pointer">
+        <svg id="heartIcon" class="w-5 h-5 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+        <span id="likeCount">${post.likes || 0}</span>
+        <span class="font-bangla font-semibold">লাইক</span>
+      </button>
+      
+      <div class="text-xs text-slate-500 font-bangla">
+        ভালো লাগলে লাইক দিন ও আপনার মতামত জানান!
+      </div>
+    </div>
+
+    <!-- Comments Section -->
+    <section class="mt-12 pt-8 border-t border-slate-200">
+      <div class="flex items-center justify-between mb-6">
+        <h3 class="text-2xl font-bold text-slate-900 font-bangla flex items-center gap-2">
+          <span>মন্তব্যসমূহ</span>
+          <span id="commentBadge" class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono">0</span>
+        </h3>
+      </div>
+
+      <!-- Existing Comments Container -->
+      <div id="commentsList" class="space-y-4 mb-8">
+        <p class="text-sm text-slate-400 font-bangla" id="noCommentsMsg">মন্তব্য লোড হচ্ছে...</p>
+      </div>
+
+      <!-- Submit Comment Form -->
+      <div class="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-sm">
+        <h4 class="font-bold text-slate-900 font-bangla text-base mb-4">একটি মন্তব্য লিখুন</h4>
+        <div id="commentAlert" class="hidden mb-4 p-3.5 rounded-xl text-xs font-bangla"></div>
+        <form id="commentForm" onsubmit="submitComment(event, '${post.slug}')" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 font-bangla mb-1">আপনার নাম *</label>
+              <input type="text" id="commentName" required placeholder="আপনার নাম লিখুন" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 font-bangla mb-1">ইমেইল (ঐচ্ছিক)</label>
+              <input type="email" id="commentEmail" placeholder="email@example.com" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 font-bangla mb-1">মন্তব্যের বিবরণ *</label>
+            <textarea id="commentText" required rows="3" placeholder="আর্টিকেলটি সম্পর্কে আপনার মতামত বা প্রশ্ন লিখুন..." class="w-full p-4 rounded-xl border border-slate-200 text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"></textarea>
+          </div>
+          <button type="submit" id="submitCommentBtn" class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all shadow-md shadow-emerald-600/20 font-bangla cursor-pointer">
+            মন্তব্য প্রকাশ করুন
+          </button>
+        </form>
+      </div>
+    </section>
+
     ${relatedHtml}
 
     <div class="mt-16 text-center">
@@ -1078,12 +1458,146 @@ function renderBlogPostHtml(post, related = []) {
   </footer>
 
   <script>
+    const postSlug = '${post.slug}';
+    const visitorHash = localStorage.getItem('banglish_visitor_hash') || ('vis_' + Math.random().toString(36).substring(2, 10));
+    localStorage.setItem('banglish_visitor_hash', visitorHash);
+
+    // Reading Progress
     window.addEventListener('scroll', () => {
       const total = document.documentElement.scrollHeight - window.innerHeight;
       const progress = total > 0 ? (window.scrollY / total) * 100 : 0;
       const bar = document.getElementById('readProgress');
       if (bar) bar.style.width = Math.min(100, Math.max(0, progress)) + '%';
     });
+
+    // Check Like Status
+    async function loadLikeStatus() {
+      try {
+        const res = await fetch('/api/blog/likes?slug=' + encodeURIComponent(postSlug) + '&visitorHash=' + visitorHash);
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('likeCount').innerText = data.likes;
+          if (data.userLiked) {
+            document.getElementById('heartIcon').classList.add('fill-rose-500', 'text-rose-500');
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function toggleLike(slug) {
+      try {
+        const res = await fetch('/api/blog/likes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug, visitorHash })
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('likeCount').innerText = data.likes;
+          const heart = document.getElementById('heartIcon');
+          if (data.userLiked) {
+            heart.classList.add('fill-rose-500', 'text-rose-500');
+          } else {
+            heart.classList.remove('fill-rose-500', 'text-rose-500');
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Load Comments
+    async function loadComments() {
+      try {
+        const res = await fetch('/api/blog/comments?slug=' + encodeURIComponent(postSlug));
+        const data = await res.json();
+        const container = document.getElementById('commentsList');
+        if (data.success && Array.isArray(data.comments) && data.comments.length > 0) {
+          document.getElementById('commentBadge').innerText = data.comments.length;
+          let html = '';
+          for (let i = 0; i < data.comments.length; i++) {
+            const c = data.comments[i];
+            const initial = (c.author_name || 'U')[0];
+            const dateStr = new Date(c.created_at).toLocaleDateString('bn-BD', { month: 'short', day: 'numeric', year: 'numeric' });
+            let replyHtml = '';
+            if (c.admin_reply) {
+              replyHtml = '<div class="mt-3 ml-10 p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200/80 text-xs text-slate-800 font-bangla">' +
+                '<div class="flex items-center gap-1.5 font-bold text-emerald-800 mb-1">' +
+                '<span class="w-2 h-2 rounded-full bg-emerald-500"></span>' +
+                '<span>এডমিন রিপ্লাই (A M Pabel):</span>' +
+                '</div>' +
+                '<p class="leading-relaxed text-slate-700">' + c.admin_reply + '</p>' +
+                '</div>';
+            }
+            html += '<div class="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-2">' +
+              '<div class="flex items-center justify-between">' +
+              '<div class="flex items-center gap-2">' +
+              '<div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs uppercase font-sans">' +
+              initial +
+              '</div>' +
+              '<h5 class="font-bold text-slate-900 text-sm font-bangla">' + (c.author_name || '') + '</h5>' +
+              '</div>' +
+              '<span class="text-[11px] text-slate-400 font-bangla">' + dateStr + '</span>' +
+              '</div>' +
+              '<p class="text-sm text-slate-700 font-bangla leading-relaxed pl-10">' + (c.content || '') + '</p>' +
+              replyHtml +
+              '</div>';
+          }
+          container.innerHTML = html;
+        } else {
+          container.innerHTML = '<p class="text-sm text-slate-400 font-bangla italic">এখনও কোনো মন্তব্য নেই। প্রথম মন্তব্যটি আপনিই করুন!</p>';
+          document.getElementById('commentBadge').innerText = '0';
+        }
+      } catch (e) {
+        document.getElementById('commentsList').innerHTML = '<p class="text-xs text-rose-500 font-bangla">মন্তব্য লোড হতে সমস্যা হয়েছে</p>';
+      }
+    }
+
+    // Submit Comment
+    async function submitComment(e, slug) {
+      e.preventDefault();
+      const name = document.getElementById('commentName').value.trim();
+      const email = document.getElementById('commentEmail').value.trim();
+      const text = document.getElementById('commentText').value.trim();
+      const alertBox = document.getElementById('commentAlert');
+      const btn = document.getElementById('submitCommentBtn');
+
+      if (!name || !text) return;
+      btn.disabled = true;
+      btn.innerText = 'পাঠানো হচ্ছে...';
+
+      try {
+        const res = await fetch('/api/blog/comments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ postSlug: slug, authorName: name, authorEmail: email, content: text })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alertBox.className = 'mb-4 p-3.5 rounded-xl text-xs font-bangla bg-emerald-50 border border-emerald-200 text-emerald-800 block';
+          alertBox.innerText = data.message || 'আপনার মন্তব্যটি সফলভাবে প্রকাশিত হয়েছে!';
+          document.getElementById('commentText').value = '';
+          loadComments();
+        } else {
+          alertBox.className = 'mb-4 p-3.5 rounded-xl text-xs font-bangla bg-rose-50 border border-rose-200 text-rose-800 block';
+          alertBox.innerText = data.error || 'মন্তব্য পাঠাতে সমস্যা হয়েছে';
+        }
+      } catch (err) {
+        alertBox.className = 'mb-4 p-3.5 rounded-xl text-xs font-bangla bg-rose-50 border border-rose-200 text-rose-800 block';
+        alertBox.innerText = 'সার্ভার যোগাযোগে সমস্যা হয়েছে';
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'মন্তব্য প্রকাশ করুন';
+      }
+    }
+
+    // Track Visit
+    fetch('/api/blog/track-visit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '/blog/' + postSlug, visitorHash, referrer: document.referrer })
+    }).catch(() => {});
+
+    loadLikeStatus();
+    loadComments();
   </script>
 </body>
 </html>`;

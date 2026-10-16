@@ -28,7 +28,9 @@ export interface BlogPost {
   tags: string[];
   content: string;
   views?: number;
-  status?: 'published' | 'draft';
+  likes?: number;
+  comments?: number;
+  status?: 'published' | 'draft' | 'scheduled';
 }
 
 export const blogCategories = [
