@@ -20,8 +20,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     };
   }
 
+  const cover = post.coverImage || (post as any).cover_image;
+
   return {
-    title: `${post.seoTitle || post.title} | Banglish Keyboard`,
+    title: `${post.seoTitle || (post as any).seo_title || post.title} | Banglish Keyboard`,
     description: post.excerpt,
     alternates: {
       canonical: `https://banglish.bd/blog/${post.slug}`,
@@ -31,15 +33,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       description: post.excerpt,
       url: `https://banglish.bd/blog/${post.slug}`,
       siteName: 'Banglish Keyboard',
-      images: post.coverImage ? [{ url: post.coverImage }] : [],
+      images: cover ? [{ url: cover }] : [],
       type: 'article',
-      publishedTime: post.isoDate,
+      publishedTime: post.isoDate || (post as any).iso_date,
     },
     twitter: {
       card: 'summary_large_image',
       title: post.title,
       description: post.excerpt,
-      images: post.coverImage ? [post.coverImage] : [],
+      images: cover ? [cover] : [],
     },
   };
 }

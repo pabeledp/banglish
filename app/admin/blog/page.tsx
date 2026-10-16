@@ -758,12 +758,23 @@ export default function AdminBlogPage() {
       if (cropTarget === 'admin') {
         const updated = { ...adminProfile, avatar: croppedDataUrl };
         setAdminProfile(updated);
+        setCurrentUser(prev => {
+          const u = prev ? { ...prev, avatar: croppedDataUrl } : null;
+          if (u) {
+            sessionStorage.setItem('banglish_admin_user', JSON.stringify(u));
+            localStorage.setItem('banglish_admin_user', JSON.stringify(u));
+          }
+          return u;
+        });
         // Save immediately
         if (token) {
           fetch('/api/blog/admin/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ adminProfile: updated }),
+          }).then(() => {
+            fetchAdminSettings(token);
+            fetchTeamMembers(token);
           }).catch(() => {});
         }
       } else if (cropTarget === 'author') {
@@ -981,7 +992,7 @@ export default function AdminBlogPage() {
         if (data.success && data.settings) {
           if (data.settings.adminProfile) {
             setAdminProfile(data.settings.adminProfile);
-            setCurrentUser(prev => prev ? { ...prev, ...data.settings.adminProfile } : null);
+            setCurrentUser(prev => prev ? { ...prev, ...data.settings.adminProfile, role: (data.settings.adminProfile.role as any) || prev.role } : null);
           }
           if (data.settings.authorProfile) setAuthorProfile(data.settings.authorProfile);
           if (data.settings.adminUsername) {
@@ -1059,7 +1070,21 @@ export default function AdminBlogPage() {
       const data = await res.json();
       if (res.ok && data.success) {
         setSettingsSuccessMsg('প্রোফাইল সেটিংস সফলভাবে সংরক্ষিত হয়েছে!');
+        setCurrentUser(prev => {
+          const updated = prev ? { ...prev, ...adminProfile, role: (adminProfile.role as any) || prev.role } : null;
+          if (updated) {
+            sessionStorage.setItem('banglish_admin_user', JSON.stringify(updated));
+            localStorage.setItem('banglish_admin_user', JSON.stringify(updated));
+          }
+          return updated;
+        });
+        if (token) {
+          fetchAdminSettings(token);
+          fetchTeamMembers(token);
+        }
         setTimeout(() => setSettingsSuccessMsg(''), 3000);
+      } else {
+        alert(data.error || 'সেটিংস সংরক্ষণে সমস্যা হয়েছে');
       }
     } catch (e) {
       alert('সেটিংস সংরক্ষণে সমস্যা হয়েছে');
@@ -2217,12 +2242,16 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
               {/* Top 5 Metrics Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-5 items-stretch">
                 
-                {/* Author Card (Span 4) */}
+                {/* User Profile Card (Span 4) */}
                 <div className="lg:col-span-4 bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs flex items-center justify-between relative overflow-hidden">
                   <div className="flex flex-col justify-between h-full z-10">
                     <div>
-                      <h3 className="text-lg font-extrabold text-slate-900 font-sans">{authorProfile.name}</h3>
-                      <p className="text-xs text-slate-400 font-medium">{authorProfile.role}</p>
+                      <h3 className="text-lg font-extrabold text-slate-900 font-sans">
+                        {currentUser?.name || adminProfile.name || 'Admin'}
+                      </h3>
+                      <p className="text-xs text-slate-400 font-medium capitalize">
+                        {adminProfile.role || currentUser?.role?.replace('_', ' ') || 'Admin'}
+                      </p>
                     </div>
                     <div className="flex items-center gap-4 mt-6">
                       <div>
@@ -2239,8 +2268,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
                   <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-slate-100 shadow-sm shrink-0">
                     <img 
-                      src={authorProfile.avatar || '/assets/pabel_light_avatar.webp'} 
-                      alt="Author" 
+                      src={currentUser?.avatar || adminProfile.avatar || '/assets/pabel_light_avatar.webp'} 
+                      alt={currentUser?.name || adminProfile.name || 'User'} 
                       className="w-full h-full object-cover" 
                     />
                   </div>

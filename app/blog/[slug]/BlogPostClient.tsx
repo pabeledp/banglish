@@ -90,9 +90,17 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
         if (res.ok) {
           const data = await res.json();
           if (data?.post) {
-            setPost(data.post);
-            if (typeof data.post.likes === 'number') {
-              setLikesCount(data.post.likes);
+            const p = data.post;
+            setPost({
+              ...p,
+              coverImage: p.coverImage || p.cover_image || '',
+              coverAlt: p.coverAlt || p.cover_alt || p.title || '',
+              readTime: p.readTime || p.read_time || '',
+              seoTitle: p.seoTitle || p.seo_title || p.title || '',
+              isoDate: p.isoDate || p.iso_date || '',
+            });
+            if (typeof p.likes === 'number') {
+              setLikesCount(p.likes);
             }
           }
         }
@@ -412,13 +420,15 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
         </header>
 
         {/* Featured Cover Banner */}
-        {post.coverImage && (
+        {(post.coverImage || (post as any).cover_image) && (
           <div className="my-8 rounded-3xl overflow-hidden border border-slate-200/80 shadow-md bg-slate-100 max-h-[440px]">
             <img
-              src={post.coverImage}
-              alt={post.coverAlt || post.title}
+              src={post.coverImage || (post as any).cover_image}
+              alt={post.coverAlt || (post as any).cover_alt || post.title}
               className="w-full h-full object-cover"
-              onError={(e: any) => { e.target.style.display = 'none'; }}
+              onError={(e: any) => {
+                e.target.src = 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=80';
+              }}
             />
           </div>
         )}

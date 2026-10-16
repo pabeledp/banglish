@@ -803,10 +803,25 @@ async function handleBlogApi(request, env, ctx, url) {
 
       const formatted = (results || []).map(r => {
         const isDefaultAuthor = !r.author_name || r.author_name === globalAuthor.name || r.author_name === 'A M Pabel';
+        const cover = r.cover_image || r.coverImage || '';
+        const alt = r.cover_alt || r.coverAlt || r.title || '';
+        const rt = r.read_time || r.readTime || '';
+        const st = r.seo_title || r.seoTitle || r.title || '';
+        const idate = r.iso_date || r.isoDate || '';
         return {
           ...r,
           featured: Boolean(r.featured),
           tags: typeof r.tags === 'string' ? r.tags.split(',').map(t => t.trim()).filter(Boolean) : (r.tags || []),
+          coverImage: cover,
+          cover_image: cover,
+          coverAlt: alt,
+          cover_alt: alt,
+          readTime: rt,
+          read_time: rt,
+          seoTitle: st,
+          seo_title: st,
+          isoDate: idate,
+          iso_date: idate,
           author: {
             name: isDefaultAuthor ? globalAuthor.name : (r.author_name || globalAuthor.name),
             role: isDefaultAuthor ? globalAuthor.role : (r.author_role || globalAuthor.role),
@@ -839,10 +854,25 @@ async function handleBlogApi(request, env, ctx, url) {
 
       const formatted = (results || []).map(r => {
         const isDefaultAuthor = !r.author_name || r.author_name === globalAuthor.name || r.author_name === 'A M Pabel';
+        const cover = r.cover_image || r.coverImage || '';
+        const alt = r.cover_alt || r.coverAlt || r.title || '';
+        const rt = r.read_time || r.readTime || '';
+        const st = r.seo_title || r.seoTitle || r.title || '';
+        const idate = r.iso_date || r.isoDate || '';
         return {
           ...r,
           featured: Boolean(r.featured),
           tags: typeof r.tags === 'string' ? r.tags.split(',').map(t => t.trim()).filter(Boolean) : (r.tags || []),
+          coverImage: cover,
+          cover_image: cover,
+          coverAlt: alt,
+          cover_alt: alt,
+          readTime: rt,
+          read_time: rt,
+          seoTitle: st,
+          seo_title: st,
+          isoDate: idate,
+          iso_date: idate,
           author: {
             name: isDefaultAuthor ? globalAuthor.name : (r.author_name || globalAuthor.name),
             role: isDefaultAuthor ? globalAuthor.role : (r.author_role || globalAuthor.role),
@@ -1024,10 +1054,25 @@ async function handleBlogApi(request, env, ctx, url) {
 
       const globalAuthor = await getGlobalAuthor(env);
       const isDefaultAuthor = !post.author_name || post.author_name === globalAuthor.name || post.author_name === 'A M Pabel';
+      const cover = post.cover_image || post.coverImage || '';
+      const alt = post.cover_alt || post.coverAlt || post.title || '';
+      const rt = post.read_time || post.readTime || '';
+      const st = post.seo_title || post.seoTitle || post.title || '';
+      const idate = post.iso_date || post.isoDate || '';
       const formatted = {
         ...post,
         featured: Boolean(post.featured),
         tags: typeof post.tags === 'string' ? post.tags.split(',').map(t => t.trim()).filter(Boolean) : (post.tags || []),
+        coverImage: cover,
+        cover_image: cover,
+        coverAlt: alt,
+        cover_alt: alt,
+        readTime: rt,
+        read_time: rt,
+        seoTitle: st,
+        seo_title: st,
+        isoDate: idate,
+        iso_date: idate,
         author: {
           name: isDefaultAuthor ? globalAuthor.name : (post.author_name || globalAuthor.name),
           role: isDefaultAuthor ? globalAuthor.role : (post.author_role || globalAuthor.role),

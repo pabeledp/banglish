@@ -22,9 +22,17 @@ export default function BlogIndexPage() {
         if (res.ok) {
           const data = await res.json();
           if (data?.posts && Array.isArray(data.posts) && data.posts.length > 0) {
+            const normalized = data.posts.map((p: any) => ({
+              ...p,
+              coverImage: p.coverImage || p.cover_image || '',
+              coverAlt: p.coverAlt || p.cover_alt || p.title || '',
+              readTime: p.readTime || p.read_time || '',
+              seoTitle: p.seoTitle || p.seo_title || p.title || '',
+              isoDate: p.isoDate || p.iso_date || '',
+            }));
             // Merge D1 posts with fallback posts ensuring uniqueness by slug
-            const seenSlugs = new Set(data.posts.map((p: BlogPost) => p.slug));
-            const merged = [...data.posts, ...fallbackPosts.filter(p => !seenSlugs.has(p.slug))];
+            const seenSlugs = new Set(normalized.map((p: BlogPost) => p.slug));
+            const merged = [...normalized, ...fallbackPosts.filter(p => !seenSlugs.has(p.slug))];
             setPosts(merged);
           }
         }
@@ -237,14 +245,14 @@ export default function BlogIndexPage() {
                   >
                     <div>
                       {/* Cover Thumbnail if available */}
-                      {post.coverImage && (
+                      {(post.coverImage || (post as any).cover_image) && (
                         <Link href={`/blog/${post.slug}`} className="block overflow-hidden rounded-2xl mb-4 h-44 bg-slate-100">
                           <img
-                            src={post.coverImage}
-                            alt={post.coverAlt || post.title}
+                            src={post.coverImage || (post as any).cover_image}
+                            alt={post.coverAlt || (post as any).cover_alt || post.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             onError={(e: any) => {
-                              e.target.style.display = 'none';
+                              e.target.src = 'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=1200&q=80';
                             }}
                           />
                         </Link>
