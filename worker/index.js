@@ -989,17 +989,12 @@ async function handleBlogApi(request, env, ctx, url) {
     if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
     }
-    if (auth.role === 'moderator') {
-      return jsonResponse({ success: false, error: 'মডারেটরদের ব্লগ পোস্ট মোছার অনুমতি নেই।' }, 403);
+    // Only super_admin and admin have delete access
+    if (auth.role !== 'super_admin' && auth.role !== 'admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin এবং Admin ব্লগ পোস্ট মুছে ফেলতে পারেন।' }, 403);
     }
     const postId = parseInt(delMatch[1], 10);
     try {
-      if (auth.role === 'author') {
-        const post = await env.DB.prepare('SELECT author_name FROM blog_posts WHERE id = ?').bind(postId).first();
-        if (post && post.author_name && post.author_name.toLowerCase() !== auth.name.toLowerCase() && post.author_name.toLowerCase() !== auth.u.toLowerCase()) {
-          return jsonResponse({ success: false, error: 'Author শুধুমাত্র নিজের লেখা পোস্ট মুছতে পারবেন।' }, 403);
-        }
-      }
       await env.DB.prepare('DELETE FROM blog_posts WHERE id = ?').bind(postId).run();
       return jsonResponse({ success: true, message: 'পোস্ট মুছে ফেলা হয়েছে' });
     } catch (err) {
@@ -1343,30 +1338,47 @@ async function handleBlogApi(request, env, ctx, url) {
 
   // 18. Admin Settings: GET /api/blog/admin/settings
   if (pathname === '/api/blog/admin/settings' && request.method === 'GET') {
-    if (!verifyAdminAuth(request, env)) {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
     }
     try {
+      await ensureAdminUsersTable(env.DB);
+      let currentUserRow = null;
+      if (auth.id) {
+        currentUserRow = await env.DB.prepare("SELECT id, name, username, email, role, avatar FROM admin_users WHERE id = ?").bind(auth.id).first();
+      }
+      if (!currentUserRow && auth.u) {
+        currentUserRow = await env.DB.prepare("SELECT id, name, username, email, role, avatar FROM admin_users WHERE LOWER(username) = ?").bind(auth.u.toLowerCase()).first();
+      }
+
       const settingsRows = await env.DB.prepare("SELECT key, value FROM admin_settings").all();
       const map = {};
       (settingsRows?.results || []).forEach(r => { map[r.key] = r.value; });
+
+      // Profile for the currently logged-in user
+      const userProfile = {
+        name: currentUserRow?.name || auth.name || 'Admin',
+        email: currentUserRow?.email || auth.email || '',
+        role: currentUserRow?.role || auth.role || 'editor',
+        avatar: currentUserRow?.avatar || auth.avatar || '/assets/pabel_light_avatar.webp',
+      };
+
+      const isSuperAdmin = (auth.role === 'super_admin' || auth.role === 'admin');
+
       return jsonResponse({
         success: true,
         settings: {
-          adminUsername: map.admin_username || 'admin',
+          adminUsername: currentUserRow?.username || auth.u || map.admin_username || 'admin',
           usernameChanged: Number(map.username_changed || 0),
-          adminProfile: map.admin_profile ? JSON.parse(map.admin_profile) : {
-            name: 'A M Pabel',
-            email: 'ampabel.edp@gmail.com',
-            role: 'Lead Architect & Founder',
-            avatar: '/assets/pabel_light_avatar.webp'
-          },
+          adminProfile: userProfile,
           authorProfile: map.author_profile ? JSON.parse(map.author_profile) : {
             name: 'A M Pabel',
             role: 'Founder, FramEmpire',
             bio: 'Creator of Banglish Keyboard & Lead Architect at Team FramEmpire.',
             avatar: '/assets/pabel_light_avatar.webp'
-          }
+          },
+          isSuperAdmin
         }
       });
     } catch (err) {
@@ -1376,8 +1388,12 @@ async function handleBlogApi(request, env, ctx, url) {
 
   // 18.1 Update Admin Username (One-Time Only): POST /api/blog/admin/update-username
   if (pathname === '/api/blog/admin/update-username' && request.method === 'POST') {
-    if (!verifyAdminAuth(request, env)) {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role !== 'super_admin' && auth.role !== 'admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin ইউজারনেম পরিবর্তন করতে পারবেন।' }, 403);
     }
     try {
       const { newUsername } = await request.json();
@@ -1406,11 +1422,10 @@ async function handleBlogApi(request, env, ctx, url) {
 
       // Also update in admin_users for current admin
       await ensureAdminUsersTable(env.DB);
-      const authUser = verifyAdminAuth(request, env);
-      if (authUser && authUser.id) {
+      if (auth.id) {
         await env.DB.prepare(
           "UPDATE admin_users SET username = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-        ).bind(trimmed, authUser.id).run();
+        ).bind(trimmed, auth.id).run();
       }
 
       return jsonResponse({
@@ -1430,25 +1445,29 @@ async function handleBlogApi(request, env, ctx, url) {
     if (!auth) {
       return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
     }
-    if (auth.role !== 'super_admin') {
-      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin সিস্টেম প্রোফাইল পরিবর্তন করতে পারবেন।' }, 403);
-    }
     try {
       const { adminProfile, authorProfile } = await request.json();
+      await ensureAdminUsersTable(env.DB);
+
+      // Any authenticated user can update their own user profile in admin_users
       if (adminProfile) {
         await env.DB.prepare(
-          "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('admin_profile', ?, CURRENT_TIMESTAMP)"
-        ).bind(JSON.stringify(adminProfile)).run();
+          "UPDATE admin_users SET name = COALESCE(?, name), email = COALESCE(?, email), avatar = COALESCE(?, avatar), updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+        ).bind(adminProfile.name || null, adminProfile.email || null, adminProfile.avatar || null, auth.id).run();
 
-        // Sync admin name/email to admin_users
-        if (adminProfile.name || adminProfile.email) {
-          await ensureAdminUsersTable(env.DB);
+        // If super_admin, also update admin_settings.admin_profile for backward compatibility
+        if (auth.role === 'super_admin') {
           await env.DB.prepare(
-            "UPDATE admin_users SET name = COALESCE(?, name), email = COALESCE(?, email), avatar = COALESCE(?, avatar), updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-          ).bind(adminProfile.name || null, adminProfile.email || null, adminProfile.avatar || null, auth.id).run();
+            "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('admin_profile', ?, CURRENT_TIMESTAMP)"
+          ).bind(JSON.stringify(adminProfile)).run();
         }
       }
+
+      // ONLY Super Admin / Admin can update the global Author Profile
       if (authorProfile) {
+        if (auth.role !== 'super_admin' && auth.role !== 'admin') {
+          return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin সাইট-ওয়াইড অথর প্রোফাইল পরিবর্তন করতে পারবেন।' }, 403);
+        }
         await env.DB.prepare(
           "INSERT OR REPLACE INTO admin_settings (key, value, updated_at) VALUES ('author_profile', ?, CURRENT_TIMESTAMP)"
         ).bind(JSON.stringify(authorProfile)).run();
@@ -1469,7 +1488,7 @@ async function handleBlogApi(request, env, ctx, url) {
           console.error('Error syncing author to blog_posts:', syncErr);
         }
       }
-      return jsonResponse({ success: true, message: 'প্রোফাইল সেটিংস সফলভাবে সংরক্ষিত ও সাইটে সিঙ্ক হয়েছে!' });
+      return jsonResponse({ success: true, message: 'প্রোফাইল সেটিংস সফলভাবে সংরক্ষিত হয়েছে!' });
     } catch (err) {
       return jsonResponse({ success: false, error: err.message }, 500);
     }

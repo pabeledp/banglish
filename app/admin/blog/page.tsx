@@ -22,7 +22,7 @@ interface AdminUser {
   name: string;
   username: string;
   email: string;
-  role: 'super_admin' | 'editor' | 'author' | 'moderator';
+  role: 'super_admin' | 'admin' | 'editor' | 'author' | 'moderator';
   status: 'active' | 'inactive';
   avatar?: string;
   created_at?: string;
@@ -184,7 +184,7 @@ export default function AdminBlogPage() {
 
   // Forgot & Reset Password States
   const [forgotModalOpen, setForgotModalOpen] = useState(false);
-  const [forgotEmailInput, setForgotEmailInput] = useState('ampabel.edp@gmail.com');
+  const [forgotEmailInput, setForgotEmailInput] = useState('');
   const [isSendingReset, setIsSendingReset] = useState(false);
   const [forgotMsg, setForgotMsg] = useState<{ text: string; type: 'success' | 'error' | '' }>({ text: '', type: '' });
 
@@ -211,6 +211,7 @@ export default function AdminBlogPage() {
   const [newMemberPassword, setNewMemberPassword] = useState('');
   const [newMemberRole, setNewMemberRole] = useState<'super_admin' | 'editor' | 'author' | 'moderator'>('editor');
   const [isSubmittingMember, setIsSubmittingMember] = useState(false);
+  const [modalMemberError, setModalMemberError] = useState('');
   const [teamActionMsg, setTeamActionMsg] = useState({ text: '', type: '' });
   
   // Timeframe filter for Visitor Insight Chart: D, M, Y
@@ -448,6 +449,7 @@ export default function AdminBlogPage() {
   const handleAddTeamMember = async (e: React.FormEvent) => {
     e.preventDefault();
     setTeamActionMsg({ text: '', type: '' });
+    setModalMemberError('');
     setIsSubmittingMember(true);
     try {
       const res = await fetch('/api/blog/admin/team', {
@@ -472,13 +474,14 @@ export default function AdminBlogPage() {
         setNewMemberEmail('');
         setNewMemberPassword('');
         setNewMemberRole('editor');
+        setModalMemberError('');
         setIsAddMemberOpen(false);
-        fetchTeamMembers();
+        if (token) fetchTeamMembers(token);
       } else {
-        setTeamActionMsg({ text: data.error || 'মেম্বার যুক্ত করতে ব্যর্থ হয়েছে', type: 'error' });
+        setModalMemberError(data.error || 'মেম্বার যুক্ত করতে ব্যর্থ হয়েছে');
       }
     } catch (err: any) {
-      setTeamActionMsg({ text: err.message || 'সার্ভার সমস্যা', type: 'error' });
+      setModalMemberError(err.message || 'সার্ভার সমস্যা');
     } finally {
       setIsSubmittingMember(false);
     }
@@ -976,7 +979,10 @@ export default function AdminBlogPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.settings) {
-          if (data.settings.adminProfile) setAdminProfile(data.settings.adminProfile);
+          if (data.settings.adminProfile) {
+            setAdminProfile(data.settings.adminProfile);
+            setCurrentUser(prev => prev ? { ...prev, ...data.settings.adminProfile } : null);
+          }
           if (data.settings.authorProfile) setAuthorProfile(data.settings.authorProfile);
           if (data.settings.adminUsername) {
             setAdminUsername(data.settings.adminUsername);
@@ -985,7 +991,7 @@ export default function AdminBlogPage() {
           if (typeof data.settings.usernameChanged !== 'undefined') {
             const hasChanged = data.settings.usernameChanged === 1;
             setUsernameChanged(hasChanged);
-            if (!hasChanged && !sessionStorage.getItem('dismiss_security_warning')) {
+            if (data.settings.isSuperAdmin && !hasChanged && !sessionStorage.getItem('dismiss_security_warning')) {
               setShowSecurityPrompt(true);
             }
           }
@@ -1338,9 +1344,9 @@ export default function AdminBlogPage() {
       status: editorStatus,
       featured: editorFeatured,
       author: {
-        name: authorProfile.name || 'A M Pabel',
-        role: authorProfile.role || 'Founder, FramEmpire',
-        avatar: authorProfile.avatar || '/assets/pabel_light_avatar.webp',
+        name: currentUser?.name || authorProfile.name || 'A M Pabel',
+        role: currentUser?.role === 'super_admin' ? (authorProfile.role || 'Founder, FramEmpire') : (currentUser?.role || 'Author'),
+        avatar: currentUser?.avatar || authorProfile.avatar || '/assets/pabel_light_avatar.webp',
       },
     };
 
@@ -1972,22 +1978,20 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </button>
 
             {/* 7. Settings (Profiles, Passwords) */}
-            {(!currentUser || currentUser.role === 'super_admin') && (
-              <button
-                onClick={() => { setActiveNav('settings'); if (token) fetchAdminSettings(token); }}
-                title="Admin & Author Profile Settings"
-                className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer relative ${
-                  activeNav === 'settings'
-                    ? 'bg-blue-50 text-blue-600 font-bold'
-                    : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                {activeNav === 'settings' && (
-                  <span className="absolute -left-2 w-1.5 h-6 bg-blue-600 rounded-r-full" />
-                )}
-                <Settings className="w-5 h-5" />
-              </button>
-            )}
+            <button
+              onClick={() => { setActiveNav('settings'); if (token) fetchAdminSettings(token); }}
+              title="Profile & Account Settings"
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all cursor-pointer relative ${
+                activeNav === 'settings'
+                  ? 'bg-blue-50 text-blue-600 font-bold'
+                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              {activeNav === 'settings' && (
+                <span className="absolute -left-2 w-1.5 h-6 bg-blue-600 rounded-r-full" />
+              )}
+              <Settings className="w-5 h-5" />
+            </button>
 
             {/* 8. Team Management & Roles (Super Admin only) */}
             {(!currentUser || currentUser.role === 'super_admin') && (
@@ -2114,15 +2118,13 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                         <span>Team Management</span>
                       </button>
                     )}
-                    {(!currentUser || currentUser.role === 'super_admin') && (
-                      <button
-                        onClick={() => { setActiveNav('settings'); setUserDropdownOpen(false); }}
-                        className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
-                      >
-                        <Settings className="w-4 h-4 text-slate-400" />
-                        <span>Settings</span>
-                      </button>
-                    )}
+                    <button
+                      onClick={() => { setActiveNav('settings'); setUserDropdownOpen(false); if (token) fetchAdminSettings(token); }}
+                      className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
+                    >
+                      <Settings className="w-4 h-4 text-slate-400" />
+                      <span>Settings</span>
+                    </button>
                     <button
                       onClick={() => { setActiveNav('media'); setUserDropdownOpen(false); }}
                       className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-blue-600 rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
@@ -2569,13 +2571,25 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                               <Eye className="w-3 h-3 text-slate-400" />
                               <span>{post.views || 0}</span>
                             </span>
-                            <button
-                              onClick={() => openEditPostEditor(post)}
-                              className="flex items-center gap-1 text-slate-500 hover:text-blue-600 font-semibold transition-colors cursor-pointer ml-auto"
-                            >
-                              <Edit3 className="w-3 h-3" />
-                              <span>Edit</span>
-                            </button>
+                            <div className="flex items-center gap-2.5 ml-auto">
+                              <button
+                                onClick={() => openEditPostEditor(post)}
+                                className="flex items-center gap-1 text-slate-500 hover:text-blue-600 font-semibold transition-colors cursor-pointer"
+                              >
+                                <Edit3 className="w-3 h-3" />
+                                <span>Edit</span>
+                              </button>
+                              {(currentUser?.role === 'super_admin' || currentUser?.role === 'admin') && (
+                                <button
+                                  onClick={() => handleDeletePost(Number(post.id), post.title)}
+                                  className="flex items-center gap-1 text-slate-400 hover:text-rose-600 font-semibold transition-colors cursor-pointer"
+                                  title="পোস্ট মুছুন"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                  <span>Delete</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -3080,6 +3094,15 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                             >
                               <ExternalLink className="w-4 h-4" />
                             </Link>
+                            {(currentUser?.role === 'super_admin' || currentUser?.role === 'admin') && (
+                              <button
+                                onClick={() => handleDeletePost(Number(post.id), post.title)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="পোস্ট মুছুন"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -3153,16 +3176,6 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                           <Upload className="w-3.5 h-3.5" />
                           <span>Upload Photo</span>
                         </button>
-
-                        <button
-                          type="button"
-                          onClick={() => openAdjustCurrentAvatar('admin')}
-                          className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-slate-200"
-                          title="Drag to reposition / crop"
-                        >
-                          <Move className="w-3.5 h-3.5" />
-                          <span>Adjust Position</span>
-                        </button>
                       </div>
                     </div>
 
@@ -3189,105 +3202,14 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Role</label>
-                        <input
-                          type="text"
-                          value={adminProfile.role}
-                          onChange={e => setAdminProfile({ ...adminProfile, role: e.target.value })}
-                          className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card 2: Author Profile */}
-                  <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
-                    <h2 className="text-lg font-bold text-slate-900 font-sans border-b border-slate-100 pb-3">
-                      Author Profile
-                    </h2>
-
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-5">
-                      <div 
-                        className="relative group w-20 h-20 shrink-0 cursor-pointer" 
-                        onClick={() => authorFileInputRef.current?.click()}
-                        title="Upload author photo from device"
-                      >
-                        <img 
-                          src={authorProfile.avatar || '/assets/pabel_light_avatar.webp'} 
-                          alt="Author" 
-                          className="w-20 h-20 rounded-full object-cover border-2 border-slate-200 shadow-sm group-hover:opacity-85 transition-opacity"
-                        />
-                        <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Camera className="w-5 h-5 text-white" />
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Account Role</label>
+                        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold font-sans text-slate-700 uppercase">
+                          {adminProfile.role || currentUser?.role || 'Member'}
                         </div>
-                      </div>
-
-                      <input 
-                        type="file" 
-                        ref={authorFileInputRef} 
-                        accept="image/*" 
-                        className="hidden" 
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleProfileFileSelected(file, 'author');
-                        }}
-                      />
-
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <button
-                          type="button"
-                          onClick={() => authorFileInputRef.current?.click()}
-                          className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-blue-100"
-                        >
-                          <Upload className="w-3.5 h-3.5" />
-                          <span>Upload Photo</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => openAdjustCurrentAvatar('author')}
-                          className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-slate-200"
-                          title="Drag to reposition / crop"
-                        >
-                          <Move className="w-3.5 h-3.5" />
-                          <span>Adjust Position</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 pt-2">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Author Name</label>
-                          <input
-                            type="text"
-                            value={authorProfile.name}
-                            onChange={e => setAuthorProfile({ ...authorProfile, name: e.target.value })}
-                            className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Role / Designation</label>
-                          <input
-                            type="text"
-                            value={authorProfile.role}
-                            onChange={e => setAuthorProfile({ ...authorProfile, role: e.target.value })}
-                            className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-700 mb-1.5">Bio</label>
-                        <textarea
-                          rows={2}
-                          value={authorProfile.bio}
-                          onChange={e => setAuthorProfile({ ...authorProfile, bio: e.target.value })}
-                          className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                        />
                       </div>
 
                       <button
+                        type="button"
                         disabled={isSavingSettings}
                         onClick={handleSaveSettings}
                         className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2"
@@ -3295,36 +3217,139 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                         {isSavingSettings ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Saving Changes...</span>
+                            <span>Saving Profile...</span>
                           </>
                         ) : (
-                          <span>Save Changes</span>
+                          <span>Save Profile</span>
                         )}
                       </button>
                     </div>
                   </div>
+
+                  {/* Card 2: Author Profile (Super Admin & Admin Only) */}
+                  {(currentUser?.role === 'super_admin' || currentUser?.role === 'admin') && (
+                    <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+                      <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+                        <h2 className="text-lg font-bold text-slate-900 font-sans">
+                          Author Profile
+                        </h2>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                          Site-Wide Default
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+                        <div 
+                          className="relative group w-20 h-20 shrink-0 cursor-pointer" 
+                          onClick={() => authorFileInputRef.current?.click()}
+                          title="Upload author photo from device"
+                        >
+                          <img 
+                            src={authorProfile.avatar || '/assets/pabel_light_avatar.webp'} 
+                            alt="Author" 
+                            className="w-20 h-20 rounded-full object-cover border-2 border-slate-200 shadow-sm group-hover:opacity-85 transition-opacity"
+                          />
+                          <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Camera className="w-5 h-5 text-white" />
+                          </div>
+                        </div>
+
+                        <input 
+                          type="file" 
+                          ref={authorFileInputRef} 
+                          accept="image/*" 
+                          className="hidden" 
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleProfileFileSelected(file, 'author');
+                          }}
+                        />
+
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => authorFileInputRef.current?.click()}
+                            className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-blue-100"
+                          >
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>Upload Photo</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4 pt-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">Author Name</label>
+                            <input
+                              type="text"
+                              value={authorProfile.name}
+                              onChange={e => setAuthorProfile({ ...authorProfile, name: e.target.value })}
+                              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">Role / Designation</label>
+                            <input
+                              type="text"
+                              value={authorProfile.role}
+                              onChange={e => setAuthorProfile({ ...authorProfile, role: e.target.value })}
+                              className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1.5">Bio</label>
+                          <textarea
+                            rows={2}
+                            value={authorProfile.bio}
+                            onChange={e => setAuthorProfile({ ...authorProfile, bio: e.target.value })}
+                            className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-sans focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={isSavingSettings}
+                          onClick={handleSaveSettings}
+                          className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2"
+                        >
+                          {isSavingSettings ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Saving Author Profile...</span>
+                            </>
+                          ) : (
+                            <span>Save Author Profile</span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Section 2: Security, Username & Password */}
                 <div className="space-y-8">
-                  {/* Card 1: Username (One-Time Update) */}
-                  <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-5">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <h2 className="text-lg font-bold text-slate-900 font-sans flex items-center gap-2">
-                        <User className="w-5 h-5 text-emerald-600" />
-                        <span>Username</span>
-                      </h2>
-                      {usernameChanged ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold border border-slate-200">
-                          <Lock className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Locked</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
-                          <span>1 Change Allowed</span>
-                        </span>
-                      )}
-                    </div>
+                  {/* Card 1: Username (One-Time Update, Super Admin Only) */}
+                  {(currentUser?.role === 'super_admin' || currentUser?.role === 'admin') && (
+                    <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-5">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h2 className="text-lg font-bold text-slate-900 font-sans flex items-center gap-2">
+                          <User className="w-5 h-5 text-emerald-600" />
+                          <span>Username</span>
+                        </h2>
+                        {usernameChanged ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold border border-slate-200">
+                            <Lock className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Locked</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+                            <span>1 Change Allowed</span>
+                          </span>
+                        )}
+                      </div>
 
                     {usernameMsg.text && (
                       <div
@@ -3411,6 +3436,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                       </form>
                     )}
                   </div>
+                )}
 
                   {/* Card 2: Password */}
                   <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
@@ -3492,7 +3518,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                         <span>ইমেইলে পাসওয়ার্ড রিসেট লিংক:</span>
                       </div>
                       <p className="text-slate-600">
-                        ভবিষ্যতে পাসওয়ার্ড ভুলে গেলে লগইন স্ক্রিনের &quot;পাসওয়ার্ড ভুলে গেছেন?&quot; বোতাম ব্যবহার করে আপনার নিবন্ধিত ইমেইলে (`{adminProfile.email}`) সিকিউর ওয়ান-টাইম রিসেট লিংক পাঠিয়ে পাসওয়ার্ড রিসেট করতে পারবেন।
+                        ভবিষ্যতে পাসওয়ার্ড ভুলে গেলে লগইন স্ক্রিনের &quot;পাসওয়ার্ড ভুলে গেছেন?&quot; বোতাম ব্যবহার করে আপনার নিবন্ধিত ইমেইলে (`{currentUser?.email || adminProfile.email || 'আপনার ইমেইল'}`) সিকিউর ওয়ান-টাইম রিসেট লিংক পাঠিয়ে পাসওয়ার্ড রিসেট করতে পারবেন।
                       </p>
                     </div>
                   </div>
@@ -3543,9 +3569,6 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     <Users className="w-7 h-7 text-emerald-600" />
                     <span>Team Management & Roles</span>
                   </h1>
-                  <p className="text-xs text-slate-500 font-bangla mt-1">
-                    ক্লাউডফ্লেয়ার D1 ডাটাবেজে সংরক্ষিত টিম মেম্বারদের তালিকা ও রোল-ভিত্তিক অ্যাক্সেস কন্ট্রোল (RBAC)।
-                  </p>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -4146,13 +4169,30 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
             {/* Modal Footer */}
             <div className="px-6 py-4 border-t border-slate-200/80 bg-slate-50 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setIsEditorOpen(false)}
-                className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                বাতিল
-              </button>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsEditorOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                {editingPostId && (currentUser?.role === 'super_admin' || currentUser?.role === 'admin') && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm(`আপনি কি নিশ্চিত যে "${editorTitle}" পোস্টটি মুছে ফেলতে চান?`)) {
+                        await handleDeletePost(editingPostId, editorTitle);
+                        setIsEditorOpen(false);
+                      }
+                    }}
+                    className="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-sm font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>পোস্ট মুছুন</span>
+                  </button>
+                )}
+              </div>
 
               <button
                 type="button"
@@ -4302,6 +4342,13 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </div>
 
             <form onSubmit={handleAddTeamMember} className="p-6 space-y-4">
+              {modalMemberError && (
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bangla flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span>{modalMemberError}</span>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
                   পূর্ণ নাম (Full Name) *
@@ -4365,36 +4412,16 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 <label className="block text-xs font-bold text-slate-700 font-bangla mb-1.5">
                   অ্যাক্সেস রোল (Role & Permissions) *
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  {[
-                    { key: 'super_admin', label: '👑 Super Admin', desc: 'সকল পারমিশন, টিম ম্যানেজমেন্ট ও সেটিংস' },
-                    { key: 'editor', label: '✍️ Editor', desc: 'সব পোস্ট তৈরি/এডিট/পাবলিশ ও কমেন্ট ম্যানেজ' },
-                    { key: 'author', label: '📝 Author', desc: 'শুধুমাত্র নিজের পোস্ট তৈরি ও ড্রাফট করা' },
-                    { key: 'moderator', label: '🛡️ Moderator', desc: 'শুধুমাত্র কমেন্ট ও মেসেজ রিভিউ করা' },
-                  ].map((r) => (
-                    <label
-                      key={r.key}
-                      onClick={() => setNewMemberRole(r.key as any)}
-                      className={`p-3 rounded-2xl border cursor-pointer transition-all flex flex-col justify-between ${
-                        newMemberRole === r.key
-                          ? 'border-emerald-500 bg-emerald-50/50 shadow-2xs'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-900">{r.label}</span>
-                        <input
-                          type="radio"
-                          name="memberRole"
-                          checked={newMemberRole === r.key}
-                          onChange={() => setNewMemberRole(r.key as any)}
-                          className="accent-emerald-600"
-                        />
-                      </div>
-                      <span className="text-[10px] text-slate-500 font-bangla mt-1 leading-tight">{r.desc}</span>
-                    </label>
-                  ))}
-                </div>
+                <select
+                  value={newMemberRole}
+                  onChange={(e) => setNewMemberRole(e.target.value as any)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 cursor-pointer text-slate-800"
+                >
+                  <option value="editor">✍️ Editor (সব পোস্ট তৈরি/এডিট/পাবলিশ ও কমেন্ট ম্যানেজ)</option>
+                  <option value="author">📝 Author (শুধুমাত্র নিজের পোস্ট তৈরি ও ড্রাফট করা)</option>
+                  <option value="moderator">🛡️ Moderator (শুধুমাত্র কমেন্ট ও মেসেজ রিভিউ করা)</option>
+                  <option value="super_admin">👑 Super Admin (সকল পারমিশন, টিম ম্যানেজমেন্ট ও সেটিংস)</option>
+                </select>
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-100">
