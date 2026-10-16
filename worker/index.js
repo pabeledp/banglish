@@ -611,7 +611,28 @@ async function processSingleMessage(message, contacts, env) {
     return;
   }
 
-  // 1. Message Deduplication via Cloudflare D1
+  // 1. Drop stale or delayed messages (e.g. Meta webhook retries after hours)
+  const messageTimestamp = Number(message.timestamp);
+  const nowUnix = Math.floor(Date.now() / 1000);
+  if (messageTimestamp && nowUnix - messageTimestamp > 120) {
+    console.log(`⏱️ Dropped stale message [${messageId}] sent ${nowUnix - messageTimestamp}s ago.`);
+    return;
+  }
+
+  // 2. Ignore self-messages and bot echoes
+  const botPhoneId = env.PHONE_NUMBER_ID || '1285739121299923';
+  if (from === botPhoneId || from === '8801795020192' || from === '1795020192') {
+    console.log('ℹ️ Ignored message from bot itself.');
+    return;
+  }
+
+  // 3. Silently ignore reactions (emojis like 👍, ❤️), ephemeral, and system events
+  if (messageType === 'reaction' || messageType === 'order' || messageType === 'system' || messageType === 'unknown') {
+    console.log(`ℹ️ Silently ignored event of type [${messageType}].`);
+    return;
+  }
+
+  // 4. Message Deduplication via Cloudflare D1
   if (env.DB) {
     try {
       const existing = await env.DB.prepare(
@@ -635,11 +656,13 @@ async function processSingleMessage(message, contacts, env) {
     }
   }
 
-  // 2. Handle non-text messages
+  // 5. Handle non-text media messages (audio, image, document)
   if (messageType !== 'text') {
-    const nonTextReply =
-      'দুঃখিত, আমি এখন শুধুমাত্র টেক্সট মেসেজ বুঝতে পারি। অনুগ্রহ করে আপনার প্রশ্ন বা সমস্যা লিখে জানান, আমি সাহায্য করছি!';
-    await sendWhatsAppMessage(targetId, isBsuid, nonTextReply, env);
+    if (messageType === 'image' || messageType === 'audio' || messageType === 'document' || messageType === 'video' || messageType === 'voice') {
+      const nonTextReply =
+        'দুঃখিত, আমি এখন শুধুমাত্র টেক্সট মেসেজ বুঝতে পারি। অনুগ্রহ করে আপনার প্রশ্ন বা সমস্যা লিখে জানান, আমি সাহায্য করছি!';
+      await sendWhatsAppMessage(targetId, isBsuid, nonTextReply, env);
+    }
     return;
   }
 
