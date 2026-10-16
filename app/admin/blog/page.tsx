@@ -11,7 +11,8 @@ import {
   Send, Reply, User, Lock, Key, ShieldCheck, Link2, Bold, Italic,
   Heading1, Heading2, Heading3, AlignCenter, Quote, Code, List,
   Calendar as CalendarIcon, CheckSquare, Camera, Upload, ZoomIn, ZoomOut, Move,
-  Phone, Users, Shield, UserPlus, UserCheck, UserX
+  Phone, Users, Shield, UserPlus, UserCheck, UserX,
+  Info, MessageCircle, AlertTriangle, PhoneCall
 } from 'lucide-react';
 import { transliterateWord } from '@/lib/phoneticEngine';
 import MarkdownRenderer from '@/components/blog/MarkdownRenderer';
@@ -43,6 +44,19 @@ interface AdminComment {
   is_read: number;
   admin_reply?: string;
   admin_replied_at?: string;
+  admin_note?: string;
+  admin_note_by?: string;
+  admin_note_at?: string;
+}
+
+interface ConfirmModalState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  type?: 'danger' | 'warning' | 'info';
+  onConfirm: () => void;
 }
 
 interface AnalyticsData {
@@ -222,12 +236,59 @@ export default function AdminBlogPage() {
   const [isLoadingPosts, setIsLoadingPosts] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Comments State
+  // Comments & Inquiries State
   const [comments, setComments] = useState<AdminComment[]>([]);
   const [unreadCommentsCount, setUnreadCommentsCount] = useState<number>(0);
+  const [inboxSubTab, setInboxSubTab] = useState<'inquiries' | 'comments'>('inquiries');
+  const [inquiryStatusFilter, setInquiryStatusFilter] = useState<'all' | 'pending' | 'ongoing' | 'completed'>('all');
   const [replyingCommentId, setReplyingCommentId] = useState<number | null>(null);
   const [adminReplyText, setAdminReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
+
+  // Inquiry Discussion Notes State
+  const [editingNoteCommentId, setEditingNoteCommentId] = useState<number | null>(null);
+  const [inquiryNoteText, setInquiryNoteText] = useState('');
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
+  // Custom Confirmation Modal & Toast State (in-theme popups)
+  const [confirmModal, setConfirmModal] = useState<ConfirmModalState>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'নিশ্চিত করুন',
+    cancelText: 'বাতিল',
+    type: 'danger',
+    onConfirm: () => {},
+  });
+  const [toast, setToast] = useState<{ show: boolean; message: string; type: 'success' | 'error' | 'info' }>({
+    show: false,
+    message: '',
+    type: 'success',
+  });
+
+  const showConfirmModal = (options: {
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    type?: 'danger' | 'warning' | 'info';
+    onConfirm: () => void;
+  }) => {
+    setConfirmModal({
+      isOpen: true,
+      title: options.title,
+      message: options.message,
+      confirmText: options.confirmText || 'হ্যাঁ, নিশ্চিত করুন',
+      cancelText: options.cancelText || 'বাতিল',
+      type: options.type || 'danger',
+      onConfirm: options.onConfirm,
+    });
+  };
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    setToast({ show: true, message, type });
+    setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3500);
+  };
 
   // Real Analytics State
   const [analytics, setAnalytics] = useState<AnalyticsData>({
@@ -508,24 +569,33 @@ export default function AdminBlogPage() {
     }
   };
 
-  const handleDeleteTeamMember = async (id: number, name: string) => {
-    if (!confirm(`আপনি কি নিশ্চিত যে "${name}"-কে টিম থেকে মুছে ফেলতে চান?`)) return;
-    try {
-      const res = await fetch(`/api/blog/admin/team?id=${id}`, {
-        method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        fetchTeamMembers();
-      } else {
-        alert(data.error || 'মুছতে সমস্যা হয়েছে');
-      }
-    } catch (err: any) {
-      alert(err.message || 'সার্ভার সমস্যা');
-    }
+  const handleDeleteTeamMember = (id: number, name: string) => {
+    showConfirmModal({
+      title: 'টিম মেম্বার মুছে ফেলা',
+      message: `আপনি কি নিশ্চিত যে "${name}"-কে টিম থেকে মুছে ফেলতে চান? তিনি আর পোর্টালে এক্সেস পাবেন না।`,
+      confirmText: 'হ্যাঁ, মেম্বার রিমুভ করুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/blog/admin/team?id=${id}`, {
+            method: 'DELETE',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            setTeamMembers(prev => prev.filter(m => m.id !== id));
+            showToast('টিম মেম্বার সফলভাবে রিমুভ করা হয়েছে!');
+          } else {
+            showToast(data.error || 'মুছতে সমস্যা হয়েছে', 'error');
+          }
+        } catch (err: any) {
+          showToast(err.message || 'সার্ভার সমস্যা', 'error');
+        }
+      },
+    });
   };
 
   // Check URL query for resetToken on mount
@@ -640,15 +710,22 @@ export default function AdminBlogPage() {
 
   // Handle Logout with complete session purge
   const handleLogout = () => {
-    if (typeof window !== 'undefined' && confirm('আপনি কি নিশ্চিত যে অ্যাডমিন প্যানেল থেকে লগআউট করতে চান?')) {
-      setToken(null);
-      setCurrentUser(null);
-      sessionStorage.removeItem('banglish_admin_token');
-      localStorage.removeItem('banglish_admin_token');
-      sessionStorage.removeItem('banglish_admin_user');
-      localStorage.removeItem('banglish_admin_user');
-      window.location.reload();
-    }
+    showConfirmModal({
+      title: 'লগআউট নিশ্চিতকরণ',
+      message: 'আপনি কি নিশ্চিত যে অ্যাডমিন প্যানেল থেকে লগআউট করতে চান?',
+      confirmText: 'হ্যাঁ, লগআউট করুন',
+      cancelText: 'থাকুক',
+      type: 'warning',
+      onConfirm: () => {
+        setToken(null);
+        setCurrentUser(null);
+        sessionStorage.removeItem('banglish_admin_token');
+        localStorage.removeItem('banglish_admin_token');
+        sessionStorage.removeItem('banglish_admin_user');
+        localStorage.removeItem('banglish_admin_user');
+        window.location.reload();
+      },
+    });
   };
 
   // Open Avatar Drag / Crop Modal from device file
@@ -909,18 +986,32 @@ export default function AdminBlogPage() {
   };
 
   // Delete Custom Media from Gallery
-  const handleDeleteMedia = async (id: string) => {
-    if (!confirm('আপনি কি নিশ্চিত যে ছবিটি গ্যালারি থেকে মুছে ফেলতে চান?')) return;
-    if (!token) return;
-    try {
-      const res = await fetch(`/api/blog/admin/media/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        fetchAdminMedia(token);
-      }
-    } catch (e) {}
+  const handleDeleteMedia = (id: string) => {
+    showConfirmModal({
+      title: 'ছবি মুছে ফেলা',
+      message: 'আপনি কি নিশ্চিত যে ছবিটি গ্যালারি থেকে সম্পূর্ণ মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না।',
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      onConfirm: async () => {
+        if (!token) return;
+        try {
+          const res = await fetch(`/api/blog/admin/media/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            fetchAdminMedia(token);
+            showToast('ছবিটি গ্যালারি থেকে মুছে ফেলা হয়েছে!');
+          } else {
+            showToast(data.error || 'মুছতে সমস্যা হয়েছে', 'error');
+          }
+        } catch (e) {
+          showToast('সার্ভার যোগাযোগে সমস্যা হয়েছে', 'error');
+        }
+      },
+    });
   };
 
   // Fetch Posts from D1
@@ -1012,7 +1103,7 @@ export default function AdminBlogPage() {
   };
 
   // One-Time Admin Username Update
-  const handleUpdateUsername = async (e: React.FormEvent) => {
+  const handleUpdateUsername = (e: React.FormEvent) => {
     e.preventDefault();
     setUsernameMsg({ text: '', type: '' });
     if (!token) return;
@@ -1025,33 +1116,40 @@ export default function AdminBlogPage() {
       setUsernameMsg({ text: 'ইউজারনেম কমপক্ষে ৩ অক্ষরের হতে হবে।', type: 'error' });
       return;
     }
-    if (!confirm(`সতর্কতা: আপনি কি নিশ্চিত যে আপনার অ্যাডমিন ইউজারনেম "${cleanUser}" এ পরিবর্তন করতে চান? মনে রাখবেন, এটি শুধুমাত্র একবারই পরিবর্তন করা সম্ভব এবং পরবর্তীতে আর কখনো পরিবর্তন করা যাবে না!`)) {
-      return;
-    }
-    setIsUpdatingUsername(true);
-    try {
-      const res = await fetch('/api/blog/admin/update-username', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ newUsername: cleanUser })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setAdminUsername(data.username);
-        setUsernameChanged(true);
-        setShowSecurityPrompt(false);
-        setUsernameMsg({ text: 'ইউজারনেম সফলভাবে পরিবর্তন ও লক করা হয়েছে! ভবিষ্যতে লগইন করার সময় এই ইউজারনেম ব্যবহার করুন।', type: 'success' });
-      } else {
-        setUsernameMsg({ text: data.error || 'ইউজারনেম পরিবর্তন ব্যর্থ হয়েছে', type: 'error' });
-      }
-    } catch (err: any) {
-      setUsernameMsg({ text: 'সার্ভারে সমস্যা হয়েছে', type: 'error' });
-    } finally {
-      setIsUpdatingUsername(false);
-    }
+    showConfirmModal({
+      title: 'ইউজারনেম পরিবর্তন নিশ্চিতকরণ',
+      message: `সতর্কতা: আপনি কি নিশ্চিত যে আপনার অ্যাডমিন ইউজারনেম "${cleanUser}" এ পরিবর্তন করতে চান? মনে রাখবেন, এটি শুধুমাত্র একবারই পরিবর্তন করা সম্ভব এবং পরবর্তীতে আর কখনো পরিবর্তন করা যাবে না!`,
+      confirmText: 'হ্যাঁ, পরিবর্তন করুন',
+      cancelText: 'বাতিল',
+      type: 'warning',
+      onConfirm: async () => {
+        setIsUpdatingUsername(true);
+        try {
+          const res = await fetch('/api/blog/admin/update-username', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ newUsername: cleanUser })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            setAdminUsername(data.username);
+            setUsernameChanged(true);
+            setShowSecurityPrompt(false);
+            setUsernameMsg({ text: 'ইউজারনেম সফলভাবে পরিবর্তন ও লক করা হয়েছে! ভবিষ্যতে লগইন করার সময় এই ইউজারনেম ব্যবহার করুন।', type: 'success' });
+            showToast('ইউজারনেম সফলভাবে পরিবর্তন করা হয়েছে!');
+          } else {
+            setUsernameMsg({ text: data.error || 'ইউজারনেম পরিবর্তন ব্যর্থ হয়েছে', type: 'error' });
+          }
+        } catch (err: any) {
+          setUsernameMsg({ text: 'সার্ভারে সমস্যা হয়েছে', type: 'error' });
+        } finally {
+          setIsUpdatingUsername(false);
+        }
+      },
+    });
   };
 
   // Save Settings
@@ -1149,16 +1247,95 @@ export default function AdminBlogPage() {
     }
   };
 
-  // Delete Comment
-  const handleDeleteComment = async (commentId: number) => {
-    if (!confirm('আপনি কি নিশ্চিত যে এই মন্তব্যটি মুছে ফেলতে চান?')) return;
+  // Delete Comment or Inquiry with in-theme Confirmation Modal
+  const handleDeleteComment = (commentId: number, isDirect: boolean = false) => {
+    showConfirmModal({
+      title: isDirect ? 'ইনকোয়ারি মুছে ফেলা' : 'মন্তব্য মুছে ফেলা',
+      message: isDirect
+        ? 'আপনি কি নিশ্চিত যে এই সরাসরি ইনকোয়ারি মেসেজটি সম্পূর্ণ মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না।'
+        : 'আপনি কি নিশ্চিত যে এই পাবলিক মন্তব্যটি সম্পূর্ণ মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না।',
+      confirmText: 'হ্যাঁ, মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/blog/admin/comments/${commentId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            setComments(prev => prev.filter(c => c.id !== commentId));
+            showToast('সফলভাবে মুছে ফেলা হয়েছে!');
+          } else {
+            showToast(data.error || 'মুছে ফেলতে সমস্যা হয়েছে', 'error');
+          }
+        } catch (e) {
+          showToast('সার্ভার যোগাযোগে সমস্যা হয়েছে', 'error');
+        }
+      },
+    });
+  };
+
+  // Update Inquiry Action Status (pending, ongoing, completed)
+  const handleUpdateInquiryStatus = async (commentId: number, newStatus: string) => {
+    if (!token) return;
+    setComments(prev => prev.map(c => c.id === commentId ? { ...c, status: newStatus, is_read: 1 } : c));
     try {
-      const res = await fetch(`/api/blog/admin/comments/${commentId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`/api/blog/admin/comments/${commentId}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok && token) fetchAdminComments(token);
-    } catch (e) {}
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('ইনকোয়ারির স্ট্যাটাস সফলভাবে আপডেট করা হয়েছে!');
+      } else {
+        showToast(data.error || 'স্ট্যাটাস আপডেট ব্যর্থ হয়েছে', 'error');
+        fetchAdminComments(token);
+      }
+    } catch (e) {
+      showToast('সার্ভার যোগাযোগে সমস্যা হয়েছে', 'error');
+      fetchAdminComments(token);
+    }
+  };
+
+  // Save Discussion Note on Inquiry
+  const handleSaveInquiryNote = async (commentId: number) => {
+    if (!token) return;
+    setIsSavingNote(true);
+    try {
+      const res = await fetch(`/api/blog/admin/comments/${commentId}/note`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ note: inquiryNoteText }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setComments(prev => prev.map(c => c.id === commentId ? {
+          ...c,
+          admin_note: inquiryNoteText.trim(),
+          admin_note_by: data.admin_note_by || currentUser?.name || 'Admin',
+          admin_note_at: data.admin_note_at || new Date().toISOString(),
+          is_read: 1,
+        } : c));
+        setEditingNoteCommentId(null);
+        setInquiryNoteText('');
+        showToast('কথোপকথনের অভ্যন্তরীণ নোট সংরক্ষিত হয়েছে!');
+      } else {
+        showToast(data.error || 'নোট সংরক্ষণে সমস্যা হয়েছে', 'error');
+      }
+    } catch (e) {
+      showToast('সার্ভার যোগাযোগে সমস্যা হয়েছে', 'error');
+    } finally {
+      setIsSavingNote(false);
+    }
   };
 
   // Mark Comment as Read
@@ -1168,7 +1345,8 @@ export default function AdminBlogPage() {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (token) fetchAdminComments(token);
+      setComments(prev => prev.map(c => c.id === commentId ? { ...c, is_read: 1 } : c));
+      setUnreadCommentsCount(prev => Math.max(0, prev - 1));
     } catch (e) {}
   };
 
@@ -1406,15 +1584,34 @@ export default function AdminBlogPage() {
   };
 
   // Delete Post
-  const handleDeletePost = async (id: number, title: string) => {
-    if (!confirm(`আপনি কি নিশ্চিত যে "${title}" পোস্টটি মুছে ফেলতে চান?`)) return;
-    try {
-      const res = await fetch(`/api/blog/posts/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok && token) fetchAdminPosts(token);
-    } catch (err) {}
+  const handleDeletePost = (id: number, title: string) => {
+    showConfirmModal({
+      title: 'ব্লগ পোস্ট মুছে ফেলা',
+      message: `আপনি কি নিশ্চিত যে "${title}" পোস্টটি সম্পূর্ণ মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না।`,
+      confirmText: 'হ্যাঁ, পোস্ট মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/blog/posts/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            setPosts(prev => prev.filter(p => Number(p.id) !== id));
+            showToast('পোস্টটি সফলভাবে মুছে ফেলা হয়েছে!');
+            if (editingPostId === id) {
+              setIsEditorOpen(false);
+            }
+          } else {
+            showToast(data.error || 'পোস্ট মুছতে ব্যর্থ হয়েছে', 'error');
+          }
+        } catch (err) {
+          showToast('সার্ভার যোগাযোগে সমস্যা হয়েছে', 'error');
+        }
+      },
+    });
   };
 
   // Generate Git Backup Code
@@ -2641,186 +2838,449 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </>
           )}
 
-          {/* VIEW 2: Messages / Comments Inbox */}
-          {activeNav === 'messages' && (
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-                <div>
-                  <h2 className="text-xl font-bold text-slate-900 font-bangla flex items-center gap-2">
-                    <Mail className="w-5 h-5 text-blue-600" />
-                    <span>পাঠকদের মন্তব্য ও মেসেজ ইনবক্স</span>
-                    <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
-                      {comments.length}
+          {/* VIEW 2: Messages & Inquiries Inbox */}
+          {activeNav === 'messages' && (() => {
+            const inquiries = comments.filter(c => Boolean(c.is_direct));
+            const publicComments = comments.filter(c => !c.is_direct);
+            const filteredInquiries = inquiries.filter(c => {
+              if (inquiryStatusFilter === 'all') return true;
+              return (c.status || 'pending') === inquiryStatusFilter;
+            });
+
+            return (
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+                
+                {/* Header with Title and Refresh */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-900 font-bangla flex items-center gap-2">
+                      <Mail className="w-5 h-5 text-blue-600" />
+                      <span>ইনবক্স ও কাস্টমার রেসপন্স হাব</span>
+                      <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-bold">
+                        {comments.length}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-500 font-bangla mt-1">
+                      গ্রাহকদের সরাসরি মেসেজের অ্যাকশন স্ট্যাটাস ট্র্যাক করুন, অভ্যন্তরীণ নোট রাখুন এবং পাবলিক কমেন্ট পরিচালনা করুন।
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => { if (token) fetchAdminComments(token); }}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold font-bangla transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>রিফ্রেশ</span>
+                  </button>
+                </div>
+
+                {/* Main Inbox Sub-Tabs */}
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
+                  <button
+                    onClick={() => setInboxSubTab('inquiries')}
+                    className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
+                      inboxSubTab === 'inquiries'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
+                    }`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>সরাসরি ইনকোয়ারি (Inquiries)</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                      inboxSubTab === 'inquiries' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {inquiries.length}
                     </span>
-                  </h2>
-                  <p className="text-xs text-slate-500 font-bangla mt-1">
-                    ব্লগ আর্টিকেলে আসা সকল মন্তব্য দেখুন, উত্তর দিন অথবা মুছে ফেলুন।
-                  </p>
+                    {inquiries.some(c => (c.status || 'pending') === 'pending' || !c.is_read) && (
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => setInboxSubTab('comments')}
+                    className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
+                      inboxSubTab === 'comments'
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>পাবলিক কমেন্টস (Blog Comments)</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                      inboxSubTab === 'comments' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {publicComments.length}
+                    </span>
+                  </button>
                 </div>
 
-                <button
-                  onClick={() => { if (token) fetchAdminComments(token); }}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold font-bangla transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>রিফ্রেশ</span>
-                </button>
-              </div>
+                {/* TAB 1: Direct Inquiries View */}
+                {inboxSubTab === 'inquiries' && (
+                  <div className="space-y-4">
+                    {/* Status Filter Bar */}
+                    <div className="flex flex-wrap items-center gap-2 pb-2">
+                      <span className="text-xs font-bold text-slate-500 font-bangla mr-1">ফিল্টার:</span>
+                      {[
+                        { id: 'all', label: 'সকল ইনকোয়ারি', count: inquiries.length },
+                        { id: 'pending', label: 'অপেক্ষমান (Pending)', count: inquiries.filter(c => (c.status || 'pending') === 'pending').length },
+                        { id: 'ongoing', label: 'চলমান (Ongoing)', count: inquiries.filter(c => c.status === 'ongoing').length },
+                        { id: 'completed', label: 'সম্পন্ন (Completed)', count: inquiries.filter(c => c.status === 'completed').length },
+                      ].map(f => (
+                        <button
+                          key={f.id}
+                          onClick={() => setInquiryStatusFilter(f.id as any)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bangla font-semibold transition-all cursor-pointer ${
+                            inquiryStatusFilter === f.id
+                              ? 'bg-slate-900 text-white shadow-xs'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {f.label} ({f.count})
+                        </button>
+                      ))}
+                    </div>
 
-              {comments.length === 0 ? (
-                <div className="py-16 text-center text-slate-400 font-bangla">
-                  <Mail className="w-12 h-12 mx-auto text-slate-300 mb-3" />
-                  <p className="text-sm">এখনও কোনো নতুন মন্তব্য আসেনি।</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {comments.map(c => (
-                    <div 
-                      key={c.id} 
-                      className={`p-5 rounded-2xl border transition-all ${
-                        c.is_read ? 'bg-white border-slate-200/80' : 'bg-blue-50/40 border-blue-200'
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase font-sans ${
-                            c.is_direct ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {(c.author_name || 'U')[0]}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-bold text-slate-900 text-sm font-bangla">{c.author_name}</h4>
-                              {c.is_direct ? (
-                                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold font-bangla">
-                                  সরাসরি মেসেজ
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold font-bangla">
-                                  পাবলিক মন্তব্য
-                                </span>
-                              )}
+                    {filteredInquiries.length === 0 ? (
+                      <div className="py-16 text-center text-slate-400 font-bangla bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        <Send className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                        <p className="text-sm">এই স্ট্যাটাসে কোনো সরাসরি ইনকোয়ারি মেসেজ নেই।</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {filteredInquiries.map(c => {
+                          const currentStatus = c.status || 'pending';
+                          return (
+                            <div
+                              key={c.id}
+                              className={`p-5 rounded-2xl border transition-all ${
+                                !c.is_read
+                                  ? 'bg-blue-50/30 border-blue-200 shadow-xs'
+                                  : currentStatus === 'completed'
+                                  ? 'bg-emerald-50/20 border-emerald-200/80'
+                                  : currentStatus === 'ongoing'
+                                  ? 'bg-sky-50/20 border-sky-200/80'
+                                  : 'bg-white border-slate-200/80'
+                              }`}
+                            >
+                              {/* Customer Header */}
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs uppercase font-sans ${
+                                    currentStatus === 'completed'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : currentStatus === 'ongoing'
+                                      ? 'bg-blue-100 text-blue-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}>
+                                    {(c.author_name || 'U')[0]}
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="font-bold text-slate-900 text-sm font-bangla">{c.author_name}</h4>
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold font-bangla ${
+                                        currentStatus === 'completed'
+                                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200/60'
+                                          : currentStatus === 'ongoing'
+                                          ? 'bg-blue-100 text-blue-800 border border-blue-200/60'
+                                          : 'bg-amber-100 text-amber-800 border border-amber-200/60'
+                                      }`}>
+                                        {currentStatus === 'completed' ? '✅ সম্পন্ন' : currentStatus === 'ongoing' ? '🔄 চলমান' : '⏳ পেন্ডিং'}
+                                      </span>
+                                    </div>
+                                    {c.phone_number && (
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className="font-mono text-xs font-bold text-slate-800 flex items-center gap-1">
+                                          <Phone className="w-3 h-3 text-blue-600" />
+                                          <span>{c.phone_number}</span>
+                                        </span>
+                                        <a
+                                          href={`https://wa.me/${c.phone_number.replace(/\D/g, '')}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="px-2 py-0.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs"
+                                          title="WhatsApp-এ চ্যাট করুন"
+                                        >
+                                          <span>WhatsApp</span>
+                                        </a>
+                                        <a
+                                          href={`tel:${c.phone_number.replace(/\s+/g, '')}`}
+                                          className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center gap-1 border border-blue-200/60"
+                                          title="সরাসরি কল করুন"
+                                        >
+                                          <span>কল</span>
+                                        </a>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 text-xs text-slate-400 font-bangla self-start sm:self-auto">
+                                  <Link
+                                    href={`/blog/${c.post_slug}`}
+                                    target="_blank"
+                                    className="text-blue-600 hover:underline font-semibold"
+                                  >
+                                    {c.post_title || c.post_slug}
+                                  </Link>
+                                  <span>•</span>
+                                  <span>{new Date(c.created_at).toLocaleString('bn-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                              </div>
+
+                              {/* Customer Message */}
+                              <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/70 text-sm text-slate-800 font-bangla leading-relaxed my-3">
+                                {c.content}
+                              </div>
+
+                              {/* Action Status Pills Switcher */}
+                              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[11px] font-bold text-slate-500 font-bangla">অ্যাকশন স্ট্যাটাস:</span>
+                                  <div className="inline-flex rounded-xl p-0.5 bg-slate-100 border border-slate-200/60">
+                                    {(['pending', 'ongoing', 'completed'] as const).map(st => (
+                                      <button
+                                        key={st}
+                                        onClick={() => handleUpdateInquiryStatus(c.id, st)}
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold font-bangla transition-all cursor-pointer ${
+                                          currentStatus === st
+                                            ? st === 'completed'
+                                              ? 'bg-emerald-600 text-white shadow-xs'
+                                              : st === 'ongoing'
+                                              ? 'bg-blue-600 text-white shadow-xs'
+                                              : 'bg-amber-600 text-white shadow-xs'
+                                            : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                      >
+                                        {st === 'pending' ? '⏳ পেন্ডিং' : st === 'ongoing' ? '🔄 চলমান' : '✅ সম্পন্ন'}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  {!c.is_read && (
+                                    <button
+                                      onClick={() => handleMarkAsRead(c.id)}
+                                      className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:text-slate-900 cursor-pointer font-bangla"
+                                    >
+                                      পড়া হয়েছে
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeleteComment(c.id, true)}
+                                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+                                    title="ইনকোয়ারি মুছে ফেলুন"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Internal Discussion Note Section (Shared with all Portal Admins) */}
+                              <div className="mt-3 pt-3 border-t border-slate-100">
+                                {editingNoteCommentId === c.id ? (
+                                  <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2.5 animate-in fade-in duration-150">
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 font-bangla">
+                                      <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                                      <span>গ্রাহকের সাথে কী কথা হয়েছে তার অভ্যন্তরীণ নোট লিখুন:</span>
+                                    </div>
+                                    <textarea
+                                      value={inquiryNoteText}
+                                      onChange={e => setInquiryNoteText(e.target.value)}
+                                      rows={2}
+                                      placeholder="যেমন: ফোনে কথা হয়েছে, কাস্টমার বাংলা কিবোর্ডের ম্যাক ভার্সন ডাউনলোড ও ইনস্টলেশনে সাহায্য চেয়েছেন..."
+                                      className="w-full p-3 rounded-xl border border-amber-200 bg-white text-xs font-bangla focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 leading-relaxed"
+                                    />
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => { setEditingNoteCommentId(null); setInquiryNoteText(''); }}
+                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer font-bangla"
+                                      >
+                                        বাতিল
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={isSavingNote}
+                                        onClick={() => handleSaveInquiryNote(c.id)}
+                                        className="px-4 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold font-bangla flex items-center gap-1.5 cursor-pointer disabled:opacity-60 shadow-xs"
+                                      >
+                                        <Check className="w-3 h-3" />
+                                        <span>নোট সংরক্ষণ করুন</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : c.admin_note ? (
+                                  <div className="p-3.5 rounded-xl bg-amber-50/50 border border-amber-200/70 flex flex-col sm:flex-row sm:items-start justify-between gap-2.5">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-amber-900 font-bangla">
+                                        <FileText className="w-3.5 h-3.5 text-amber-700" />
+                                        <span>অভ্যন্তরীণ কথোপকথন নোট:</span>
+                                        <span className="text-[10px] text-amber-700/80 font-normal">
+                                          (লিখেছেন: {c.admin_note_by || 'Admin'}{c.admin_note_at ? ` • ${new Date(c.admin_note_at).toLocaleString('bn-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''})
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-slate-800 font-bangla leading-relaxed pl-5">
+                                        {c.admin_note}
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingNoteCommentId(c.id); setInquiryNoteText(c.admin_note || ''); }}
+                                      className="px-3 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 text-[11px] font-bold font-bangla transition-colors cursor-pointer self-start shrink-0 flex items-center gap-1"
+                                    >
+                                      <Edit3 className="w-3 h-3" />
+                                      <span>নোট এডিট করুন</span>
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setEditingNoteCommentId(c.id); setInquiryNoteText(''); }}
+                                    className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-semibold font-bangla hover:underline cursor-pointer"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    <span>গ্রাহকের সাথে কী কথা হয়েছে তার নোট যোগ করুন (পোর্টালে সকলে দেখতে পারবে)</span>
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                            {c.phone_number && (
-                              <div className="flex items-center gap-2 mt-1">
-                                <span className="font-mono text-xs font-bold text-slate-800 flex items-center gap-1">
-                                  <Phone className="w-3 h-3 text-blue-600" />
-                                  <span>{c.phone_number}</span>
-                                </span>
-                                <a
-                                  href={`https://wa.me/${c.phone_number.replace(/\D/g, '')}`}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* TAB 2: Public Blog Comments View */}
+                {inboxSubTab === 'comments' && (
+                  <div className="space-y-4">
+                    {publicComments.length === 0 ? (
+                      <div className="py-16 text-center text-slate-400 font-bangla bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                        <MessageSquare className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                        <p className="text-sm">এখনও কোনো পাবলিক ব্লগ কমেন্ট আসেনি।</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {publicComments.map(c => (
+                          <div 
+                            key={c.id} 
+                            className={`p-5 rounded-2xl border transition-all ${
+                              c.is_read ? 'bg-white border-slate-200/80' : 'bg-blue-50/40 border-blue-200'
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase font-sans bg-blue-100 text-blue-700">
+                                  {(c.author_name || 'U')[0]}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-bold text-slate-900 text-sm font-bangla">{c.author_name}</h4>
+                                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold font-bangla">
+                                      পাবলিক মন্তব্য
+                                    </span>
+                                  </div>
+                                  {c.author_email && (
+                                    <p className="text-xs text-slate-400 font-sans mt-0.5">{c.author_email}</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 text-xs text-slate-400 font-bangla">
+                                <Link 
+                                  href={`/blog/${c.post_slug}`}
                                   target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-2 py-0.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs"
-                                  title="WhatsApp-এ চ্যাট করুন"
+                                  className="text-blue-600 hover:underline font-semibold"
                                 >
-                                  <span>WhatsApp</span>
-                                </a>
-                                <a
-                                  href={`tel:${c.phone_number.replace(/\s+/g, '')}`}
-                                  className="px-2 py-0.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center gap-1 border border-blue-200/60"
-                                  title="সরাসরি কল করুন"
-                                >
-                                  <span>কল</span>
-                                </a>
+                                  {c.post_title || c.post_slug}
+                                </Link>
+                                <span>•</span>
+                                <span>{new Date(c.created_at).toLocaleString('bn-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                              </div>
+                            </div>
+
+                            <p className="text-sm text-slate-800 font-bangla leading-relaxed pl-10 my-3">
+                              {c.content}
+                            </p>
+
+                            {/* Existing Public Admin Reply */}
+                            {c.admin_reply && (
+                              <div className="ml-10 p-4 rounded-xl bg-emerald-50 border border-emerald-200/80 text-xs text-slate-800 font-bangla mb-3">
+                                <div className="flex items-center gap-1.5 font-bold text-emerald-800 mb-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>আপনার দেওয়া পাবলিক রিপ্লাই:</span>
+                                </div>
+                                <p className="text-slate-700 leading-relaxed">{c.admin_reply}</p>
                               </div>
                             )}
-                            {c.author_email && (
-                              <p className="text-xs text-slate-400 font-sans mt-0.5">{c.author_email}</p>
+
+                            {/* Reply Box if Active */}
+                            {replyingCommentId === c.id ? (
+                              <div className="ml-10 mt-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                                <label className="block text-xs font-bold text-slate-700 font-bangla">
+                                  পাবলিক উত্তর লিখুন:
+                                </label>
+                                <textarea
+                                  value={adminReplyText}
+                                  onChange={e => setAdminReplyText(e.target.value)}
+                                  rows={2}
+                                  placeholder="ধন্যবাদ আপনার মন্তব্যের জন্য..."
+                                  className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bangla focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                />
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => setReplyingCommentId(null)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer font-bangla"
+                                  >
+                                    বাতিল
+                                  </button>
+                                  <button
+                                    disabled={isSendingReply}
+                                    onClick={() => handleSendAdminReply(c.id)}
+                                    className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold font-bangla flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                                  >
+                                    <Send className="w-3 h-3" />
+                                    <span>রিপ্লাই পোস্ট করুন</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                                {!c.is_read && (
+                                  <button
+                                    onClick={() => handleMarkAsRead(c.id)}
+                                    className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer font-bangla"
+                                  >
+                                    পড়া হয়েছে মার্ক করুন
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => { setReplyingCommentId(c.id); setAdminReplyText(c.admin_reply || ''); }}
+                                  className="px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold font-bangla flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Reply className="w-3 h-3" />
+                                  <span>রিপ্লাই দিন</span>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteComment(c.id, false)}
+                                  className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+                                  title="মুছে ফেলুন"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             )}
                           </div>
-                        </div>
-
-                        <div className="flex items-center gap-3 text-xs text-slate-400 font-bangla">
-                          <Link 
-                            href={`/blog/${c.post_slug}`}
-                            target="_blank"
-                            className="text-blue-600 hover:underline font-semibold"
-                          >
-                            {c.post_title || c.post_slug}
-                          </Link>
-                          <span>•</span>
-                          <span>{new Date(c.created_at).toLocaleString('bn-BD', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
+                        ))}
                       </div>
+                    )}
+                  </div>
+                )}
 
-                      <p className="text-sm text-slate-800 font-bangla leading-relaxed pl-10 my-3">
-                        {c.content}
-                      </p>
-
-                      {/* Existing Admin Reply */}
-                      {c.admin_reply && (
-                        <div className="ml-10 p-4 rounded-xl bg-emerald-50 border border-emerald-200/80 text-xs text-slate-800 font-bangla mb-3">
-                          <div className="flex items-center gap-1.5 font-bold text-emerald-800 mb-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>আপনার দেওয়া রিপ্লাই:</span>
-                          </div>
-                          <p className="text-slate-700 leading-relaxed">{c.admin_reply}</p>
-                        </div>
-                      )}
-
-                      {/* Reply Box if Active */}
-                      {replyingCommentId === c.id ? (
-                        <div className="ml-10 mt-3 p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                          <label className="block text-xs font-bold text-slate-700 font-bangla">
-                            অ্যাডমিন হিসেবে উত্তর লিখুন:
-                          </label>
-                          <textarea
-                            value={adminReplyText}
-                            onChange={e => setAdminReplyText(e.target.value)}
-                            rows={2}
-                            placeholder="ধন্যবাদ আপনার মন্তব্যের জন্য..."
-                            className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bangla focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                          />
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => setReplyingCommentId(null)}
-                              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer font-bangla"
-                            >
-                              বাতিল
-                            </button>
-                            <button
-                              disabled={isSendingReply}
-                              onClick={() => handleSendAdminReply(c.id)}
-                              className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold font-bangla flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
-                            >
-                              <Send className="w-3 h-3" />
-                              <span>রিপ্লাই পোস্ট করুন</span>
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                          {!c.is_read && (
-                            <button
-                              onClick={() => handleMarkAsRead(c.id)}
-                              className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 cursor-pointer font-bangla"
-                            >
-                              পড়া হয়েছে মার্ক করুন
-                            </button>
-                          )}
-                          <button
-                            onClick={() => { setReplyingCommentId(c.id); setAdminReplyText(c.admin_reply || ''); }}
-                            className="px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold font-bangla flex items-center gap-1 cursor-pointer"
-                          >
-                            <Reply className="w-3 h-3" />
-                            <span>রিপ্লাই দিন</span>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteComment(c.id)}
-                            className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
-                            title="মুছে ফেলুন"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+              </div>
+            );
+          })()}
 
           {/* VIEW: Analytics & Traffic Insights */}
           {activeNav === 'analytics' && (
@@ -4209,12 +4669,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 {editingPostId && (currentUser?.role === 'super_admin' || currentUser?.role === 'admin') && (
                   <button
                     type="button"
-                    onClick={async () => {
-                      if (confirm(`আপনি কি নিশ্চিত যে "${editorTitle}" পোস্টটি মুছে ফেলতে চান?`)) {
-                        await handleDeletePost(editingPostId, editorTitle);
-                        setIsEditorOpen(false);
-                      }
-                    }}
+                    onClick={() => handleDeletePost(editingPostId, editorTitle)}
                     className="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-sm font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -4485,6 +4940,92 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
       )}
 
       {renderPasswordModals()}
+
+      {/* In-Theme Custom Confirmation Modal */}
+      {confirmModal.isOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 flex flex-col items-center text-center transform animate-in zoom-in-95 duration-200">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-inner ${
+              confirmModal.type === 'danger'
+                ? 'bg-rose-50 border border-rose-100 text-rose-600'
+                : confirmModal.type === 'warning'
+                ? 'bg-amber-50 border border-amber-100 text-amber-600'
+                : 'bg-blue-50 border border-blue-100 text-blue-600'
+            }`}>
+              {confirmModal.type === 'danger' ? (
+                <Trash2 className="w-7 h-7" />
+              ) : confirmModal.type === 'warning' ? (
+                <AlertTriangle className="w-7 h-7" />
+              ) : (
+                <Info className="w-7 h-7" />
+              )}
+            </div>
+
+            <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 font-sans">
+              {confirmModal.title}
+            </h3>
+            <p className="text-sm text-slate-600 font-bangla mt-2 leading-relaxed px-1">
+              {confirmModal.message}
+            </p>
+
+            <div className="mt-6 flex flex-col sm:flex-row items-center gap-3 w-full">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="w-full sm:w-auto flex-1 px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                {confirmModal.cancelText || 'বাতিল'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const action = confirmModal.onConfirm;
+                  setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                  action();
+                }}
+                className={`w-full sm:w-auto flex-1 px-5 py-2.5 rounded-xl text-white font-bold text-sm shadow-md transition-all cursor-pointer ${
+                  confirmModal.type === 'danger'
+                    ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/20'
+                    : confirmModal.type === 'warning'
+                    ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/20'
+                }`}
+              >
+                {confirmModal.confirmText || 'হ্যাঁ, নিশ্চিত করুন'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating In-Theme Toast Notification */}
+      {toast.show && (
+        <div className={`fixed bottom-6 right-6 z-[130] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl border backdrop-blur-md transition-all animate-in slide-in-from-bottom-5 duration-300 ${
+          toast.type === 'error'
+            ? 'bg-rose-950/90 text-rose-100 border-rose-800/80 shadow-rose-950/30'
+            : toast.type === 'info'
+            ? 'bg-slate-900/90 text-slate-100 border-slate-800/80 shadow-slate-950/30'
+            : 'bg-slate-900/95 text-slate-100 border-slate-800 shadow-slate-950/40'
+        }`}>
+          {toast.type === 'error' ? (
+            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+          ) : toast.type === 'info' ? (
+            <Info className="w-5 h-5 text-blue-400 shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          )}
+          <span className="text-xs sm:text-sm font-bangla font-medium">
+            {toast.message}
+          </span>
+          <button
+            onClick={() => setToast(prev => ({ ...prev, show: false }))}
+            className="p-1 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer ml-1"
+            title="বন্ধ করুন"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
     </div>
   );

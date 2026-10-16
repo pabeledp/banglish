@@ -1119,8 +1119,24 @@ async function handleBlogApi(request, env, ctx, url) {
         return jsonResponse({ success: false, error: 'নাম এবং বার্তা আবশ্যক' }, 400);
       }
 
-      if (isDirect && (!phoneNumber || phoneNumber.replace(/\D/g, '').length < 7)) {
-        return jsonResponse({ success: false, error: 'অনুগ্রহ করে সঠিক মোবাইল নম্বর প্রদান করুন' }, 400);
+      if (isDirect) {
+        if (!phoneNumber) {
+          return jsonResponse({ success: false, error: 'অনুগ্রহ করে সঠিক মোবাইল নম্বর প্রদান করুন' }, 400);
+        }
+        const cleanDigits = phoneNumber.replace(/\D/g, '');
+        // Validate Bangladesh mobile numbers
+        if (phoneNumber.includes('+880') || phoneNumber.startsWith('880') || (!phoneNumber.startsWith('+') && cleanDigits.startsWith('01'))) {
+          const bdDigits = cleanDigits.replace(/^880/, '');
+          const formattedBd = bdDigits.startsWith('0') ? bdDigits : '0' + bdDigits;
+          if (!/^01[3-9]\d{8}$/.test(formattedBd) || /^01[3-9](\d)\1{7}$/.test(formattedBd)) {
+            return jsonResponse({ success: false, error: 'অনুগ্রহ করে সঠিক ১১ ডিজিটের বাংলাদেশী মোবাইল নম্বর প্রদান করুন (যেমন: 017xxxxxxxx বা 018xxxxxxxx)' }, 400);
+          }
+        } else {
+          // International phone numbers (E.164 compliant: 7-15 digits, not all identical)
+          if (cleanDigits.length < 7 || cleanDigits.length > 15 || /^(\d)\1+$/.test(cleanDigits)) {
+            return jsonResponse({ success: false, error: 'অনুগ্রহ করে সঠিক আন্তর্জাতিক মোবাইল নম্বর প্রদান করুন' }, 400);
+          }
+        }
       }
 
       // Ensure optional columns exist
@@ -1130,11 +1146,21 @@ async function handleBlogApi(request, env, ctx, url) {
       try {
         await env.DB.prepare("ALTER TABLE blog_comments ADD COLUMN is_direct INTEGER DEFAULT 0").run();
       } catch (e) {}
+      try {
+        await env.DB.prepare("ALTER TABLE blog_comments ADD COLUMN admin_note TEXT").run();
+      } catch (e) {}
+      try {
+        await env.DB.prepare("ALTER TABLE blog_comments ADD COLUMN admin_note_by TEXT").run();
+      } catch (e) {}
+      try {
+        await env.DB.prepare("ALTER TABLE blog_comments ADD COLUMN admin_note_at DATETIME").run();
+      } catch (e) {}
 
+      const initialStatus = isDirect ? 'pending' : 'approved';
       const res = await env.DB.prepare(
         `INSERT INTO blog_comments (post_slug, author_name, author_email, phone_number, is_direct, content, status, is_read)
-         VALUES (?, ?, ?, ?, ?, ?, 'approved', 0)`
-      ).bind(postSlug || 'general-inquiry', authorName, authorEmail, phoneNumber, isDirect, content).run();
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0)`
+      ).bind(postSlug || 'general-inquiry', authorName, authorEmail, phoneNumber, isDirect, content, initialStatus).run();
 
       return jsonResponse({
         success: true,
@@ -1148,8 +1174,10 @@ async function handleBlogApi(request, env, ctx, url) {
           phone_number: phoneNumber,
           is_direct: isDirect,
           content,
+          status: initialStatus,
           created_at: new Date().toISOString(),
-          admin_reply: null
+          admin_reply: null,
+          admin_note: null
         }
       });
     } catch (err) {
@@ -1204,6 +1232,61 @@ async function handleBlogApi(request, env, ctx, url) {
       ).bind((adminReply || '').trim(), commentId).run();
 
       return jsonResponse({ success: true, message: 'রিপ্লাই সফলভাবে যোগ করা হয়েছে' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 11.1 Admin Update Inquiry Action Status: PUT /api/blog/admin/comments/:id/status
+  const statusMatch = pathname.match(/^\/api\/blog\/admin\/comments\/(\d+)\/status$/);
+  if (statusMatch && request.method === 'PUT') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    const commentId = parseInt(statusMatch[1], 10);
+    try {
+      const { status } = await request.json();
+      const validStatuses = ['pending', 'ongoing', 'completed', 'approved'];
+      if (!validStatuses.includes(status)) {
+        return jsonResponse({ success: false, error: 'অবৈধ স্ট্যাটাস' }, 400);
+      }
+      await env.DB.prepare(
+        `UPDATE blog_comments 
+         SET status = ?, is_read = 1 
+         WHERE id = ?`
+      ).bind(status, commentId).run();
+
+      return jsonResponse({ success: true, message: 'স্ট্যাটাস সফলভাবে আপডেট করা হয়েছে', status });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 11.2 Admin Save Discussion Note on Inquiry: PUT /api/blog/admin/comments/:id/note
+  const noteMatch = pathname.match(/^\/api\/blog\/admin\/comments\/(\d+)\/note$/);
+  if (noteMatch && request.method === 'PUT') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    const commentId = parseInt(noteMatch[1], 10);
+    try {
+      const { note } = await request.json();
+      const adminName = auth.name || auth.username || 'Admin';
+      await env.DB.prepare(
+        `UPDATE blog_comments 
+         SET admin_note = ?, admin_note_by = ?, admin_note_at = CURRENT_TIMESTAMP, is_read = 1 
+         WHERE id = ?`
+      ).bind((note || '').trim(), adminName, commentId).run();
+
+      return jsonResponse({ 
+        success: true, 
+        message: 'কথোপকথনের অভ্যন্তরীণ নোট সংরক্ষিত হয়েছে',
+        admin_note: (note || '').trim(),
+        admin_note_by: adminName,
+        admin_note_at: new Date().toISOString()
+      });
     } catch (err) {
       return jsonResponse({ success: false, error: err.message }, 500);
     }

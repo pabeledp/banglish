@@ -238,20 +238,33 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
       return;
     }
 
-    const cleanNumber = directPhone.replace(/\D/g, '');
-    if (!cleanNumber || cleanNumber.length < 8) {
-      setDirectErrorMsg('অনুগ্রহ করে সঠিক মোবাইল নম্বর প্রদান করুন');
-      return;
+    const cleanDigits = directPhone.replace(/\D/g, '');
+    let formattedPhone = directPhone.trim();
+
+    if (directCountryCode === '+880') {
+      const bdDigits = cleanDigits.replace(/^880/, '');
+      const formattedBd = bdDigits.startsWith('0') ? bdDigits : '0' + bdDigits;
+      if (!/^01[3-9]\d{8}$/.test(formattedBd) || /^01[3-9](\d)\1{7}$/.test(formattedBd)) {
+        setDirectErrorMsg('অনুগ্রহ করে সঠিক ১১ ডিজিটের বাংলাদেশী মোবাইল নম্বর প্রদান করুন (যেমন: 017xxxxxxxx বা 018xxxxxxxx)');
+        return;
+      }
+      formattedPhone = `${directCountryCode} ${formattedBd}`;
+    } else {
+      if (cleanDigits.length < 7 || cleanDigits.length > 15 || /^(\d)\1+$/.test(cleanDigits)) {
+        setDirectErrorMsg('অনুগ্রহ করে সঠিক আন্তর্জাতিক মোবাইল নম্বর প্রদান করুন');
+        return;
+      }
+      formattedPhone = `${directCountryCode} ${cleanDigits}`;
     }
 
     if (!directMessage.trim()) {
-      setDirectErrorMsg('অনুগ্রহ করে আপনার মেসেজ লিখুন');
+      setDirectErrorMsg('অনুগ্রহ করে আপনার বার্তা / প্রশ্ন লিখুন');
       return;
     }
 
     setIsSubmittingDirect(true);
     try {
-      const fullPhone = `${directCountryCode} ${directPhone.trim()}`;
+      const fullPhone = formattedPhone;
       const res = await fetch('/api/blog/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -759,7 +772,7 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
                         required
                         value={directPhone}
                         onChange={e => setDirectPhone(e.target.value)}
-                        placeholder="017XXXXXXXX"
+                        placeholder={directCountryCode === '+880' ? '01XXXXXXXXX (১১ ডিজিট)' : 'মোবাইল নম্বর লিখুন'}
                         className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                     </div>
