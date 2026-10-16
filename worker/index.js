@@ -541,12 +541,12 @@ async function handleBlogApi(request, env, ctx, url) {
         };
 
         try {
-          let emailRes = await sendAttempt('Banglish Security <security@support.banglish.bd>');
+          let emailRes = await sendAttempt('"Banglish Security" <security@support.banglish.bd>');
           if (!emailRes.ok) {
-            emailRes = await sendAttempt('Banglish Security <security@banglish.bd>');
+            emailRes = await sendAttempt('"Banglish Security" <security@banglish.bd>');
           }
           if (!emailRes.ok) {
-            emailRes = await sendAttempt('Banglish Security <onboarding@resend.dev>');
+            emailRes = await sendAttempt('"Banglish Security" <onboarding@resend.dev>');
           }
 
           if (emailRes.ok) {
@@ -656,12 +656,12 @@ async function handleBlogApi(request, env, ctx, url) {
                 })
               });
             };
-            let alertRes = await sendAlertAttempt('Banglish Security <security@support.banglish.bd>');
+            let alertRes = await sendAlertAttempt('"Banglish Security" <security@support.banglish.bd>');
             if (!alertRes.ok) {
-              alertRes = await sendAlertAttempt('Banglish Security <security@banglish.bd>');
+              alertRes = await sendAlertAttempt('"Banglish Security" <security@banglish.bd>');
             }
             if (!alertRes.ok) {
-              await sendAlertAttempt('Banglish Security <onboarding@resend.dev>');
+              await sendAlertAttempt('"Banglish Security" <onboarding@resend.dev>');
             }
           } catch(e) {}
         })());
