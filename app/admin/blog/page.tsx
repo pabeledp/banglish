@@ -13,7 +13,7 @@ import {
   Calendar as CalendarIcon, CheckSquare, Camera, Upload, ZoomIn, ZoomOut, Move,
   Phone, Users, Shield, UserPlus, UserCheck, UserX,
   Info, MessageCircle, AlertTriangle, PhoneCall,
-  Bot, ToggleLeft, ToggleRight, Power
+  Bot, ToggleLeft, ToggleRight, Power, Home, Menu
 } from 'lucide-react';
 import { transliterateWord } from '@/lib/phoneticEngine';
 import MarkdownRenderer from '@/components/blog/MarkdownRenderer';
@@ -230,8 +230,8 @@ export default function AdminBlogPage() {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [resetMsg, setResetMsg] = useState<{ text: string; type: 'success' | 'error' | '' }>({ text: '', type: '' });
 
-  // Active Sidebar Nav Tab
-  const [activeNav, setActiveNav] = useState<'editor' | 'messages' | 'media' | 'analytics' | 'backup' | 'calendar' | 'settings' | 'team'>('editor');
+  // Active Sidebar / Mobile Nav Tab
+  const [activeNav, setActiveNav] = useState<'editor' | 'messages' | 'media' | 'analytics' | 'backup' | 'calendar' | 'settings' | 'team' | 'more'>('editor');
 
   // Logged-in Admin User & Role
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
@@ -2336,8 +2336,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
   return (
     <div className="min-h-screen bg-[#f4f7f6] text-slate-800 flex font-sans selection:bg-emerald-500 selection:text-white">
       
-      {/* 1. Left Vertical Icon Sidebar */}
-      <aside className="w-16 sm:w-20 bg-white border-r border-slate-200/80 flex flex-col items-center py-6 justify-between shrink-0 shadow-xs z-30">
+      {/* 1. Left Vertical Icon Sidebar (Desktop Only) */}
+      <aside className="hidden lg:flex w-20 bg-white border-r border-slate-200/80 flex-col items-center py-6 justify-between shrink-0 shadow-xs z-30">
         <div className="flex flex-col items-center gap-7 w-full">
           {/* Logo Glyph */}
           <Link href="/admin/blog" className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-100/80 border border-emerald-200/60 p-1 flex items-center justify-center shadow-xs hover:scale-105 transition-transform">
@@ -2507,15 +2507,24 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
         
         {/* Top Header Bar */}
         <header className="h-16 sm:h-20 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between gap-4 sticky top-0 z-20">
-          <div className="relative max-w-sm sm:max-w-md w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search for anything..."
-              className="w-full pl-10 pr-4 py-2 sm:py-2.5 rounded-full bg-slate-50/80 border border-slate-200/80 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700"
-            />
+          <div className="flex items-center gap-3 max-w-sm sm:max-w-md w-full">
+            {/* Mobile Brand Mark */}
+            <div className="flex items-center gap-2 lg:hidden shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-50 to-teal-100/80 border border-emerald-200/60 p-1 flex items-center justify-center shadow-xs">
+                <img src="/assets/banglish-logo-192.png" alt="Logo" className="w-full h-full object-contain" />
+              </div>
+            </div>
+
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search for anything..."
+                className="w-full pl-10 pr-4 py-2 sm:py-2.5 rounded-full bg-slate-50/80 border border-slate-200/80 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-700"
+              />
+            </div>
           </div>
 
           <div className="flex items-center gap-3 sm:gap-5">
@@ -2619,7 +2628,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
         </header>
 
         {/* Dynamic Views based on activeNav */}
-        <main className="p-4 sm:p-8 max-w-7xl w-full mx-auto space-y-8">
+        <main className="p-4 sm:p-8 max-w-7xl w-full mx-auto space-y-8 pb-28 lg:pb-8">
           
           {/* VIEW 1: Main Dashboard & Editor */}
           {activeNav === 'editor' && (
@@ -5252,7 +5261,327 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             </div>
           )}
 
+          {/* VIEW 9: More Screen (Meta Business Suite Style - Tools & Settings Grid/List) */}
+          {activeNav === 'more' && (
+            <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-200">
+              
+              {/* Profile Card Header */}
+              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="relative shrink-0">
+                    <img
+                      src={currentUser?.avatar || adminProfile.avatar || '/assets/pabel_light_avatar.webp'}
+                      alt={currentUser?.name || adminProfile.name || 'Admin'}
+                      className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-100 shadow-xs"
+                    />
+                    <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base sm:text-lg font-bold text-slate-900 truncate font-sans">
+                        {currentUser?.name || adminProfile.name || 'Admin'}
+                      </h2>
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                        {currentUser?.role === 'super_admin' ? 'Super Admin' : (currentUser?.role || 'Admin')}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 truncate mt-0.5 font-sans">
+                      {currentUser?.email || adminProfile.email || 'admin@banglish.bd'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => { setActiveNav('settings'); if (token) fetchAdminSettings(token); }}
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Settings className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="hidden sm:inline">প্রোফাইল</span>
+                </button>
+              </div>
+
+              {/* Section 1: Management & Tools */}
+              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-sans px-1">
+                  ম্যানেজ ও প্ল্যানিং (Manage & Insights)
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Planner */}
+                  <button
+                    onClick={() => setActiveNav('calendar')}
+                    className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/40 transition-all text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        <CalendarDays className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors font-bangla">
+                          কন্টেন্ট প্ল্যানার (Planner)
+                        </h4>
+                        <p className="text-[11px] text-slate-400 font-bangla">শিডিউল ও প্রকাশিত পোস্ট</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+                  </button>
+
+                  {/* Insights / Analytics */}
+                  <button
+                    onClick={() => { setActiveNav('analytics'); if (token) fetchAnalytics(token); }}
+                    className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/40 transition-all text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        <BarChart3 className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors font-bangla">
+                          ইনসাইটস (Insights)
+                        </h4>
+                        <p className="text-[11px] text-slate-400 font-bangla">ভিজিটর ট্রাফিক ও পেজভিউ</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+                  </button>
+
+                  {/* Media */}
+                  <button
+                    onClick={() => setActiveNav('media')}
+                    className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/40 transition-all text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        <ImageIcon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors font-bangla">
+                          মিডিয়া গ্যালারি (Media)
+                        </h4>
+                        <p className="text-[11px] text-slate-400 font-bangla">কাভার ছবি ও ব্যানার লাইব্রেরি</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+                  </button>
+
+                  {/* Database & Git Backup */}
+                  <button
+                    onClick={() => { setActiveNav('backup'); generateGitBackupCode(); }}
+                    className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/40 transition-all text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        <Database className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors font-bangla">
+                          গিট ব্যাকআপ (Git Sync)
+                        </h4>
+                        <p className="text-[11px] text-slate-400 font-bangla">ডাটাবেজ সেফটি ও ব্যাকআপ কোড</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Section 2: Team & Settings */}
+              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-sans px-1">
+                  টিম ও সেটিংস (Team & Settings)
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Team Management (Super Admin only) */}
+                  {(!currentUser || currentUser.role === 'super_admin') && (
+                    <button
+                      onClick={() => { setActiveNav('team'); if (token) fetchTeamMembers(token); }}
+                      className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/40 transition-all text-left group cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                          <Users className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-800 group-hover:text-emerald-700 transition-colors font-bangla">
+                            টিম ম্যানেজমেন্ট (Team)
+                          </h4>
+                          <p className="text-[11px] text-slate-400 font-bangla">মেম্বার রোল ও অ্যাক্সেস কন্ট্রোল</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all" />
+                    </button>
+                  )}
+
+                  {/* Profile & Security Settings */}
+                  <button
+                    onClick={() => { setActiveNav('settings'); if (token) fetchAdminSettings(token); }}
+                    className="flex items-center justify-between p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/40 transition-all text-left group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                        <Settings className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-800 group-hover:text-blue-600 transition-colors font-bangla">
+                          অ্যাকাউন্ট সেটিংস (Settings)
+                        </h4>
+                        <p className="text-[11px] text-slate-400 font-bangla">পাসওয়ার্ড ও প্রোফাইল এডিট</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Section 3: External Analytics & Tools */}
+              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-sans px-1">
+                  এক্সটার্নাল প্ল্যাটফর্ম (External Tools)
+                </h3>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <a
+                    href="https://search.google.com/search-console"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
+                  >
+                    <img src="/icons/search-console.png" alt="GSC" className="w-7 h-7 object-contain group-hover:scale-110 transition-transform" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                    <span className="text-xs font-bold text-slate-700 font-sans">Search Console</span>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
+                  </a>
+
+                  <a
+                    href="https://analytics.google.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3.5 rounded-2xl border border-slate-100 hover:border-amber-200 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
+                  >
+                    <img src="/icons/google-analytics.png" alt="GA4" className="w-7 h-7 object-contain group-hover:scale-110 transition-transform" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                    <span className="text-xs font-bold text-slate-700 font-sans">Google Analytics</span>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
+                  </a>
+
+                  <a
+                    href="https://clarity.microsoft.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3.5 rounded-2xl border border-slate-100 hover:border-sky-200 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
+                  >
+                    <img src="/icons/microsoft-clarity.png" alt="Clarity" className="w-7 h-7 object-contain group-hover:scale-110 transition-transform" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                    <span className="text-xs font-bold text-slate-700 font-sans">MS Clarity</span>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
+                  </a>
+
+                  <a
+                    href="https://tagmanager.google.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
+                  >
+                    <img src="/icons/google-tag-manager.png" alt="GTM" className="w-7 h-7 object-contain group-hover:scale-110 transition-transform" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                    <span className="text-xs font-bold text-slate-700 font-sans">Tag Manager</span>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Section 4: Live Blog & Log Out */}
+              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+                <Link
+                  href="/blog"
+                  target="_blank"
+                  className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-emerald-200/70"
+                >
+                  <ArrowUpRight className="w-4 h-4 text-emerald-600" />
+                  <span>লাইভ ওয়েবসাইট ও ব্লগ দেখুন (View Site)</span>
+                </Link>
+
+                <button
+                  onClick={handleLogout}
+                  className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold flex items-center justify-center gap-2 transition-colors border border-rose-200/70 cursor-pointer"
+                >
+                  <LogOut className="w-4 h-4 text-rose-600" />
+                  <span>লগআউট করুন (Log Out)</span>
+                </button>
+              </div>
+
+            </div>
+          )}
+
         </main>
+
+        {/* Mobile Fixed Bottom Navigation Bar (Meta Business Suite App Style) */}
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/90 shadow-[0_-4px_20px_rgba(0,0,0,0.06)] px-3 py-1 flex items-center justify-around pb-[calc(env(safe-area-inset-bottom)+0.35rem)]">
+          {/* 1. Home */}
+          <button
+            onClick={() => { setActiveNav('editor'); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className={`flex flex-col items-center justify-center gap-1 min-w-[54px] py-1 transition-all cursor-pointer ${
+              activeNav === 'editor' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <div className={`p-1 rounded-xl transition-all ${activeNav === 'editor' ? 'bg-blue-50' : ''}`}>
+              <Home className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] tracking-tight">Home</span>
+          </button>
+
+          {/* 2. Content */}
+          <button
+            onClick={() => { setActiveNav('calendar'); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className={`flex flex-col items-center justify-center gap-1 min-w-[54px] py-1 transition-all cursor-pointer ${
+              activeNav === 'calendar' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <div className={`p-1 rounded-xl transition-all ${activeNav === 'calendar' ? 'bg-blue-50' : ''}`}>
+              <FileText className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] tracking-tight">Content</span>
+          </button>
+
+          {/* 3. Center Elevated Plus Button */}
+          <button
+            onClick={openNewPostEditor}
+            title="নতুন আর্টিকেল তৈরি করুন"
+            className="relative -top-3 w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white flex items-center justify-center shadow-lg shadow-blue-600/35 border-4 border-white transition-all cursor-pointer shrink-0"
+          >
+            <Plus className="w-6 h-6 stroke-[2.5]" />
+          </button>
+
+          {/* 4. Inbox */}
+          <button
+            onClick={() => { 
+              setActiveNav('messages'); 
+              if (token) fetchAdminComments(token); 
+              if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }); 
+            }}
+            className={`flex flex-col items-center justify-center gap-1 min-w-[54px] py-1 transition-all cursor-pointer relative ${
+              activeNav === 'messages' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <div className={`p-1 rounded-xl transition-all relative ${activeNav === 'messages' ? 'bg-blue-50' : ''}`}>
+              <Mail className="w-5 h-5" />
+              {unreadCommentsCount > 0 && (
+                <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white animate-pulse" />
+              )}
+            </div>
+            <span className="text-[10px] tracking-tight">Inbox</span>
+          </button>
+
+          {/* 5. More (3 lines) */}
+          <button
+            onClick={() => { setActiveNav('more'); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className={`flex flex-col items-center justify-center gap-1 min-w-[54px] py-1 transition-all cursor-pointer ${
+              activeNav === 'more' ? 'text-blue-600 font-bold' : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <div className={`p-1 rounded-xl transition-all ${activeNav === 'more' ? 'bg-blue-50' : ''}`}>
+              <Menu className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] tracking-tight">More</span>
+          </button>
+        </nav>
       </div>
 
       {/* 3. Full Modern Post Editor Modal with Floating Rich-Text Context Menu */}
