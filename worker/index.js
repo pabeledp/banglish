@@ -178,8 +178,8 @@ export default {
       return new Response('Method Not Allowed', { status: 405 });
     }
 
-    // 2. Blog REST API Routing
-    if (url.pathname.startsWith('/api/blog')) {
+    // 2. Blog & WhatsApp REST API Routing
+    if (url.pathname.startsWith('/api/blog') || url.pathname.startsWith('/api/whatsapp')) {
       return handleBlogApi(request, env, ctx, url);
     }
 
