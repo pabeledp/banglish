@@ -569,8 +569,14 @@ export default function AdminBlogPage() {
           message: sendingText,
         }),
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        console.warn('Response was not JSON:', jsonErr);
+      }
+
+      if (res.ok && data?.success) {
         setWaReplyText('');
         // Optimistically add agent message
         setWaMessages(prev => [
@@ -585,7 +591,7 @@ export default function AdminBlogPage() {
         ]);
         // Update local chat info with ai_paused = 1
         setWaSelectedChat(prev => prev ? { ...prev, ai_paused: 1, last_sender: 'agent', last_message: sendingText } : null);
-        setWhatsappChats(prev => prev.map(c => c.phone_number === selectedWaPhone ? {
+        setWhatsappChats(prev => (prev || []).map(c => c.phone_number === selectedWaPhone ? {
           ...c,
           ai_paused: 1,
           last_sender: 'agent',
@@ -595,10 +601,11 @@ export default function AdminBlogPage() {
         } : c));
         showToast('গ্রাহকের হোয়াটসঅ্যাপে মেসেজ পাঠানো হয়েছে! (হিউম্যান টেকওভার সক্রিয়)');
       } else {
-        showToast(data.error || 'মেসেজ পাঠানো ব্যর্থ হয়েছে', 'error');
+        showToast(data?.error || `মেসেজ পাঠানো ব্যর্থ হয়েছে (HTTP ${res.status})`, 'error');
       }
     } catch (err: any) {
-      showToast('সার্ভার এরর: মেসেজ পাঠানো যায়নি', 'error');
+      console.error('WhatsApp send exception:', err);
+      showToast(err?.message ? `সার্ভার এরর: ${err.message}` : 'সার্ভার এরর: মেসেজ পাঠানো যায়নি', 'error');
     } finally {
       setIsSendingWa(false);
     }

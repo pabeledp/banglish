@@ -2145,7 +2145,13 @@ async function handleBlogApi(request, env, ctx, url) {
       const isBsuid = targetPhone.startsWith('BD.');
 
       // 1. Send via Meta WhatsApp Cloud API
-      await sendWhatsAppMessage(targetPhone, isBsuid, msgText, env);
+      const sendResult = await sendWhatsAppMessage(targetPhone, isBsuid, msgText, env);
+      if (sendResult && !sendResult.success) {
+        return jsonResponse({
+          success: false,
+          error: `WhatsApp ডেলিভারি ত্রুটি: ${sendResult.error}`
+        }, 400);
+      }
 
       // 2. Save to conversations with role = 'agent'
       await env.DB.prepare(
@@ -2497,7 +2503,7 @@ async function sendWhatsAppMessage(targetId, isBsuid, replyText, env) {
 
   if (!token) {
     console.error('❌ Missing WHATSAPP_TOKEN secret.');
-    return;
+    return { success: false, error: 'WHATSAPP_TOKEN সিক্রেট পাওয়া যায়নি।' };
   }
 
   const url = `https://graph.facebook.com/${apiVersion}/${phoneId}/messages`;
@@ -2508,7 +2514,7 @@ async function sendWhatsAppMessage(targetId, isBsuid, replyText, env) {
     [isBsuid ? 'recipient' : 'to']: targetId,
     type: 'text',
     text: {
-      preview_url: true,
+      preview_url: false,
       body: replyText,
     },
   };
@@ -2529,11 +2535,20 @@ async function sendWhatsAppMessage(targetId, isBsuid, replyText, env) {
         `❌ Meta Graph API Send Error [${res.status}]:`,
         JSON.stringify(resData)
       );
+      return {
+        success: false,
+        error: resData?.error?.message || `Meta API Error (${res.status})`
+      };
     } else {
       console.log(`✅ WhatsApp message sent to [${targetId}]: ID ${resData?.messages?.[0]?.id}`);
+      return {
+        success: true,
+        messageId: resData?.messages?.[0]?.id
+      };
     }
   } catch (sendErr) {
     console.error('❌ Network error sending WhatsApp message:', sendErr);
+    return { success: false, error: sendErr.message };
   }
 }
 
