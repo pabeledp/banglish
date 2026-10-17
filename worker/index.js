@@ -255,23 +255,6 @@ export default {
     }
 
     // 4. Default: Serve Next.js static site assets with graceful themed 404 fallback
-    // Track site-wide real-time visitor visit in Cloudflare D1
-    if (request.method === 'GET' && env.DB && ctx && ctx.waitUntil) {
-      const p = url.pathname;
-      if (!p.startsWith('/api') && !p.startsWith('/_next') && !p.startsWith('/assets') && !p.startsWith('/webhook') && !p.includes('.')) {
-        ctx.waitUntil((async () => {
-          try {
-            const today = new Date().toISOString().split('T')[0];
-            const visitorHash = request.headers.get('CF-Connecting-IP') || 'anon';
-            const ref = request.headers.get('Referer') || '';
-            await env.DB.prepare(
-              'INSERT INTO site_visits (path, visitor_hash, referrer, date_day) VALUES (?, ?, ?, ?)'
-            ).bind(p, visitorHash, ref, today).run();
-          } catch(e) {}
-        })());
-      }
-    }
-
     try {
       const res = await env.ASSETS.fetch(request);
       if (res.status === 404) {
@@ -2045,37 +2028,45 @@ async function handleBlogApi(request, env, ctx, url) {
       return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin এই হোয়াটসঅ্যাপ চ্যাট দেখার অধিকার রাখেন।' }, 403);
     }
 
-    try {
-      await env.DB.prepare(`
-        CREATE TABLE IF NOT EXISTS whatsapp_chats (
-          phone_number TEXT PRIMARY KEY,
-          customer_name TEXT,
-          last_message TEXT,
-          last_sender TEXT,
-          last_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-          unread_count INTEGER DEFAULT 0,
-          ai_paused INTEGER DEFAULT 0,
-          paused_at DATETIME,
-          paused_by TEXT
-        )
-      `).run();
+    let chats = [];
+    let totalUnread = 0;
+    if (env.DB) {
+      try {
+        const chatsResult = await env.DB.prepare(
+          'SELECT * FROM whatsapp_chats ORDER BY last_timestamp DESC'
+        ).all().catch(() => ({ results: [] }));
+        chats = chatsResult?.results || [];
 
-      const chatsResult = await env.DB.prepare(
-        'SELECT * FROM whatsapp_chats ORDER BY last_timestamp DESC'
-      ).all();
+        // If whatsapp_chats has no rows yet, recover historical chats from conversations table
+        if (chats.length === 0) {
+          const fallbackResult = await env.DB.prepare(`
+            SELECT phone_number, content as last_message, 
+                   CASE WHEN role = 'user' THEN 'user' WHEN role = 'agent' THEN 'agent' ELSE 'bot' END as last_sender,
+                   created_at as last_timestamp,
+                   0 as unread_count,
+                   0 as ai_paused,
+                   NULL as customer_name
+            FROM conversations
+            WHERE id IN (SELECT MAX(id) FROM conversations GROUP BY phone_number)
+            ORDER BY id DESC
+          `).all().catch(() => ({ results: [] }));
+          chats = fallbackResult?.results || [];
+        }
 
-      const unreadResult = await env.DB.prepare(
-        'SELECT SUM(unread_count) as total_unread FROM whatsapp_chats'
-      ).first();
-
-      return jsonResponse({
-        success: true,
-        chats: chatsResult?.results || [],
-        totalUnread: unreadResult?.total_unread || 0,
-      });
-    } catch (err) {
-      return jsonResponse({ success: false, error: err.message }, 500);
+        const unreadResult = await env.DB.prepare(
+          'SELECT SUM(unread_count) as total_unread FROM whatsapp_chats'
+        ).first().catch(() => ({ total_unread: 0 }));
+        totalUnread = unreadResult?.total_unread || 0;
+      } catch (err) {
+        console.warn('D1 whatsapp_chats fetch warning:', err);
+      }
     }
+
+    return jsonResponse({
+      success: true,
+      chats,
+      totalUnread,
+    });
   }
 
   // 25.2 GET /api/whatsapp/chats/:phone (Fetch conversation history for specific phone)
@@ -2262,7 +2253,7 @@ async function handleBlogApi(request, env, ctx, url) {
       console.warn('AI toggle D1 error:', err);
       return jsonResponse({
         success: true,
-        ai_paused: true,
+        ai_paused: Boolean(newPaused),
         message: 'স্ট্যাটাস আপডেট সফল'
       });
     }
@@ -2379,10 +2370,10 @@ async function processSingleMessage(message, contacts, env) {
     return;
   }
 
-  // 1. Drop stale or delayed messages (e.g. Meta webhook retries after hours)
+  // 1. Drop stale or delayed messages (only drop if older than 24 hours)
   const messageTimestamp = Number(message.timestamp);
   const nowUnix = Math.floor(Date.now() / 1000);
-  if (messageTimestamp && nowUnix - messageTimestamp > 120) {
+  if (messageTimestamp && nowUnix - messageTimestamp > 86400) {
     console.log(`⏱️ Dropped stale message [${messageId}] sent ${nowUnix - messageTimestamp}s ago.`);
     return;
   }
@@ -2582,19 +2573,32 @@ async function callGeminiAPI(userText, history, env, knownCustomerName = null) {
   const modelName = env.GEMINI_MODEL || 'gemini-flash-latest';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
 
-  // Build clean alternating history
+  // Build clean alternating history (Gemini requires strict user/model turn alternation)
+  const rawItems = [...(history || []), { role: 'user', parts: [{ text: userText }] }];
   const contents = [];
-  for (const item of history) {
-    contents.push({
-      role: item.role,
-      parts: item.parts,
-    });
+  for (const item of rawItems) {
+    const role = (item.role === 'model' || item.role === 'bot' || item.role === 'agent') ? 'model' : 'user';
+    const text = (item.parts?.[0]?.text || '').trim();
+    if (!text) continue;
+
+    if (contents.length === 0) {
+      if (role === 'user') {
+        contents.push({ role: 'user', parts: [{ text }] });
+      }
+    } else {
+      const prevTurn = contents[contents.length - 1];
+      if (prevTurn.role === role) {
+        prevTurn.parts[0].text += '\n' + text;
+      } else {
+        contents.push({ role, parts: [{ text }] });
+      }
+    }
   }
-  // Add latest message
-  contents.push({
-    role: 'user',
-    parts: [{ text: userText }],
-  });
+
+  // Ensure contents ends with a user turn
+  if (contents.length === 0 || contents[contents.length - 1].role !== 'user') {
+    contents.push({ role: 'user', parts: [{ text: userText }] });
+  }
 
   const isNameKnown = Boolean(knownCustomerName && knownCustomerName.trim());
   const nameInstruction = !isNameKnown
@@ -2651,7 +2655,7 @@ Customer's Name: "${knownCustomerName}". Address them politely by their name whe
  * Send WhatsApp text message via Meta Graph API
  */
 async function sendWhatsAppMessage(targetId, isBsuid, replyText, env) {
-  const token = env.WHATSAPP_TOKEN;
+  const token = env.WHATSAPP_TOKEN || env.WHATSAPP_ACCESS_TOKEN;
   const phoneId = env.PHONE_NUMBER_ID || '1285739121299923';
   const apiVersion = env.META_GRAPH_API_VERSION || 'v20.0';
 

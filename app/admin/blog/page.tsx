@@ -562,7 +562,7 @@ export default function AdminBlogPage() {
       if (selectedWaPhone) {
         fetchWhatsAppMessages(selectedWaPhone, true, token);
       }
-    }, 8000);
+    }, 25000);
 
     return () => clearInterval(interval);
   }, [token, currentUser?.role, activeNav, inboxMainTab, selectedWaPhone, fetchWhatsAppChats, fetchWhatsAppMessages]);
@@ -3179,8 +3179,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             return (
               <div className="space-y-5">
                 
-                {/* Inbox Header Card (Stacked/Pinned Sticky Header) */}
-                <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-3.5 sticky top-0 z-20">
+                {/* Inbox Header Card (Stacked/Pinned Sticky Header beneath top header) */}
+                <div className="bg-white/95 backdrop-blur-md rounded-3xl p-4 sm:p-6 border border-slate-200/80 shadow-sm space-y-3.5 sticky top-16 sm:top-20 z-20">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5 font-sans">

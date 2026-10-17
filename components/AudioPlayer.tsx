@@ -9,7 +9,11 @@ export default function AudioPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const LOW_DB_VOLUME = 0.16;
 
-  // Do not render or play song on pastebin or text-to-png-converter workspace pages
+  // Do not render or play song on pastebin, converter, or /admin pages
+  if (pathname?.startsWith('/admin')) {
+    return null;
+  }
+
   const isExcluded = 
     pathname?.startsWith('/pastebin') || 
     pathname?.startsWith('/paste-bin') ||
