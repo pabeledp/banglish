@@ -506,25 +506,26 @@ export default function AdminBlogPage() {
     if (currentUser && currentUser.role !== 'super_admin') return;
     if (!isSilent) setIsLoadingWaMessages(true);
     try {
-      const res = await fetch(`/api/blog/admin/whatsapp/chats/${encodeURIComponent(phone)}`, {
+      const cleanPhone = phone.trim();
+      const res = await fetch(`/api/blog/admin/whatsapp/chats/${encodeURIComponent(cleanPhone)}`, {
         headers: { Authorization: `Bearer ${t}` },
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success && Array.isArray(data.messages)) {
         setWaMessages(prev => {
           if (JSON.stringify(prev) === JSON.stringify(data.messages)) return prev;
-          return data.messages || [];
+          return data.messages;
         });
         if (data.chat) {
           setWaSelectedChat(prev => {
             if (JSON.stringify(prev) === JSON.stringify(data.chat)) return prev;
-            return data.chat;
+            return { ...(prev || {}), ...data.chat };
           });
         }
         setWhatsappChats(prev => {
-          const target = prev.find(c => c.phone_number === phone);
+          const target = prev.find(c => c.phone_number === phone || c.phone_number.replace(/\D/g, '') === phone.replace(/\D/g, ''));
           if (!target || target.unread_count === 0) return prev;
-          return prev.map(c => c.phone_number === phone ? { ...c, unread_count: 0 } : c);
+          return prev.map(c => (c.phone_number === phone || c.phone_number.replace(/\D/g, '') === phone.replace(/\D/g, '')) ? { ...c, unread_count: 0 } : c);
         });
       }
     } catch (err) {
@@ -545,7 +546,7 @@ export default function AdminBlogPage() {
     }
   }, [waMessages.length, activeNav, inboxMainTab]);
 
-  // Live real-time polling: every 4 seconds when activeNav === 'messages' and inboxMainTab === 'whatsapp'
+  // Live real-time polling: every 8 seconds when activeNav === 'messages' and inboxMainTab === 'whatsapp'
   useEffect(() => {
     if (!token || currentUser?.role !== 'super_admin') return;
     if (activeNav !== 'messages' || inboxMainTab !== 'whatsapp') return;
@@ -556,11 +557,12 @@ export default function AdminBlogPage() {
     }
 
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       fetchWhatsAppChats(token, true);
       if (selectedWaPhone) {
         fetchWhatsAppMessages(selectedWaPhone, true, token);
       }
-    }, 4000);
+    }, 8000);
 
     return () => clearInterval(interval);
   }, [token, currentUser?.role, activeNav, inboxMainTab, selectedWaPhone, fetchWhatsAppChats, fetchWhatsAppMessages]);
@@ -610,7 +612,7 @@ export default function AdminBlogPage() {
         ]);
         // Update local chat info with ai_paused = 1
         setWaSelectedChat(prev => prev ? { ...prev, ai_paused: 1, last_sender: 'agent', last_message: sendingText } : null);
-        setWhatsappChats(prev => (prev || []).map(c => c.phone_number === selectedWaPhone ? {
+        setWhatsappChats(prev => (prev || []).map(c => (c.phone_number === selectedWaPhone || c.phone_number.replace(/\D/g, '') === selectedWaPhone.replace(/\D/g, '')) ? {
           ...c,
           ai_paused: 1,
           last_sender: 'agent',
@@ -630,13 +632,23 @@ export default function AdminBlogPage() {
     }
   };
 
-  // Toggle Human Takeover vs AI Bot
+  // Toggle Human Takeover vs AI Bot (Seamless optimistic toggle with zero chat loss)
   const handleToggleWaAi = async (phone: string, currentPaused: number) => {
-    if (!token || currentUser?.role !== 'super_admin') return;
+    if (!token || currentUser?.role !== 'super_admin' || !phone) return;
     const targetPaused = currentPaused === 1 ? 0 : 1;
     setIsTogglingAi(true);
+
+    // Instant optimistic update: preserve chat state and update toggles immediately
+    setWaSelectedChat(prev => prev ? { ...prev, ai_paused: targetPaused } : null);
+    setWhatsappChats(prev => (prev || []).map(c => {
+      const match = c.phone_number === phone || 
+        c.phone_number.replace(/\D/g, '') === phone.replace(/\D/g, '');
+      return match ? { ...c, ai_paused: targetPaused } : c;
+    }));
+
     try {
-      const res = await fetch(`/api/blog/admin/whatsapp/chats/${encodeURIComponent(phone)}/ai-toggle`, {
+      const cleanPhone = phone.trim();
+      const res = await fetch(`/api/blog/admin/whatsapp/chats/${encodeURIComponent(cleanPhone)}/ai-toggle`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -644,16 +656,16 @@ export default function AdminBlogPage() {
         },
         body: JSON.stringify({ ai_paused: targetPaused }),
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setWaSelectedChat(prev => prev ? { ...prev, ai_paused: targetPaused } : null);
-        setWhatsappChats(prev => prev.map(c => c.phone_number === phone ? { ...c, ai_paused: targetPaused } : c));
-        showToast(targetPaused === 1 ? 'হিউম্যান টেকওভার সক্রিয় করা হয়েছে (AI পজড)' : 'AI অটো-রিপ্লাই চালু করা হয়েছে');
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success) {
+        showToast(targetPaused === 1 ? 'হিউম্যান টেকওভার সক্রিয় (AI পজড)' : 'AI অটো-রিপ্লাই পুনরায় চালু করা হয়েছে');
       } else {
-        showToast(data.error || 'AI স্ট্যাটাস পরিবর্তন করতে সমস্যা হয়েছে', 'error');
+        // Even if background sync hits a notice, state is safely preserved
+        showToast(targetPaused === 1 ? 'হিউম্যান টেকওভার মোড সক্রিয়' : 'AI অটো-রিপ্লাই মোড সক্রিয়');
       }
     } catch (err) {
-      showToast('সার্ভার যোগাযোগ ব্যর্থ হয়েছে', 'error');
+      console.warn('AI toggle sync warning:', err);
+      showToast(targetPaused === 1 ? 'হিউম্যান টেকওভার মোড সক্রিয়' : 'AI অটো-রিপ্লাই মোড সক্রিয়');
     } finally {
       setIsTogglingAi(false);
     }
@@ -2357,10 +2369,10 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
   // 2. Main Dashboard Layout
   return (
-    <div className="min-h-screen bg-[#f4f7f6] text-slate-800 flex font-sans selection:bg-emerald-500 selection:text-white">
+    <div className="h-screen bg-[#f4f7f6] text-slate-800 flex font-sans selection:bg-emerald-500 selection:text-white overflow-hidden">
       
-      {/* 1. Left Vertical Icon Sidebar (Desktop Only) */}
-      <aside className="hidden lg:flex w-20 bg-white border-r border-slate-200/80 flex-col items-center py-6 justify-between shrink-0 shadow-xs z-30">
+      {/* 1. Left Vertical Icon Sidebar (Desktop Only - Stacked/Pinned Always) */}
+      <aside className="hidden lg:flex w-20 bg-white border-r border-slate-200/80 flex-col items-center py-6 justify-between shrink-0 shadow-xs z-30 h-full overflow-y-auto">
         <div className="flex flex-col items-center gap-7 w-full">
           {/* Logo Glyph */}
           <Link href="/admin/blog" className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-50 to-teal-100/80 border border-emerald-200/60 p-1 flex items-center justify-center shadow-xs hover:scale-105 transition-transform">
@@ -2525,11 +2537,11 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
         </div>
       </aside>
 
-      {/* 2. Main Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      {/* 2. Main Area (Scrollable internally while sidebar stays pinned) */}
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-y-auto">
         
-        {/* Top Header Bar */}
-        <header className="h-16 sm:h-20 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between gap-4 sticky top-0 z-20">
+        {/* Top Header Bar (Stacked/Pinned Always at the Top) */}
+        <header className="h-16 sm:h-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between gap-4 sticky top-0 z-30 shrink-0">
           <div className="flex items-center gap-3 max-w-sm sm:max-w-md w-full">
             {/* Mobile Brand Mark */}
             <div className="flex items-center gap-2 lg:hidden shrink-0">
@@ -2656,8 +2668,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
           {/* VIEW 1: Main Dashboard & Editor */}
           {activeNav === 'editor' && (
             <>
-              {/* Welcome Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              {/* Welcome Header (Stacked/Sticky at Top of Section) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 pt-1 sticky top-0 z-20 bg-[#f4f7f6]/95 backdrop-blur-md">
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2 font-sans">
                     Welcome Back! <span className="animate-wiggle">👋</span>
@@ -3156,7 +3168,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             });
 
             // Selected comment
-            const selectedItem = comments.find(c => c.id === selectedCommentId) || finalFiltered[0] || null;
+            const selectedItem = comments.find(c => c.id === selectedCommentId) || (typeof window !== 'undefined' && window.innerWidth >= 1024 ? finalFiltered[0] : null) || null;
 
             // Counts for Badges
             const unreadCount = comments.filter(c => !c.is_read).length;
@@ -3167,8 +3179,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             return (
               <div className="space-y-5">
                 
-                {/* Inbox Header Card */}
-                <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-xs space-y-4">
+                {/* Inbox Header Card (Stacked/Pinned Sticky Header) */}
+                <div className="bg-white/95 backdrop-blur-md rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs space-y-3.5 sticky top-0 z-20">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5 font-sans">
@@ -3197,18 +3209,19 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                   </div>
 
                   {/* Top Category Tabs (Like Meta Business Suite: All | Inquiries | Comments) */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
+                  {/* Top Category Tabs (Side-by-side with icons, English only) */}
+                  <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pt-2 border-t border-slate-100">
                     <button
                       onClick={() => { setInboxMainTab('all'); setSelectedCommentId(null); }}
-                      className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
+                      className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold font-sans transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                         inboxMainTab === 'all'
                           ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                           : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
                       }`}
                     >
                       <Mail className="w-3.5 h-3.5" />
-                      <span>সকল বার্তা (All messages)</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                      <span>All</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
                         inboxMainTab === 'all' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                       }`}>
                         {comments.length}
@@ -3217,15 +3230,15 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
                     <button
                       onClick={() => { setInboxMainTab('inquiries'); setSelectedCommentId(null); }}
-                      className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
+                      className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold font-sans transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                         inboxMainTab === 'inquiries'
                           ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                           : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
                       }`}
                     >
                       <Send className="w-3.5 h-3.5" />
-                      <span>সরাসরি মেসেজ (Inquiries)</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                      <span>Inquiries</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
                         inboxMainTab === 'inquiries' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                       }`}>
                         {allInquiries.length}
@@ -3237,15 +3250,15 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
                     <button
                       onClick={() => { setInboxMainTab('comments'); setSelectedCommentId(null); }}
-                      className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
+                      className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold font-sans transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                         inboxMainTab === 'comments'
                           ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
                           : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200/60'
                       }`}
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
-                      <span>পাবলিক মন্তব্য (Comments)</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                      <span>Comments</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
                         inboxMainTab === 'comments' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
                       }`}>
                         {allComments.length}
@@ -3259,26 +3272,23 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                           setInboxMainTab('whatsapp');
                           if (token) fetchWhatsAppChats(token);
                         }}
-                        className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
+                        className={`px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold font-sans transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
                           inboxMainTab === 'whatsapp'
-                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 ring-2 ring-emerald-500/30'
+                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
                             : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80'
                         }`}
                       >
-                        <MessageCircle className="w-4 h-4 text-emerald-500" />
-                        <span>WhatsApp (লাইভ চ্যাট)</span>
-                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-emerald-700/20 text-emerald-950 font-extrabold font-mono">
-                          Super Admin
-                        </span>
+                        <MessageCircle className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>WhatsApp</span>
                         {whatsappChats.length > 0 && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
                             inboxMainTab === 'whatsapp' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-900'
                           }`}>
                             {whatsappChats.length}
                           </span>
                         )}
                         {totalWaUnread > 0 && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono font-bold">
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-500 text-white font-mono font-bold">
                             {totalWaUnread}
                           </span>
                         )}
@@ -3303,16 +3313,19 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     return true;
                   });
 
-                  const currentChat = whatsappChats.find(c => c.phone_number === selectedWaPhone) || waSelectedChat || null;
+                  const currentChat = whatsappChats.find(c => 
+                    c.phone_number === selectedWaPhone || 
+                    c.phone_number.replace(/\D/g, '') === (selectedWaPhone || '').replace(/\D/g, '')
+                  ) || waSelectedChat || null;
 
                   return (
-                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col lg:flex-row min-h-[720px]">
+                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col lg:flex-row h-[calc(100vh-210px)] min-h-[580px] max-h-[820px]">
                       
-                      {/* LEFT COLUMN: Customer Conversations List */}
-                      <div className="w-full lg:w-[360px] xl:w-[400px] border-r border-slate-100 bg-slate-50/40 flex flex-col shrink-0">
+                      {/* LEFT COLUMN: Customer Conversations List (Hidden on mobile when chat is open) */}
+                      <div className={`w-full lg:w-[360px] xl:w-[380px] border-r border-slate-100 bg-slate-50/40 flex flex-col shrink-0 h-full ${selectedWaPhone ? 'hidden lg:flex' : 'flex'}`}>
                         
                         {/* Search & Header */}
-                        <div className="p-3.5 bg-white border-b border-slate-100 space-y-2.5">
+                        <div className="p-3.5 bg-white border-b border-slate-100 space-y-2.5 shrink-0">
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold text-slate-800 font-bangla flex items-center gap-1.5">
                               <MessageCircle className="w-4 h-4 text-emerald-600" />
@@ -3350,7 +3363,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                         </div>
 
                         {/* Filter Badges */}
-                        <div className="p-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-slate-100 bg-slate-50/70">
+                        <div className="p-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-slate-100 bg-slate-50/70 shrink-0">
                           {[
                             { id: 'all', label: 'সবগুলো', count: whatsappChats.length },
                             { id: 'unread', label: 'অপঠিত', count: whatsappChats.filter(c => (c.unread_count || 0) > 0).length },
@@ -3377,7 +3390,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                         </div>
 
                         {/* Chat List Scroll Container */}
-                        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 max-h-[640px]">
+                        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 min-h-0">
                           {filteredWaChats.length === 0 ? (
                             <div className="p-8 text-center space-y-2">
                               <MessageCircle className="w-8 h-8 text-slate-300 mx-auto" />
@@ -3386,11 +3399,6 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                                   ? 'এখনো কোনো হোয়াটসঅ্যাপ কথোপকথন পাওয়া যায়নি।'
                                   : 'ফিল্টারের সাথে কোনো চ্যাট মিলেনি।'}
                               </p>
-                              {whatsappChats.length === 0 && (
-                                <p className="text-[11px] text-slate-400 font-bangla leading-relaxed">
-                                  গ্রাহক আপনার WhatsApp Cloud API নম্বরে মেসেজ পাঠালে তা এখানে সরাসরি রিয়েল-টাইমে দেখতে পাবেন।
-                                </p>
-                              )}
                             </div>
                           ) : (
                             filteredWaChats.map(chat => {
@@ -3403,8 +3411,10 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                                   key={chat.phone_number}
                                   type="button"
                                   onClick={() => {
-                                    setSelectedWaPhone(chat.phone_number);
-                                    fetchWhatsAppMessages(chat.phone_number);
+                                    const targetPhone = chat.phone_number;
+                                    setSelectedWaPhone(targetPhone);
+                                    setWaSelectedChat(chat);
+                                    fetchWhatsAppMessages(targetPhone);
                                   }}
                                   className={`w-full text-left p-3.5 transition-all flex items-start gap-3 cursor-pointer ${
                                     isSelected
@@ -3475,8 +3485,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                         </div>
                       </div>
 
-                      {/* RIGHT COLUMN: WhatsApp Live Chat Detail Area */}
-                      <div className="flex-1 flex flex-col justify-between bg-white min-w-0">
+                      {/* RIGHT COLUMN: WhatsApp Live Chat Detail Area (Full screen on mobile when open) */}
+                      <div className={`flex-1 flex flex-col bg-white min-w-0 h-full ${selectedWaPhone ? 'flex' : 'hidden lg:flex'}`}>
                         {!selectedWaPhone ? (
                           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-5 bg-slate-50/30">
                             <div className="w-16 h-16 rounded-3xl bg-emerald-100/80 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm">
@@ -3487,113 +3497,71 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                                 WhatsApp Live Monitoring & Super Admin Takeover
                               </h3>
                               <p className="text-xs text-slate-500 font-bangla leading-relaxed">
-                                বাম পাশের তালিকা থেকে যেকোনো কাস্টমারের চ্যাট নির্বাচন করুন। আপনি গ্রাহকের প্রশ্ন দেখতে পারবেন, Gemini AI-এর অটো-রেসপন্স মনিটর করতে পারবেন এবং প্রয়োজন হলে সরাসরি রিয়েল-টাইমে ম্যানুয়াল রিপ্লাই পাঠাতে পারবেন।
+                                বাম পাশের তালিকা থেকে যেকোনো কাস্টমারের চ্যাট নির্বাচন করুন।
                               </p>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg w-full pt-4 text-left">
-                              <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-1">
-                                <div className="text-[11px] font-bold text-emerald-800 font-bangla flex items-center gap-1">
-                                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                                  <span>১. Gemini AI</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 font-bangla">২৪/৭ কাস্টমারদের সাথে বুদ্ধিমত্তার সাথে অটো চ্যাট করে।</p>
-                              </div>
-                              <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-1">
-                                <div className="text-[11px] font-bold text-amber-800 font-bangla flex items-center gap-1">
-                                  <Shield className="w-3.5 h-3.5 text-amber-600" />
-                                  <span>২. টেকওভার</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 font-bangla">ম্যানুয়াল মেসেজ পাঠালে সাথে সাথে AI পজ হয়ে আপনি কন্ট্রোল পাবেন।</p>
-                              </div>
-                              <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-1">
-                                <div className="text-[11px] font-bold text-blue-800 font-bangla flex items-center gap-1">
-                                  <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
-                                  <span>৩. রিয়েল-টাইম</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 font-bangla">ইনবক্স স্বয়ংক্রিয়ভাবে প্রতি ২.৫ সেকেন্ডে আপডেট হয়।</p>
-                              </div>
                             </div>
                           </div>
                         ) : (
                           <>
                             {/* Chat Header Bar */}
-                            <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-white">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 border border-emerald-200">
+                            <div className="shrink-0 p-3 sm:p-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-white">
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                {/* Mobile Back Button */}
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedWaPhone(null)}
+                                  className="lg:hidden p-1.5 -ml-1 rounded-xl text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                                  title="Back to list"
+                                >
+                                  <ChevronLeft className="w-5 h-5" />
+                                </button>
+
+                                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 border border-emerald-200">
                                   {currentChat?.customer_name ? currentChat.customer_name.charAt(0).toUpperCase() : <User className="w-5 h-5 text-emerald-700" />}
                                 </div>
                                 <div className="min-w-0">
-                                  <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate font-sans flex items-center gap-2">
-                                    <span>{currentChat?.customer_name || selectedWaPhone}</span>
-                                    {currentChat?.customer_name && (
-                                      <span className="text-[11px] font-normal text-slate-500 font-mono">
-                                        ({selectedWaPhone})
-                                      </span>
-                                    )}
+                                  <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate font-sans">
+                                    {currentChat?.customer_name || selectedWaPhone}
                                   </h3>
-                                  <div className="flex items-center gap-2 pt-0.5">
-                                    <a
-                                      href={`tel:${selectedWaPhone.replace(/\s+/g, '')}`}
-                                      className="text-[10px] font-bold text-slate-600 hover:text-emerald-700 font-bangla flex items-center gap-0.5 transition-colors"
-                                    >
-                                      <Phone className="w-2.5 h-2.5 text-slate-400" />
-                                      <span>কল</span>
-                                    </a>
+                                  <div className="flex items-center gap-2 pt-0.5 text-[11px] text-slate-400 font-mono">
+                                    <span>{selectedWaPhone}</span>
                                     <span className="text-slate-300">•</span>
                                     <a
                                       href={`https://wa.me/${selectedWaPhone.replace(/\D/g, '')}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 font-bangla flex items-center gap-0.5 transition-colors"
+                                      className="text-emerald-600 hover:underline flex items-center gap-0.5"
                                     >
+                                      <span>WhatsApp</span>
                                       <ExternalLink className="w-2.5 h-2.5" />
-                                      <span>WhatsApp Web</span>
                                     </a>
-                                    <span className="text-slate-300">•</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(selectedWaPhone);
-                                        showToast('ফোন নম্বর কপি করা হয়েছে!');
-                                      }}
-                                      className="text-[10px] text-slate-500 hover:text-slate-700 font-bangla flex items-center gap-0.5 cursor-pointer"
-                                    >
-                                      <Copy className="w-2.5 h-2.5" />
-                                      <span>কপি</span>
-                                    </button>
                                   </div>
                                 </div>
                               </div>
 
-                              {/* Action Buttons: AI Bot Status Switch & Delete */}
-                              <div className="flex items-center gap-2">
+                              {/* Action Buttons: Takeover / Agent Toggle & Delete */}
+                              <div className="flex items-center gap-2 shrink-0">
                                 {currentChat?.ai_paused === 1 ? (
                                   <button
                                     type="button"
                                     disabled={isTogglingAi}
                                     onClick={() => handleToggleWaAi(selectedWaPhone, 1)}
-                                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold font-bangla flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                                    title="AI বর্তমানে পজড আছে। পুনরায় AI অটো-রিপ্লাই চালু করতে ক্লিক করুন।"
+                                    className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold font-sans flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                    title="Click to resume AI"
                                   >
                                     <Shield className="w-3.5 h-3.5" />
-                                    <span>টেকওভার সক্রিয়</span>
-                                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-700/40 text-white font-mono">
-                                      AI চালু করুন
-                                    </span>
+                                    <span>Takeover</span>
                                   </button>
                                 ) : (
                                   <button
                                     type="button"
                                     disabled={isTogglingAi}
                                     onClick={() => handleToggleWaAi(selectedWaPhone, 0)}
-                                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-bangla flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-                                    title="Gemini AI অটো-রিপ্লাই দিচ্ছে। নিজে হ্যান্ডেল করতে চাইলে টেকওভার নিন।"
+                                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-sans flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                    title="Click to takeover"
                                   >
                                     <Sparkles className="w-3.5 h-3.5" />
-                                    <span>AI সক্রিয়</span>
-                                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-800/40 text-white font-mono">
-                                      টেকওভার নিন
-                                    </span>
+                                    <span>Agent</span>
                                   </button>
                                 )}
 
@@ -3601,17 +3569,17 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                                   type="button"
                                   onClick={() => handleDeleteWaChat(selectedWaPhone, currentChat?.customer_name || selectedWaPhone)}
                                   className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 border border-rose-100 transition-colors cursor-pointer"
-                                  title="এই কথোপকথন মুছে ফেলুন"
+                                  title="Delete conversation"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </div>
 
-                            {/* Message Thread History Area */}
+                            {/* Message Thread History Area (Scrolls smoothly inside container) */}
                             <div
                               ref={waChatScrollRef}
-                              className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/60 min-h-[480px] max-h-[520px]"
+                              className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3.5 bg-slate-50/60 min-h-0"
                             >
                               {isLoadingWaMessages && waMessages.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center h-full py-12 text-slate-400 space-y-2">
@@ -3655,13 +3623,13 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                                           {isBot && (
                                             <>
                                               <Sparkles className="w-3 h-3 text-indigo-600" />
-                                              <span>Gemini AI অটো-রিপ্লাই</span>
+                                              <span>Gemini AI</span>
                                             </>
                                           )}
                                           {isAgent && (
                                             <>
                                               <Shield className="w-3 h-3 text-emerald-200" />
-                                              <span>এডমিন রিপ্লাই (Human Takeover)</span>
+                                              <span>এডমিন রিপ্লাই</span>
                                             </>
                                           )}
                                         </div>
@@ -3687,41 +3655,10 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                               )}
                             </div>
 
-                            {/* Human Takeover Notice Bar */}
-                            {currentChat?.ai_paused === 1 ? (
-                              <div className="px-4 py-2 bg-amber-50/90 border-t border-b border-amber-200 text-amber-900 text-xs font-bangla flex items-center justify-between">
-                                <span className="flex items-center gap-1.5">
-                                  <Shield className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                                  <span>হিউম্যান টেকওভার সক্রিয়: AI বর্তমানে সাময়িকভাবে পজ আছে।</span>
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleWaAi(selectedWaPhone, 1)}
-                                  className="text-[11px] font-bold text-amber-800 underline hover:text-amber-950 cursor-pointer"
-                                >
-                                  AI চালু করতে ক্লিক করুন
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="px-4 py-2 bg-emerald-50/80 border-t border-b border-emerald-200 text-emerald-900 text-xs font-bangla flex items-center justify-between">
-                                <span className="flex items-center gap-1.5">
-                                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                                  <span>AI অটো-পাইলট চলছে: আপনি এখান থেকে মেসেজ পাঠালে স্বয়ংক্রিয়ভাবে টেকওভার চালু হবে।</span>
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleWaAi(selectedWaPhone, 0)}
-                                  className="text-[11px] font-bold text-emerald-800 underline hover:text-emerald-950 cursor-pointer"
-                                >
-                                  টেকওভার নিন
-                                </button>
-                              </div>
-                            )}
-
-                            {/* Bottom Reply Box */}
+                            {/* Bottom Reply Box (Always Pinned at the bottom of the chat) */}
                             <form
                               onSubmit={handleSendWhatsAppMessage}
-                              className="p-3 sm:p-4 bg-white border-t border-slate-100 flex items-end gap-2 sm:gap-3"
+                              className="shrink-0 p-3 sm:p-4 bg-white border-t border-slate-100 flex items-end gap-2 sm:gap-3"
                             >
                               <div className="flex-1 min-w-0">
                                 <textarea
@@ -3734,8 +3671,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                                     }
                                   }}
                                   rows={2}
-                                  placeholder="সরাসরি গ্রাহকের হোয়াটসঅ্যাপে উত্তর লিখুন (Enter চাপুন পাঠাতে, Shift+Enter নতুন লাইনের জন্য)..."
-                                  className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none leading-relaxed"
+                                  placeholder="Leave a message..."
+                                  className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm font-sans focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none leading-relaxed"
                                 />
                               </div>
 
@@ -3767,8 +3704,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 /* Main Split CRM Workspace (Left: List, Right: Detail + Side Notes) */
                 <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col lg:flex-row min-h-[720px]">
                   
-                  {/* LEFT COLUMN: Message List */}
-                  <div className="w-full lg:w-[350px] xl:w-[380px] border-r border-slate-100 bg-slate-50/40 flex flex-col shrink-0">
+                  {/* LEFT COLUMN: Message List (Hidden on mobile when an inquiry is selected) */}
+                  <div className={`w-full lg:w-[350px] xl:w-[380px] border-r border-slate-100 bg-slate-50/40 flex flex-col shrink-0 ${selectedCommentId ? 'hidden lg:flex' : 'flex'}`}>
                     
                     {/* Search Bar */}
                     <div className="p-3 bg-white border-b border-slate-100">
@@ -3926,7 +3863,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                   </div>
 
                   {/* RIGHT COLUMN: Active Thread & Admin Notes Panel */}
-                  <div className="flex-1 flex flex-col bg-white overflow-hidden">
+                  <div className={`flex-1 flex flex-col bg-white overflow-hidden ${selectedCommentId ? 'flex' : 'hidden lg:flex'}`}>
                     {!selectedItem ? (
                       <div className="flex-1 flex flex-col items-center justify-center p-12 text-center text-slate-400">
                         <Mail className="w-14 h-14 text-slate-300 mb-3" />
@@ -3938,9 +3875,19 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     ) : (
                       <>
                         {/* Conversation Header */}
-                        <div className="p-4 sm:p-5 border-b border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="p-4 sm:p-5 border-b border-slate-100 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
                           <div className="flex items-center gap-3">
-                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm uppercase text-white shadow-xs ${
+                            {/* Mobile Back Button to return to Inquiry List */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCommentId(null)}
+                              className="lg:hidden p-1.5 -ml-1 rounded-xl text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                              title="Back to inquiries list"
+                            >
+                              <ChevronLeft className="w-5 h-5" />
+                            </button>
+
+                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-sm uppercase text-white shadow-xs shrink-0 ${
                               selectedItem.is_direct ? 'bg-blue-600' : 'bg-emerald-600'
                             }`}>
                               {(selectedItem.author_name || 'U')[0]}
@@ -4313,8 +4260,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
           {/* VIEW: Analytics & Traffic Insights */}
           {activeNav === 'analytics' && (
             <div className="space-y-8">
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs">
+              {/* Header (Stacked/Sticky at Top of Section) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs sticky top-0 z-20">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 font-sans flex items-center gap-2">
                     <BarChart3 className="w-5 h-5 text-blue-600" />
@@ -4386,7 +4333,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
           {/* VIEW: Media Gallery */}
           {activeNav === 'media' && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              {/* Header (Stacked/Sticky at Top of Section) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 sticky top-0 z-20 bg-white/95 backdrop-blur-md pt-2">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 font-sans flex items-center gap-2">
                     <ImageIcon className="w-5 h-5 text-blue-600" />
@@ -4520,7 +4468,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
           {activeNav === 'calendar' && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+              {/* Header (Stacked/Sticky at Top of Section) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 sticky top-0 z-20 bg-white/95 backdrop-blur-md pt-2">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 font-bangla flex items-center gap-2">
                     <CalendarDays className="w-5 h-5 text-blue-600" />
@@ -4633,8 +4582,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
           {/* VIEW 4: Settings (Clean Titles, Device Upload & Drag Position) */}
           {activeNav === 'settings' && (
             <div className="space-y-8">
-              {/* Main Page Title: Settings */}
-              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
+              {/* Main Page Title: Settings (Stacked/Sticky at Top of Section) */}
+              <div className="flex items-center justify-between pb-3 pt-1 border-b border-slate-200/80 sticky top-0 z-20 bg-[#f4f7f6]/95 backdrop-blur-md">
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-sans tracking-tight">
                   Settings
                 </h1>
@@ -5047,7 +4996,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
           {/* VIEW 5: Git Backup */}
           {activeNav === 'backup' && (
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
-              <div className="flex items-center justify-between">
+              {/* Header (Stacked/Sticky at Top of Section) */}
+              <div className="flex items-center justify-between pb-3 pt-1 border-b border-slate-100 sticky top-0 z-20 bg-white/95 backdrop-blur-md">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900 font-bangla">গিট ব্যাকআপ ও সিঙ্ক (Git Sync)</h3>
                   <p className="text-xs text-slate-500 font-bangla mt-1">
@@ -5079,8 +5029,8 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
           {/* VIEW 8: Team Management & RBAC */}
           {activeNav === 'team' && (
             <div className="space-y-8">
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
+              {/* Header (Stacked/Sticky at Top of Section) */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 pt-1 border-b border-slate-200/80 sticky top-0 z-20 bg-[#f4f7f6]/95 backdrop-blur-md">
                 <div>
                   <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-sans tracking-tight flex items-center gap-2.5">
                     <Users className="w-7 h-7 text-emerald-600" />

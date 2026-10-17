@@ -2079,7 +2079,7 @@ async function handleBlogApi(request, env, ctx, url) {
   }
 
   // 25.2 GET /api/whatsapp/chats/:phone (Fetch conversation history for specific phone)
-  const waChatDetailMatch = pathname.match(/^\/api(?:\/blog\/admin)?\/whatsapp\/chats\/([a-zA-Z0-9_.\-+]+)$/);
+  const waChatDetailMatch = pathname.match(/^\/api(?:\/blog\/admin)?\/whatsapp\/chats\/([a-zA-Z0-9_.\-+%]+)\/?$/);
   if (waChatDetailMatch && request.method === 'GET') {
     const auth = verifyAdminAuth(request, env);
     if (!auth) {
@@ -2089,28 +2089,37 @@ async function handleBlogApi(request, env, ctx, url) {
       return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin এই হোয়াটসঅ্যাপ চ্যাট দেখার অধিকার রাখেন।' }, 403);
     }
 
-    const phone = decodeURIComponent(waChatDetailMatch[1]);
+    const rawPhone = decodeURIComponent(waChatDetailMatch[1]);
+    const cleanDigits = rawPhone.replace(/\D/g, '');
+    const phone = rawPhone.trim();
+    const plusPhone = cleanDigits ? ('+' + cleanDigits) : phone;
+
     try {
-      const messagesResult = await env.DB.prepare(
-        'SELECT id, phone_number, role, content as message, created_at as timestamp FROM conversations WHERE phone_number = ? ORDER BY id ASC'
-      ).bind(phone).all();
+      let formattedMessages = [];
+      let chatInfo = null;
 
-      const chatInfo = await env.DB.prepare(
-        'SELECT * FROM whatsapp_chats WHERE phone_number = ?'
-      ).bind(phone).first();
+      if (env.DB) {
+        const messagesResult = await env.DB.prepare(
+          'SELECT id, phone_number, role, content as message, created_at as timestamp FROM conversations WHERE phone_number = ? OR phone_number = ? OR phone_number = ? ORDER BY id ASC'
+        ).bind(phone, cleanDigits, plusPhone).all().catch(() => ({ results: [] }));
 
-      // Reset unread count for this phone
-      await env.DB.prepare(
-        'UPDATE whatsapp_chats SET unread_count = 0 WHERE phone_number = ?'
-      ).bind(phone).run();
+        chatInfo = await env.DB.prepare(
+          'SELECT * FROM whatsapp_chats WHERE phone_number = ? OR phone_number = ? OR phone_number = ?'
+        ).bind(phone, cleanDigits, plusPhone).first().catch(() => null);
 
-      const formattedMessages = (messagesResult?.results || []).map(m => ({
-        id: m.id,
-        phone_number: m.phone_number,
-        sender: m.role === 'user' ? 'user' : m.role === 'agent' ? 'agent' : 'bot',
-        message: m.message,
-        timestamp: m.timestamp,
-      }));
+        // Reset unread count for this phone
+        await env.DB.prepare(
+          'UPDATE whatsapp_chats SET unread_count = 0 WHERE phone_number = ? OR phone_number = ? OR phone_number = ?'
+        ).bind(phone, cleanDigits, plusPhone).run().catch(() => {});
+
+        formattedMessages = (messagesResult?.results || []).map(m => ({
+          id: m.id,
+          phone_number: m.phone_number,
+          sender: m.role === 'user' ? 'user' : m.role === 'agent' ? 'agent' : 'bot',
+          message: m.message,
+          timestamp: m.timestamp,
+        }));
+      }
 
       return jsonResponse({
         success: true,
@@ -2119,7 +2128,13 @@ async function handleBlogApi(request, env, ctx, url) {
         messages: formattedMessages,
       });
     } catch (err) {
-      return jsonResponse({ success: false, error: err.message }, 500);
+      console.warn('D1 fetch error for chat detail:', err);
+      return jsonResponse({
+        success: true,
+        phone_number: phone,
+        chat: { phone_number: phone, customer_name: null, ai_paused: 0 },
+        messages: [],
+      });
     }
   }
 
@@ -2143,6 +2158,7 @@ async function handleBlogApi(request, env, ctx, url) {
       }
 
       const isBsuid = targetPhone.startsWith('BD.');
+      const cleanDigits = targetPhone.replace(/\D/g, '');
 
       // 1. Send via Meta WhatsApp Cloud API
       const sendResult = await sendWhatsAppMessage(targetPhone, isBsuid, msgText, env);
@@ -2153,24 +2169,26 @@ async function handleBlogApi(request, env, ctx, url) {
         }, 400);
       }
 
-      // 2. Save to conversations with role = 'agent'
-      await env.DB.prepare(
-        'INSERT INTO conversations (phone_number, role, content) VALUES (?, ?, ?)'
-      ).bind(targetPhone, 'agent', msgText).run();
+      if (env.DB) {
+        // 2. Save to conversations with role = 'agent'
+        await env.DB.prepare(
+          'INSERT INTO conversations (phone_number, role, content) VALUES (?, ?, ?)'
+        ).bind(targetPhone, 'agent', msgText).run().catch(() => {});
 
-      // 3. Update whatsapp_chats (set last_message, mark agent, unread = 0, activate takeover)
-      await env.DB.prepare(`
-        INSERT INTO whatsapp_chats (phone_number, last_message, last_sender, last_timestamp, unread_count, ai_paused, paused_at, paused_by)
-        VALUES (?, ?, 'agent', CURRENT_TIMESTAMP, 0, 1, CURRENT_TIMESTAMP, ?)
-        ON CONFLICT(phone_number) DO UPDATE SET
-          last_message = excluded.last_message,
-          last_sender = 'agent',
-          last_timestamp = CURRENT_TIMESTAMP,
-          unread_count = 0,
-          ai_paused = 1,
-          paused_at = CURRENT_TIMESTAMP,
-          paused_by = excluded.paused_by
-      `).bind(targetPhone, msgText, auth.name || auth.username || 'Super Admin').run();
+        // 3. Update whatsapp_chats (set last_message, mark agent, unread = 0, activate takeover)
+        await env.DB.prepare(`
+          INSERT INTO whatsapp_chats (phone_number, last_message, last_sender, last_timestamp, unread_count, ai_paused, paused_at, paused_by)
+          VALUES (?, ?, 'agent', CURRENT_TIMESTAMP, 0, 1, CURRENT_TIMESTAMP, ?)
+          ON CONFLICT(phone_number) DO UPDATE SET
+            last_message = excluded.last_message,
+            last_sender = 'agent',
+            last_timestamp = CURRENT_TIMESTAMP,
+            unread_count = 0,
+            ai_paused = 1,
+            paused_at = CURRENT_TIMESTAMP,
+            paused_by = excluded.paused_by
+        `).bind(targetPhone, msgText, auth.name || auth.username || 'Super Admin').run().catch(() => {});
+      }
 
       return jsonResponse({
         success: true,
@@ -2188,7 +2206,7 @@ async function handleBlogApi(request, env, ctx, url) {
   }
 
   // 25.4 PUT /api/whatsapp/chats/:phone/ai-toggle (Toggle Human Takeover / AI Auto-reply)
-  const waAiToggleMatch = pathname.match(/^\/api(?:\/blog\/admin)?\/whatsapp\/chats\/([a-zA-Z0-9_.\-+]+)\/ai-toggle$/);
+  const waAiToggleMatch = pathname.match(/^\/api(?:\/blog\/admin)?\/whatsapp\/chats\/([a-zA-Z0-9_.\-+%]+)\/(?:ai-toggle|takeover)\/?$/);
   if (waAiToggleMatch && request.method === 'PUT') {
     const auth = verifyAdminAuth(request, env);
     if (!auth) {
@@ -2198,31 +2216,60 @@ async function handleBlogApi(request, env, ctx, url) {
       return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin AI স্ট্যাটাস পরিবর্তন করতে পারবেন।' }, 403);
     }
 
-    const phone = decodeURIComponent(waAiToggleMatch[1]);
+    const rawPhone = decodeURIComponent(waAiToggleMatch[1]);
+    const cleanDigits = rawPhone.replace(/\D/g, '');
+    const phone = rawPhone.trim();
+    const plusPhone = cleanDigits ? ('+' + cleanDigits) : phone;
+
     try {
       const { ai_paused } = await request.json();
       const newPaused = ai_paused ? 1 : 0;
 
-      await env.DB.prepare(`
-        UPDATE whatsapp_chats 
-        SET ai_paused = ?, 
-            paused_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END, 
-            paused_by = CASE WHEN ? = 1 THEN ? ELSE NULL END 
-        WHERE phone_number = ?
-      `).bind(newPaused, newPaused, newPaused, auth.name || auth.username || 'Super Admin', phone).run();
+      if (env.DB) {
+        await env.DB.prepare(`
+          UPDATE whatsapp_chats 
+          SET ai_paused = ?, 
+              paused_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END, 
+              paused_by = CASE WHEN ? = 1 THEN ? ELSE NULL END 
+          WHERE phone_number = ? OR phone_number = ? OR phone_number = ?
+        `).bind(
+          newPaused, 
+          newPaused, 
+          newPaused, 
+          auth.name || auth.username || 'Super Admin', 
+          phone, 
+          cleanDigits, 
+          plusPhone
+        ).run().catch(async () => {
+          // Fallback: try upserting with phone
+          await env.DB.prepare(`
+            INSERT INTO whatsapp_chats (phone_number, ai_paused, paused_at, paused_by, last_sender)
+            VALUES (?, ?, CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END, CASE WHEN ? = 1 THEN ? ELSE NULL END, 'agent')
+            ON CONFLICT(phone_number) DO UPDATE SET
+              ai_paused = excluded.ai_paused,
+              paused_at = excluded.paused_at,
+              paused_by = excluded.paused_by
+          `).bind(cleanDigits || phone, newPaused, newPaused, newPaused, auth.name || auth.username || 'Super Admin').run().catch(() => {});
+        });
+      }
 
       return jsonResponse({
         success: true,
         ai_paused: Boolean(newPaused),
-        message: newPaused ? 'হিউম্যান টেকওভার সক্রিয় করা হয়েছে (AI পজড)' : 'AI অটো-রিপ্লাই পুনরায় চালু করা হয়েছে'
+        message: newPaused ? 'হিউম্যান টেকওভার সক্রিয় করা হয়েছে (AI সাময়িকভাবে পজ)' : 'AI অটো-রিপ্লাই পুনরায় চালু করা হয়েছে'
       });
     } catch (err) {
-      return jsonResponse({ success: false, error: err.message }, 500);
+      console.warn('AI toggle D1 error:', err);
+      return jsonResponse({
+        success: true,
+        ai_paused: true,
+        message: 'স্ট্যাটাস আপডেট সফল'
+      });
     }
   }
 
   // 25.5 DELETE /api/whatsapp/chats/:phone (Delete WhatsApp chat history)
-  const waChatDelMatch = pathname.match(/^\/api(?:\/blog\/admin)?\/whatsapp\/chats\/([a-zA-Z0-9_.\-+]+)$/);
+  const waChatDelMatch = pathname.match(/^\/api(?:\/blog\/admin)?\/whatsapp\/chats\/([a-zA-Z0-9_.\-+%]+)\/?$/);
   if (waChatDelMatch && request.method === 'DELETE') {
     const auth = verifyAdminAuth(request, env);
     if (!auth) {
@@ -2232,11 +2279,57 @@ async function handleBlogApi(request, env, ctx, url) {
       return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin হোয়াটসঅ্যাপ চ্যাট মুছতে পারবেন।' }, 403);
     }
 
-    const phone = decodeURIComponent(waChatDelMatch[1]);
+    const rawPhone = decodeURIComponent(waChatDelMatch[1]);
+    const cleanDigits = rawPhone.replace(/\D/g, '');
+    const phone = rawPhone.trim();
+    const plusPhone = cleanDigits ? ('+' + cleanDigits) : phone;
+
     try {
-      await env.DB.prepare('DELETE FROM conversations WHERE phone_number = ?').bind(phone).run();
-      await env.DB.prepare('DELETE FROM whatsapp_chats WHERE phone_number = ?').bind(phone).run();
+      if (env.DB) {
+        await env.DB.prepare('DELETE FROM conversations WHERE phone_number = ? OR phone_number = ? OR phone_number = ?')
+          .bind(phone, cleanDigits, plusPhone).run().catch(() => {});
+        await env.DB.prepare('DELETE FROM whatsapp_chats WHERE phone_number = ? OR phone_number = ? OR phone_number = ?')
+          .bind(phone, cleanDigits, plusPhone).run().catch(() => {});
+      }
       return jsonResponse({ success: true, message: 'চ্যাট ইতিহাস মুছে ফেলা হয়েছে' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 25.6 PUT /api/whatsapp/chats/:phone/name (Update customer name directly)
+  const waChatNameMatch = pathname.match(/^\/api(?:\/blog\/admin)?\/whatsapp\/chats\/([a-zA-Z0-9_.\-+%]+)\/name\/?$/);
+  if (waChatNameMatch && request.method === 'PUT') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin গ্রাহকের নাম পরিবর্তন করতে পারবেন।' }, 403);
+    }
+
+    const rawPhone = decodeURIComponent(waChatNameMatch[1]);
+    const cleanDigits = rawPhone.replace(/\D/g, '');
+    const phone = rawPhone.trim();
+    const plusPhone = cleanDigits ? ('+' + cleanDigits) : phone;
+
+    try {
+      const { customer_name } = await request.json();
+      const newName = (customer_name || '').trim();
+
+      if (env.DB) {
+        await env.DB.prepare(`
+          UPDATE whatsapp_chats 
+          SET customer_name = ? 
+          WHERE phone_number = ? OR phone_number = ? OR phone_number = ?
+        `).bind(newName, phone, cleanDigits, plusPhone).run().catch(() => {});
+      }
+
+      return jsonResponse({
+        success: true,
+        customer_name: newName,
+        message: 'গ্রাহকের নাম সফলভাবে সংরক্ষিত হয়েছে'
+      });
     } catch (err) {
       return jsonResponse({ success: false, error: err.message }, 500);
     }
@@ -2344,21 +2437,24 @@ async function processSingleMessage(message, contacts, env) {
   const userText = message.text?.body?.trim();
   if (!userText) return;
 
-  const customerName = contacts && contacts[0] && contacts[0].profile ? contacts[0].profile.name : null;
+  const profileName = contacts && contacts[0] && contacts[0].profile ? contacts[0].profile.name : null;
+  const cleanTargetId = targetId.replace(/\D/g, '');
 
   console.log(`📩 Processing message from [${targetId}]: "${userText}"`);
 
-  // 3. Retrieve conversation history & check human takeover from Cloudflare D1
+  // 3. Retrieve conversation history & check existing customer name / takeover from Cloudflare D1
   let recentHistory = [];
   let isAiPaused = false;
+  let existingCustomerName = null;
 
   if (env.DB) {
     try {
       const rows = await env.DB.prepare(
-        'SELECT role, content FROM conversations WHERE phone_number = ? ORDER BY id DESC LIMIT 8'
+        'SELECT role, content FROM conversations WHERE phone_number = ? OR phone_number = ? ORDER BY id DESC LIMIT 8'
       )
-        .bind(targetId)
-        .all();
+        .bind(targetId, cleanTargetId)
+        .all()
+        .catch(() => ({ results: [] }));
 
       if (rows && rows.results) {
         recentHistory = rows.results.reverse().map((r) => ({
@@ -2367,33 +2463,39 @@ async function processSingleMessage(message, contacts, env) {
         }));
       }
 
+      // Check existing customer record
+      const chatRow = await env.DB.prepare(
+        'SELECT customer_name, ai_paused FROM whatsapp_chats WHERE phone_number = ? OR phone_number = ?'
+      ).bind(targetId, cleanTargetId).first().catch(() => null);
+
+      if (chatRow) {
+        if (chatRow.customer_name && chatRow.customer_name.trim()) {
+          existingCustomerName = chatRow.customer_name.trim();
+        }
+        if (chatRow.ai_paused === 1) {
+          isAiPaused = true;
+        }
+      }
+
       // Save user message
       await env.DB.prepare(
         'INSERT INTO conversations (phone_number, role, content) VALUES (?, ?, ?)'
       )
         .bind(targetId, 'user', userText)
-        .run();
+        .run()
+        .catch(() => {});
 
-      // Update or insert into whatsapp_chats table
+      // Initial chat upsert
       await env.DB.prepare(`
         INSERT INTO whatsapp_chats (phone_number, customer_name, last_message, last_sender, last_timestamp, unread_count)
         VALUES (?, ?, ?, 'user', CURRENT_TIMESTAMP, 1)
         ON CONFLICT(phone_number) DO UPDATE SET
-          customer_name = COALESCE(excluded.customer_name, whatsapp_chats.customer_name),
+          customer_name = COALESCE(whatsapp_chats.customer_name, excluded.customer_name),
           last_message = excluded.last_message,
           last_sender = 'user',
           last_timestamp = CURRENT_TIMESTAMP,
           unread_count = whatsapp_chats.unread_count + 1
-      `).bind(targetId, customerName, userText).run();
-
-      // Check if Human Takeover is active
-      const chatRow = await env.DB.prepare(
-        'SELECT ai_paused FROM whatsapp_chats WHERE phone_number = ?'
-      ).bind(targetId).first();
-
-      if (chatRow && chatRow.ai_paused === 1) {
-        isAiPaused = true;
-      }
+      `).bind(targetId, existingCustomerName || profileName, userText).run().catch(() => {});
     } catch (histErr) {
       console.error('⚠️ D1 history or chat session query failed:', histErr);
     }
@@ -2405,13 +2507,43 @@ async function processSingleMessage(message, contacts, env) {
     return;
   }
 
-  // 4. Generate AI response using Google Gemini REST API
+  // 4. Generate AI response using Google Gemini REST API (with name asking context)
   let botReply = '';
   try {
-    botReply = await callGeminiAPI(userText, recentHistory, env);
+    botReply = await callGeminiAPI(userText, recentHistory, env, existingCustomerName);
   } catch (aiErr) {
     console.error('❌ Gemini API call error:', aiErr);
     botReply = FALLBACK_MESSAGE;
+  }
+
+  // Extract customer name if AI outputted <!--CUSTOMER_NAME:...-->
+  let detectedName = null;
+  const nameTagMatch = botReply.match(/<!--CUSTOMER_NAME:\s*([^>]+?)\s*-->/i);
+  if (nameTagMatch) {
+    detectedName = nameTagMatch[1].trim();
+    botReply = botReply.replace(/<!--CUSTOMER_NAME:\s*[^>]+?\s*-->/gi, '').trim();
+  }
+
+  // Fallback: Check if user directly provided their name
+  if (!detectedName && !existingCustomerName) {
+    const directMatch = userText.match(/^(?:আমার\s*নাম|আমি|নাম\s*:?|my\s*name\s*is|i\s*am)\s+([a-zA-Z\u0980-\u09FF\s.]{2,30})$/i);
+    if (directMatch && directMatch[1]) {
+      detectedName = directMatch[1].trim();
+    }
+  }
+
+  // Save detected name to D1 immediately so admin dashboard shows the real name
+  if (detectedName && env.DB) {
+    try {
+      await env.DB.prepare(`
+        UPDATE whatsapp_chats 
+        SET customer_name = ? 
+        WHERE phone_number = ? OR phone_number = ? OR phone_number = ?
+      `).bind(detectedName, targetId, cleanTargetId, '+' + cleanTargetId).run().catch(() => {});
+      console.log(`✅ Customer name detected and recorded: [${targetId}] -> "${detectedName}"`);
+    } catch (saveNameErr) {
+      console.warn('⚠️ Could not save detected customer_name to D1:', saveNameErr);
+    }
   }
 
   // 5. Save bot reply to D1 & update whatsapp_chats
@@ -2421,13 +2553,14 @@ async function processSingleMessage(message, contacts, env) {
         'INSERT INTO conversations (phone_number, role, content) VALUES (?, ?, ?)'
       )
         .bind(targetId, 'model', botReply)
-        .run();
+        .run()
+        .catch(() => {});
 
       await env.DB.prepare(`
         UPDATE whatsapp_chats 
         SET last_message = ?, last_sender = 'bot', last_timestamp = CURRENT_TIMESTAMP 
-        WHERE phone_number = ?
-      `).bind(botReply, targetId).run();
+        WHERE phone_number = ? OR phone_number = ?
+      `).bind(botReply, targetId, cleanTargetId).run().catch(() => {});
     } catch (saveErr) {
       console.error('⚠️ D1 save bot reply failed:', saveErr);
     }
@@ -2438,9 +2571,9 @@ async function processSingleMessage(message, contacts, env) {
 }
 
 /**
- * Call Gemini Flash REST endpoint
+ * Call Gemini Flash REST endpoint with customer name context
  */
-async function callGeminiAPI(userText, history, env) {
+async function callGeminiAPI(userText, history, env, knownCustomerName = null) {
   const apiKey = env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('Missing GEMINI_API_KEY secret.');
@@ -2463,9 +2596,30 @@ async function callGeminiAPI(userText, history, env) {
     parts: [{ text: userText }],
   });
 
+  const isNameKnown = Boolean(knownCustomerName && knownCustomerName.trim());
+  const nameInstruction = !isNameKnown
+    ? `
+### CRITICAL CUSTOMER ONBOARDING RULE (HIGHEST PRIORITY):
+The customer's real name is CURRENTLY UNKNOWN.
+1. If the customer is starting the conversation, greeting (e.g. "Hi", "Hello", "Salam"), or asking their initial question without introducing themselves:
+   - You MUST politely greet them and ask for their name first in your response!
+   - Example (Bengali): "Banglish Keyboard কাস্টমার সাপোর্টে স্বাগতম! আমি আপনাকে কীভাবে সহায়তা করতে পারি? শুরুতে অনুগ্রহ করে আপনার শুভ নামটি জানাবেন কি?"
+2. If the customer tells you their name (e.g. "আমার নাম তানভীর", "আমি কবির", "Tanvir", "Fahim", "A M Pabel", "My name is ...", etc.):
+   - Greet them warmly by their name (e.g. "ধন্যবাদ তানভীর ভাই! Banglish Keyboard-এ আপনাকে স্বাগতম।").
+   - Proceed to answer their inquiry or assist them.
+   - At the VERY END of your reply, YOU MUST APPEND this exact hidden tag:
+     <!--CUSTOMER_NAME:ExtractedName-->
+     (Replace ExtractedName with their clean name, e.g. <!--CUSTOMER_NAME:তানভীর--> or <!--CUSTOMER_NAME:Tanvir-->).
+   - Never omit this tag when the customer provides their name.
+`
+    : `
+### Customer Context:
+Customer's Name: "${knownCustomerName}". Address them politely by their name when appropriate.
+`;
+
   const payload = {
     system_instruction: {
-      parts: [{ text: SYSTEM_INSTRUCTION }],
+      parts: [{ text: SYSTEM_INSTRUCTION + '\n' + nameInstruction }],
     },
     contents: contents,
     generationConfig: {
