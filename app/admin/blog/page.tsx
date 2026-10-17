@@ -12,11 +12,32 @@ import {
   Heading1, Heading2, Heading3, AlignCenter, Quote, Code, List,
   Calendar as CalendarIcon, CheckSquare, Camera, Upload, ZoomIn, ZoomOut, Move,
   Phone, Users, Shield, UserPlus, UserCheck, UserX,
-  Info, MessageCircle, AlertTriangle, PhoneCall
+  Info, MessageCircle, AlertTriangle, PhoneCall,
+  Bot, ToggleLeft, ToggleRight, Power
 } from 'lucide-react';
 import { transliterateWord } from '@/lib/phoneticEngine';
 import MarkdownRenderer from '@/components/blog/MarkdownRenderer';
 import { blogCategories, BlogPost, blogPosts as fallbackStaticPosts } from '@/data/blogData';
+
+interface WhatsAppChat {
+  phone_number: string;
+  customer_name?: string | null;
+  last_message?: string;
+  last_sender?: 'user' | 'model' | 'agent' | 'bot';
+  last_timestamp?: string;
+  unread_count?: number;
+  ai_paused?: number;
+  paused_at?: string;
+  paused_by?: string;
+}
+
+interface WhatsAppMessage {
+  id: number;
+  phone_number: string;
+  sender: 'user' | 'bot' | 'agent';
+  message: string;
+  timestamp: string;
+}
 
 interface AdminUser {
   id: number;
@@ -239,12 +260,27 @@ export default function AdminBlogPage() {
   // Comments & Inquiries State (Meta Business Suite Style Inbox)
   const [comments, setComments] = useState<AdminComment[]>([]);
   const [unreadCommentsCount, setUnreadCommentsCount] = useState<number>(0);
-  const [inboxMainTab, setInboxMainTab] = useState<'all' | 'inquiries' | 'comments'>('all');
+  const [inboxMainTab, setInboxMainTab] = useState<'all' | 'inquiries' | 'comments' | 'whatsapp'>('all');
   const [inboxStatusFilter, setInboxStatusFilter] = useState<'all' | 'unread' | 'pending' | 'ongoing' | 'completed'>('all');
   const [inboxSearchQuery, setInboxSearchQuery] = useState('');
   const [selectedCommentId, setSelectedCommentId] = useState<number | null>(null);
   const [adminReplyText, setAdminReplyText] = useState('');
   const [isSendingReply, setIsSendingReply] = useState(false);
+
+  // WhatsApp Live Chat States (Strictly Super Admin Only)
+  const [whatsappChats, setWhatsappChats] = useState<WhatsAppChat[]>([]);
+  const [selectedWaPhone, setSelectedWaPhone] = useState<string | null>(null);
+  const [waMessages, setWaMessages] = useState<WhatsAppMessage[]>([]);
+  const [waSelectedChat, setWaSelectedChat] = useState<WhatsAppChat | null>(null);
+  const [waReplyText, setWaReplyText] = useState('');
+  const [isSendingWa, setIsSendingWa] = useState(false);
+  const [isLoadingWaChats, setIsLoadingWaChats] = useState(false);
+  const [isLoadingWaMessages, setIsLoadingWaMessages] = useState(false);
+  const [isTogglingAi, setIsTogglingAi] = useState(false);
+  const [waSearchQuery, setWaSearchQuery] = useState('');
+  const [waFilter, setWaFilter] = useState<'all' | 'unread' | 'takeover' | 'ai'>('all');
+  const [totalWaUnread, setTotalWaUnread] = useState(0);
+  const waChatScrollRef = useRef<HTMLDivElement>(null);
 
   // Inquiry Discussion Notes State (Admin Only)
   const [inquiryNoteText, setInquiryNoteText] = useState('');
@@ -438,6 +474,199 @@ export default function AdminBlogPage() {
     }
   }, [token]);
 
+  // Fetch WhatsApp Chats (Strictly Super Admin Only)
+  const fetchWhatsAppChats = useCallback(async (authToken?: string, isSilent = false) => {
+    const t = authToken || token;
+    if (!t) return;
+    if (currentUser && currentUser.role !== 'super_admin') return;
+    if (!isSilent) setIsLoadingWaChats(true);
+    try {
+      const res = await fetch('/api/blog/admin/whatsapp/chats', {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success && Array.isArray(data.chats)) {
+        setWhatsappChats(data.chats);
+        setTotalWaUnread(data.totalUnread || 0);
+      }
+    } catch (err) {
+      console.warn('Error fetching whatsapp chats:', err);
+    } finally {
+      if (!isSilent) setIsLoadingWaChats(false);
+    }
+  }, [token, currentUser]);
+
+  // Fetch WhatsApp Messages for Specific Customer Phone
+  const fetchWhatsAppMessages = useCallback(async (phone: string, isSilent = false, authToken?: string) => {
+    const t = authToken || token;
+    if (!t || !phone) return;
+    if (currentUser && currentUser.role !== 'super_admin') return;
+    if (!isSilent) setIsLoadingWaMessages(true);
+    try {
+      const res = await fetch(`/api/blog/admin/whatsapp/chats/${encodeURIComponent(phone)}`, {
+        headers: { Authorization: `Bearer ${t}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setWaMessages(data.messages || []);
+        if (data.chat) setWaSelectedChat(data.chat);
+        setWhatsappChats(prev => prev.map(c => c.phone_number === phone ? { ...c, unread_count: 0 } : c));
+      }
+    } catch (err) {
+      console.warn('Error fetching whatsapp messages:', err);
+    } finally {
+      if (!isSilent) setIsLoadingWaMessages(false);
+    }
+  }, [token, currentUser]);
+
+  // Scroll chat to bottom whenever messages update
+  useEffect(() => {
+    if (activeNav === 'messages' && inboxMainTab === 'whatsapp' && waChatScrollRef.current) {
+      waChatScrollRef.current.scrollTop = waChatScrollRef.current.scrollHeight;
+    }
+  }, [waMessages, activeNav, inboxMainTab]);
+
+  // Live real-time polling: every 2.5 seconds when activeNav === 'messages' and inboxMainTab === 'whatsapp'
+  useEffect(() => {
+    if (!token || currentUser?.role !== 'super_admin') return;
+    if (activeNav !== 'messages' || inboxMainTab !== 'whatsapp') return;
+
+    fetchWhatsAppChats(token, true);
+    if (selectedWaPhone) {
+      fetchWhatsAppMessages(selectedWaPhone, true, token);
+    }
+
+    const interval = setInterval(() => {
+      fetchWhatsAppChats(token, true);
+      if (selectedWaPhone) {
+        fetchWhatsAppMessages(selectedWaPhone, true, token);
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [token, currentUser, activeNav, inboxMainTab, selectedWaPhone, fetchWhatsAppChats, fetchWhatsAppMessages]);
+
+  // Send Manual WhatsApp Reply (Triggers Human Takeover automatically)
+  const handleSendWhatsAppMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!selectedWaPhone || !waReplyText.trim() || isSendingWa || !token) return;
+    if (currentUser?.role !== 'super_admin') {
+      showToast('শুধুমাত্র Super Admin হোয়াটসঅ্যাপে মেসেজ পাঠাতে পারেন', 'error');
+      return;
+    }
+
+    const sendingText = waReplyText.trim();
+    setIsSendingWa(true);
+    try {
+      const res = await fetch('/api/blog/admin/whatsapp/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          phone_number: selectedWaPhone,
+          message: sendingText,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setWaReplyText('');
+        // Optimistically add agent message
+        setWaMessages(prev => [
+          ...prev,
+          data.agent_message || {
+            id: Date.now(),
+            phone_number: selectedWaPhone,
+            sender: 'agent',
+            message: sendingText,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+        // Update local chat info with ai_paused = 1
+        setWaSelectedChat(prev => prev ? { ...prev, ai_paused: 1, last_sender: 'agent', last_message: sendingText } : null);
+        setWhatsappChats(prev => prev.map(c => c.phone_number === selectedWaPhone ? {
+          ...c,
+          ai_paused: 1,
+          last_sender: 'agent',
+          last_message: sendingText,
+          last_timestamp: new Date().toISOString(),
+          unread_count: 0,
+        } : c));
+        showToast('গ্রাহকের হোয়াটসঅ্যাপে মেসেজ পাঠানো হয়েছে! (হিউম্যান টেকওভার সক্রিয়)');
+      } else {
+        showToast(data.error || 'মেসেজ পাঠানো ব্যর্থ হয়েছে', 'error');
+      }
+    } catch (err: any) {
+      showToast('সার্ভার এরর: মেসেজ পাঠানো যায়নি', 'error');
+    } finally {
+      setIsSendingWa(false);
+    }
+  };
+
+  // Toggle Human Takeover vs AI Bot
+  const handleToggleWaAi = async (phone: string, currentPaused: number) => {
+    if (!token || currentUser?.role !== 'super_admin') return;
+    const targetPaused = currentPaused === 1 ? 0 : 1;
+    setIsTogglingAi(true);
+    try {
+      const res = await fetch(`/api/blog/admin/whatsapp/chats/${encodeURIComponent(phone)}/ai-toggle`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ai_paused: targetPaused }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setWaSelectedChat(prev => prev ? { ...prev, ai_paused: targetPaused } : null);
+        setWhatsappChats(prev => prev.map(c => c.phone_number === phone ? { ...c, ai_paused: targetPaused } : c));
+        showToast(targetPaused === 1 ? 'হিউম্যান টেকওভার সক্রিয় করা হয়েছে (AI পজড)' : 'AI অটো-রিপ্লাই চালু করা হয়েছে');
+      } else {
+        showToast(data.error || 'AI স্ট্যাটাস পরিবর্তন করতে সমস্যা হয়েছে', 'error');
+      }
+    } catch (err) {
+      showToast('সার্ভার যোগাযোগ ব্যর্থ হয়েছে', 'error');
+    } finally {
+      setIsTogglingAi(false);
+    }
+  };
+
+  // Delete WhatsApp Chat History
+  const handleDeleteWaChat = (phone: string, name?: string) => {
+    if (currentUser?.role !== 'super_admin') return;
+    showConfirmModal({
+      title: 'হোয়াটসঅ্যাপ চ্যাট মুছে ফেলা',
+      message: `আপনি কি নিশ্চিত যে ${name || phone}-এর সমস্ত কথোপকথন ও চ্যাট ইতিহাস চিরতরে মুছে ফেলতে চান?`,
+      confirmText: 'হ্যাঁ, চ্যাট মুছে ফেলুন',
+      cancelText: 'বাতিল',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/blog/admin/whatsapp/chats/${encodeURIComponent(phone)}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            setWhatsappChats(prev => prev.filter(c => c.phone_number !== phone));
+            if (selectedWaPhone === phone) {
+              setSelectedWaPhone(null);
+              setWaMessages([]);
+              setWaSelectedChat(null);
+            }
+            showToast('হোয়াটসঅ্যাপ চ্যাট ইতিহাস সফলভাবে মুছে ফেলা হয়েছে!');
+          } else {
+            showToast(data.error || 'চ্যাট মুছতে সমস্যা হয়েছে', 'error');
+          }
+        } catch (err) {
+          showToast('সার্ভারে সমস্যা হয়েছে', 'error');
+        }
+      },
+    });
+  };
+
   // Unified Data Refresher for 100% Real-time Sync
   const refreshAllData = useCallback((authToken?: string) => {
     const t = authToken || token;
@@ -448,7 +677,10 @@ export default function AdminBlogPage() {
     fetchAdminSettings(t);
     fetchAdminMedia(t);
     fetchTeamMembers(t);
-  }, [token, fetchTeamMembers]);
+    if (currentUser?.role === 'super_admin') {
+      fetchWhatsAppChats(t, true);
+    }
+  }, [token, fetchTeamMembers, currentUser, fetchWhatsAppChats]);
 
   // Check stored auth token on mount
   useEffect(() => {
@@ -2980,10 +3212,520 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                         {allComments.length}
                       </span>
                     </button>
+
+                    {/* WhatsApp Live Inbox Tab: STRICTLY Super Admin Only */}
+                    {currentUser?.role === 'super_admin' && (
+                      <button
+                        onClick={() => {
+                          setInboxMainTab('whatsapp');
+                          if (token) fetchWhatsAppChats(token);
+                        }}
+                        className={`px-4 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold font-bangla transition-all flex items-center gap-2 cursor-pointer ${
+                          inboxMainTab === 'whatsapp'
+                            ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 ring-2 ring-emerald-500/30'
+                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200/80'
+                        }`}
+                      >
+                        <MessageCircle className="w-4 h-4 text-emerald-500" />
+                        <span>WhatsApp (লাইভ চ্যাট)</span>
+                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-emerald-700/20 text-emerald-950 font-extrabold font-mono">
+                          Super Admin
+                        </span>
+                        {whatsappChats.length > 0 && (
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
+                            inboxMainTab === 'whatsapp' ? 'bg-white/20 text-white' : 'bg-emerald-200 text-emerald-900'
+                          }`}>
+                            {whatsappChats.length}
+                          </span>
+                        )}
+                        {totalWaUnread > 0 && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono font-bold animate-pulse">
+                            {totalWaUnread}
+                          </span>
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Main Split CRM Workspace (Left: List, Right: Detail + Side Notes) */}
+                {/* Condition: If WhatsApp tab is selected by Super Admin */}
+                {inboxMainTab === 'whatsapp' && currentUser?.role === 'super_admin' ? (() => {
+                  const filteredWaChats = whatsappChats.filter(chat => {
+                    if (waSearchQuery.trim()) {
+                      const q = waSearchQuery.toLowerCase();
+                      const matchPhone = chat.phone_number?.toLowerCase().includes(q);
+                      const matchName = chat.customer_name?.toLowerCase().includes(q);
+                      const matchMsg = chat.last_message?.toLowerCase().includes(q);
+                      if (!matchPhone && !matchName && !matchMsg) return false;
+                    }
+                    if (waFilter === 'unread') return (chat.unread_count || 0) > 0;
+                    if (waFilter === 'takeover') return chat.ai_paused === 1;
+                    if (waFilter === 'ai') return chat.ai_paused !== 1;
+                    return true;
+                  });
+
+                  const currentChat = whatsappChats.find(c => c.phone_number === selectedWaPhone) || waSelectedChat || null;
+
+                  return (
+                    <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col lg:flex-row min-h-[720px]">
+                      
+                      {/* LEFT COLUMN: Customer Conversations List */}
+                      <div className="w-full lg:w-[360px] xl:w-[400px] border-r border-slate-100 bg-slate-50/40 flex flex-col shrink-0">
+                        
+                        {/* Search & Header */}
+                        <div className="p-3.5 bg-white border-b border-slate-100 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-800 font-bangla flex items-center gap-1.5">
+                              <MessageCircle className="w-4 h-4 text-emerald-600" />
+                              <span>গ্রাহক বার্তা তালিকা</span>
+                            </span>
+                            <button
+                              onClick={() => { if (token) fetchWhatsAppChats(token); }}
+                              disabled={isLoadingWaChats}
+                              className="text-[11px] text-slate-500 hover:text-emerald-700 font-bangla flex items-center gap-1 transition-colors cursor-pointer"
+                              title="রিফ্রেশ"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${isLoadingWaChats ? 'animate-spin text-emerald-600' : ''}`} />
+                              <span>রিফ্রেশ</span>
+                            </button>
+                          </div>
+
+                          <div className="relative">
+                            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={waSearchQuery}
+                              onChange={e => setWaSearchQuery(e.target.value)}
+                              placeholder="খুঁজুন (নাম, মোবাইল নম্বর, বার্তা...)"
+                              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all"
+                            />
+                            {waSearchQuery && (
+                              <button
+                                onClick={() => setWaSearchQuery('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Filter Badges */}
+                        <div className="p-2.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar border-b border-slate-100 bg-slate-50/70">
+                          {[
+                            { id: 'all', label: 'সবগুলো', count: whatsappChats.length },
+                            { id: 'unread', label: 'অপঠিত', count: whatsappChats.filter(c => (c.unread_count || 0) > 0).length },
+                            { id: 'takeover', label: 'টেকওভার', count: whatsappChats.filter(c => c.ai_paused === 1).length },
+                            { id: 'ai', label: 'AI সক্রিয়', count: whatsappChats.filter(c => c.ai_paused !== 1).length },
+                          ].map(f => (
+                            <button
+                              key={f.id}
+                              onClick={() => setWaFilter(f.id as any)}
+                              className={`px-3 py-1 rounded-xl text-[11px] font-bangla font-bold whitespace-nowrap transition-all cursor-pointer ${
+                                waFilter === f.id
+                                  ? 'bg-emerald-700 text-white shadow-2xs'
+                                  : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200/60'
+                              }`}
+                            >
+                              <span>{f.label}</span>
+                              <span className={`ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                                waFilter === f.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+                              }`}>
+                                {f.count}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Chat List Scroll Container */}
+                        <div className="flex-1 overflow-y-auto divide-y divide-slate-100 max-h-[640px]">
+                          {filteredWaChats.length === 0 ? (
+                            <div className="p-8 text-center space-y-2">
+                              <MessageCircle className="w-8 h-8 text-slate-300 mx-auto" />
+                              <p className="text-xs font-semibold text-slate-500 font-bangla">
+                                {whatsappChats.length === 0
+                                  ? 'এখনো কোনো হোয়াটসঅ্যাপ কথোপকথন পাওয়া যায়নি।'
+                                  : 'ফিল্টারের সাথে কোনো চ্যাট মিলেনি।'}
+                              </p>
+                              {whatsappChats.length === 0 && (
+                                <p className="text-[11px] text-slate-400 font-bangla leading-relaxed">
+                                  গ্রাহক আপনার WhatsApp Cloud API নম্বরে মেসেজ পাঠালে তা এখানে সরাসরি রিয়েল-টাইমে দেখতে পাবেন।
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            filteredWaChats.map(chat => {
+                              const isSelected = selectedWaPhone === chat.phone_number;
+                              const isTakeover = chat.ai_paused === 1;
+                              const unread = chat.unread_count || 0;
+
+                              return (
+                                <button
+                                  key={chat.phone_number}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedWaPhone(chat.phone_number);
+                                    fetchWhatsAppMessages(chat.phone_number);
+                                  }}
+                                  className={`w-full text-left p-3.5 transition-all flex items-start gap-3 cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-emerald-50/90 border-l-4 border-l-emerald-600 shadow-2xs'
+                                      : 'hover:bg-slate-50/80'
+                                  }`}
+                                >
+                                  {/* Avatar */}
+                                  <div className="relative shrink-0">
+                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 border border-emerald-200/80 flex items-center justify-center text-emerald-800 font-bold text-sm shadow-2xs">
+                                      {chat.customer_name ? chat.customer_name.charAt(0).toUpperCase() : <User className="w-5 h-5 text-emerald-700" />}
+                                    </div>
+                                    {unread > 0 && (
+                                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold font-mono flex items-center justify-center animate-pulse">
+                                        {unread}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Info */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between gap-1 mb-1">
+                                      <h4 className="text-xs font-bold text-slate-900 truncate font-sans">
+                                        {chat.customer_name || chat.phone_number}
+                                      </h4>
+                                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                                        {chat.last_timestamp ? new Date(chat.last_timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                      </span>
+                                    </div>
+
+                                    {/* Phone & Status Badges */}
+                                    <div className="flex items-center gap-1.5 mb-1.5">
+                                      <span className="text-[11px] text-slate-500 font-mono flex items-center gap-1 truncate">
+                                        <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                                        <span>{chat.phone_number}</span>
+                                      </span>
+                                      {isTakeover ? (
+                                        <span className="text-[9px] font-bold font-bangla px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 shrink-0 flex items-center gap-0.5">
+                                          <Shield className="w-2 h-2 text-amber-600" />
+                                          <span>টেকওভার</span>
+                                        </span>
+                                      ) : (
+                                        <span className="text-[9px] font-bold font-bangla px-1.5 py-0.2 rounded-md bg-emerald-100 text-emerald-800 shrink-0 flex items-center gap-0.5">
+                                          <Sparkles className="w-2 h-2 text-emerald-600" />
+                                          <span>AI সক্রিয়</span>
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Last Message Preview */}
+                                    <p className="text-xs text-slate-600 line-clamp-1 font-bangla">
+                                      {chat.last_sender === 'agent' && (
+                                        <span className="font-bold text-emerald-700">আপনি: </span>
+                                      )}
+                                      {(chat.last_sender === 'model' || chat.last_sender === 'bot') && (
+                                        <span className="font-bold text-indigo-600">Gemini: </span>
+                                      )}
+                                      {chat.last_sender === 'user' && (
+                                        <span className="font-bold text-slate-700">গ্রাহক: </span>
+                                      )}
+                                      <span>{chat.last_message || 'বার্তা'}</span>
+                                    </p>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+
+                      {/* RIGHT COLUMN: WhatsApp Live Chat Detail Area */}
+                      <div className="flex-1 flex flex-col justify-between bg-white min-w-0">
+                        {!selectedWaPhone ? (
+                          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-5 bg-slate-50/30">
+                            <div className="w-16 h-16 rounded-3xl bg-emerald-100/80 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm">
+                              <MessageCircle className="w-8 h-8" />
+                            </div>
+                            <div className="max-w-md space-y-2">
+                              <h3 className="text-lg font-bold text-slate-900 font-sans">
+                                WhatsApp Live Monitoring & Super Admin Takeover
+                              </h3>
+                              <p className="text-xs text-slate-500 font-bangla leading-relaxed">
+                                বাম পাশের তালিকা থেকে যেকোনো কাস্টমারের চ্যাট নির্বাচন করুন। আপনি গ্রাহকের প্রশ্ন দেখতে পারবেন, Gemini AI-এর অটো-রেসপন্স মনিটর করতে পারবেন এবং প্রয়োজন হলে সরাসরি রিয়েল-টাইমে ম্যানুয়াল রিপ্লাই পাঠাতে পারবেন।
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-lg w-full pt-4 text-left">
+                              <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-1">
+                                <div className="text-[11px] font-bold text-emerald-800 font-bangla flex items-center gap-1">
+                                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>১. Gemini AI</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-bangla">২৪/৭ কাস্টমারদের সাথে বুদ্ধিমত্তার সাথে অটো চ্যাট করে।</p>
+                              </div>
+                              <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-1">
+                                <div className="text-[11px] font-bold text-amber-800 font-bangla flex items-center gap-1">
+                                  <Shield className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>২. টেকওভার</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-bangla">ম্যানুয়াল মেসেজ পাঠালে সাথে সাথে AI পজ হয়ে আপনি কন্ট্রোল পাবেন।</p>
+                              </div>
+                              <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-1">
+                                <div className="text-[11px] font-bold text-blue-800 font-bangla flex items-center gap-1">
+                                  <RefreshCw className="w-3.5 h-3.5 text-blue-600" />
+                                  <span>৩. রিয়েল-টাইম</span>
+                                </div>
+                                <p className="text-[10px] text-slate-500 font-bangla">ইনবক্স স্বয়ংক্রিয়ভাবে প্রতি ২.৫ সেকেন্ডে আপডেট হয়।</p>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Chat Header Bar */}
+                            <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-white">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center shrink-0 border border-emerald-200">
+                                  {currentChat?.customer_name ? currentChat.customer_name.charAt(0).toUpperCase() : <User className="w-5 h-5 text-emerald-700" />}
+                                </div>
+                                <div className="min-w-0">
+                                  <h3 className="text-sm sm:text-base font-bold text-slate-900 truncate font-sans flex items-center gap-2">
+                                    <span>{currentChat?.customer_name || selectedWaPhone}</span>
+                                    {currentChat?.customer_name && (
+                                      <span className="text-[11px] font-normal text-slate-500 font-mono">
+                                        ({selectedWaPhone})
+                                      </span>
+                                    )}
+                                  </h3>
+                                  <div className="flex items-center gap-2 pt-0.5">
+                                    <a
+                                      href={`tel:${selectedWaPhone.replace(/\s+/g, '')}`}
+                                      className="text-[10px] font-bold text-slate-600 hover:text-emerald-700 font-bangla flex items-center gap-0.5 transition-colors"
+                                    >
+                                      <Phone className="w-2.5 h-2.5 text-slate-400" />
+                                      <span>কল</span>
+                                    </a>
+                                    <span className="text-slate-300">•</span>
+                                    <a
+                                      href={`https://wa.me/${selectedWaPhone.replace(/\D/g, '')}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-[10px] font-bold text-emerald-600 hover:text-emerald-700 font-bangla flex items-center gap-0.5 transition-colors"
+                                    >
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                      <span>WhatsApp Web</span>
+                                    </a>
+                                    <span className="text-slate-300">•</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(selectedWaPhone);
+                                        showToast('ফোন নম্বর কপি করা হয়েছে!');
+                                      }}
+                                      className="text-[10px] text-slate-500 hover:text-slate-700 font-bangla flex items-center gap-0.5 cursor-pointer"
+                                    >
+                                      <Copy className="w-2.5 h-2.5" />
+                                      <span>কপি</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Action Buttons: AI Bot Status Switch & Delete */}
+                              <div className="flex items-center gap-2">
+                                {currentChat?.ai_paused === 1 ? (
+                                  <button
+                                    type="button"
+                                    disabled={isTogglingAi}
+                                    onClick={() => handleToggleWaAi(selectedWaPhone, 1)}
+                                    className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold font-bangla flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                    title="AI বর্তমানে পজড আছে। পুনরায় AI অটো-রিপ্লাই চালু করতে ক্লিক করুন।"
+                                  >
+                                    <Shield className="w-3.5 h-3.5" />
+                                    <span>টেকওভার সক্রিয়</span>
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-700/40 text-white font-mono">
+                                      AI চালু করুন
+                                    </span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled={isTogglingAi}
+                                    onClick={() => handleToggleWaAi(selectedWaPhone, 0)}
+                                    className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold font-bangla flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                                    title="Gemini AI অটো-রিপ্লাই দিচ্ছে। নিজে হ্যান্ডেল করতে চাইলে টেকওভার নিন।"
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span>AI সক্রিয়</span>
+                                    <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-emerald-800/40 text-white font-mono">
+                                      টেকওভার নিন
+                                    </span>
+                                  </button>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteWaChat(selectedWaPhone, currentChat?.customer_name || selectedWaPhone)}
+                                  className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 border border-rose-100 transition-colors cursor-pointer"
+                                  title="এই কথোপকথন মুছে ফেলুন"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Message Thread History Area */}
+                            <div
+                              ref={waChatScrollRef}
+                              className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 bg-slate-50/60 min-h-[480px] max-h-[520px]"
+                            >
+                              {isLoadingWaMessages && waMessages.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center h-full py-12 text-slate-400 space-y-2">
+                                  <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
+                                  <span className="text-xs font-bangla font-semibold">মেসেজ লোড হচ্ছে...</span>
+                                </div>
+                              ) : waMessages.length === 0 ? (
+                                <div className="text-center py-12 text-slate-400 font-bangla text-xs">
+                                  এই কথোপকথনে এখনো কোনো মেসেজ পাওয়া যায়নি।
+                                </div>
+                              ) : (
+                                waMessages.map(msg => {
+                                  const isUser = msg.sender === 'user';
+                                  const isBot = msg.sender === 'bot';
+                                  const isAgent = msg.sender === 'agent';
+
+                                  return (
+                                    <div
+                                      key={msg.id || `${msg.timestamp}_${msg.message.slice(0, 10)}`}
+                                      className={`flex flex-col ${isUser ? 'items-start' : 'items-end'}`}
+                                    >
+                                      <div
+                                        className={`max-w-[85%] sm:max-w-[70%] p-3.5 rounded-2xl shadow-2xs leading-relaxed ${
+                                          isUser
+                                            ? 'bg-white border border-slate-200/90 text-slate-900 rounded-tl-xs'
+                                            : isAgent
+                                            ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-md shadow-emerald-700/20 rounded-tr-xs'
+                                            : 'bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 text-slate-900 rounded-tr-xs'
+                                        }`}
+                                      >
+                                        {/* Bubble Header */}
+                                        <div className={`text-[10px] font-bold mb-1 flex items-center gap-1 ${
+                                          isUser ? 'text-slate-500 font-sans' : isAgent ? 'text-emerald-100 justify-end font-bangla' : 'text-indigo-700 justify-end font-bangla'
+                                        }`}>
+                                          {isUser && (
+                                            <>
+                                              <User className="w-3 h-3 text-slate-400" />
+                                              <span>{currentChat?.customer_name || 'গ্রাহক'}</span>
+                                            </>
+                                          )}
+                                          {isBot && (
+                                            <>
+                                              <Sparkles className="w-3 h-3 text-indigo-600" />
+                                              <span>Gemini AI অটো-রিপ্লাই</span>
+                                            </>
+                                          )}
+                                          {isAgent && (
+                                            <>
+                                              <Shield className="w-3 h-3 text-emerald-200" />
+                                              <span>এডমিন রিপ্লাই (Human Takeover)</span>
+                                            </>
+                                          )}
+                                        </div>
+
+                                        {/* Message Content */}
+                                        <p className="text-xs sm:text-sm font-bangla whitespace-pre-wrap leading-relaxed">
+                                          {msg.message}
+                                        </p>
+
+                                        {/* Timestamp */}
+                                        <div className={`text-[10px] mt-1 text-right font-mono flex items-center justify-end gap-1 ${
+                                          isUser ? 'text-slate-400' : isAgent ? 'text-emerald-200' : 'text-indigo-500'
+                                        }`}>
+                                          <span>
+                                            {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                                          </span>
+                                          {isAgent && <Check className="w-3 h-3 text-emerald-200" />}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+
+                            {/* Human Takeover Notice Bar */}
+                            {currentChat?.ai_paused === 1 ? (
+                              <div className="px-4 py-2 bg-amber-50/90 border-t border-b border-amber-200 text-amber-900 text-xs font-bangla flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Shield className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <span>হিউম্যান টেকওভার সক্রিয়: AI বর্তমানে সাময়িকভাবে পজ আছে।</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleWaAi(selectedWaPhone, 1)}
+                                  className="text-[11px] font-bold text-amber-800 underline hover:text-amber-950 cursor-pointer"
+                                >
+                                  AI চালু করতে ক্লিক করুন
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="px-4 py-2 bg-emerald-50/80 border-t border-b border-emerald-200 text-emerald-900 text-xs font-bangla flex items-center justify-between">
+                                <span className="flex items-center gap-1.5">
+                                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                  <span>AI অটো-পাইলট চলছে: আপনি এখান থেকে মেসেজ পাঠালে স্বয়ংক্রিয়ভাবে টেকওভার চালু হবে।</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleWaAi(selectedWaPhone, 0)}
+                                  className="text-[11px] font-bold text-emerald-800 underline hover:text-emerald-950 cursor-pointer"
+                                >
+                                  টেকওভার নিন
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Bottom Reply Box */}
+                            <form
+                              onSubmit={handleSendWhatsAppMessage}
+                              className="p-3 sm:p-4 bg-white border-t border-slate-100 flex items-end gap-2 sm:gap-3"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <textarea
+                                  value={waReplyText}
+                                  onChange={e => setWaReplyText(e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleSendWhatsAppMessage();
+                                    }
+                                  }}
+                                  rows={2}
+                                  placeholder="সরাসরি গ্রাহকের হোয়াটসঅ্যাপে উত্তর লিখুন (Enter চাপুন পাঠাতে, Shift+Enter নতুন লাইনের জন্য)..."
+                                  className="w-full p-3 rounded-2xl border border-slate-200 text-xs sm:text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 resize-none leading-relaxed"
+                                />
+                              </div>
+
+                              <button
+                                type="submit"
+                                disabled={isSendingWa || !waReplyText.trim()}
+                                className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs font-bangla transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/25 cursor-pointer disabled:opacity-50 shrink-0 self-end mb-1"
+                              >
+                                {isSendingWa ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    <span>পাঠানো হচ্ছে...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="w-3.5 h-3.5" />
+                                    <span>পাঠান</span>
+                                  </>
+                                )}
+                              </button>
+                            </form>
+                          </>
+                        )}
+                      </div>
+
+                    </div>
+                  );
+                })() : (
+                /* Main Split CRM Workspace (Left: List, Right: Detail + Side Notes) */
                 <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col lg:flex-row min-h-[720px]">
                   
                   {/* LEFT COLUMN: Message List */}
@@ -3523,6 +4265,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                   </div>
 
                 </div>
+              )}
 
               </div>
             );

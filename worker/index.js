@@ -2034,6 +2034,208 @@ async function handleBlogApi(request, env, ctx, url) {
     }
   }
 
+  // 25. WhatsApp Live Inbox Endpoints (Strictly Super Admin Only)
+  // 25.1 GET /api/whatsapp/chats (or /api/blog/admin/whatsapp/chats)
+  if ((pathname === '/api/whatsapp/chats' || pathname === '/api/blog/admin/whatsapp/chats') && request.method === 'GET') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin এই হোয়াটসঅ্যাপ চ্যাট দেখার অধিকার রাখেন।' }, 403);
+    }
+
+    try {
+      await env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS whatsapp_chats (
+          phone_number TEXT PRIMARY KEY,
+          customer_name TEXT,
+          last_message TEXT,
+          last_sender TEXT,
+          last_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+          unread_count INTEGER DEFAULT 0,
+          ai_paused INTEGER DEFAULT 0,
+          paused_at DATETIME,
+          paused_by TEXT
+        )
+      `).run();
+
+      const chatsResult = await env.DB.prepare(
+        'SELECT * FROM whatsapp_chats ORDER BY last_timestamp DESC'
+      ).all();
+
+      const unreadResult = await env.DB.prepare(
+        'SELECT SUM(unread_count) as total_unread FROM whatsapp_chats'
+      ).first();
+
+      return jsonResponse({
+        success: true,
+        chats: chatsResult?.results || [],
+        totalUnread: unreadResult?.total_unread || 0,
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 25.2 GET /api/whatsapp/chats/:phone (Fetch conversation history for specific phone)
+  const waChatDetailMatch = pathname.match(/^\/api(?:\/blog\/admin)?\/whatsapp\/chats\/([a-zA-Z0-9_.\-+]+)$/);
+  if (waChatDetailMatch && request.method === 'GET') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin এই হোয়াটসঅ্যাপ চ্যাট দেখার অধিকার রাখেন।' }, 403);
+    }
+
+    const phone = decodeURIComponent(waChatDetailMatch[1]);
+    try {
+      const messagesResult = await env.DB.prepare(
+        'SELECT id, phone_number, role, content as message, created_at as timestamp FROM conversations WHERE phone_number = ? ORDER BY id ASC'
+      ).bind(phone).all();
+
+      const chatInfo = await env.DB.prepare(
+        'SELECT * FROM whatsapp_chats WHERE phone_number = ?'
+      ).bind(phone).first();
+
+      // Reset unread count for this phone
+      await env.DB.prepare(
+        'UPDATE whatsapp_chats SET unread_count = 0 WHERE phone_number = ?'
+      ).bind(phone).run();
+
+      const formattedMessages = (messagesResult?.results || []).map(m => ({
+        id: m.id,
+        phone_number: m.phone_number,
+        sender: m.role === 'user' ? 'user' : m.role === 'agent' ? 'agent' : 'bot',
+        message: m.message,
+        timestamp: m.timestamp,
+      }));
+
+      return jsonResponse({
+        success: true,
+        phone_number: phone,
+        chat: chatInfo || { phone_number: phone, customer_name: null, ai_paused: 0 },
+        messages: formattedMessages,
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 25.3 POST /api/whatsapp/send (Manual Reply by Human Agent)
+  if ((pathname === '/api/whatsapp/send' || pathname === '/api/blog/admin/whatsapp/send') && request.method === 'POST') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin হোয়াটসঅ্যাপ রিপ্লাই পাঠাতে পারবেন।' }, 403);
+    }
+
+    try {
+      const { phone_number, message } = await request.json();
+      const targetPhone = (phone_number || '').trim();
+      const msgText = (message || '').trim();
+
+      if (!targetPhone || !msgText) {
+        return jsonResponse({ success: false, error: 'ফোন নম্বর এবং মেসেজ উভয়ই আবশ্যক।' }, 400);
+      }
+
+      const isBsuid = targetPhone.startsWith('BD.');
+
+      // 1. Send via Meta WhatsApp Cloud API
+      await sendWhatsAppMessage(targetPhone, isBsuid, msgText, env);
+
+      // 2. Save to conversations with role = 'agent'
+      await env.DB.prepare(
+        'INSERT INTO conversations (phone_number, role, content) VALUES (?, ?, ?)'
+      ).bind(targetPhone, 'agent', msgText).run();
+
+      // 3. Update whatsapp_chats (set last_message, mark agent, unread = 0, activate takeover)
+      await env.DB.prepare(`
+        INSERT INTO whatsapp_chats (phone_number, last_message, last_sender, last_timestamp, unread_count, ai_paused, paused_at, paused_by)
+        VALUES (?, ?, 'agent', CURRENT_TIMESTAMP, 0, 1, CURRENT_TIMESTAMP, ?)
+        ON CONFLICT(phone_number) DO UPDATE SET
+          last_message = excluded.last_message,
+          last_sender = 'agent',
+          last_timestamp = CURRENT_TIMESTAMP,
+          unread_count = 0,
+          ai_paused = 1,
+          paused_at = CURRENT_TIMESTAMP,
+          paused_by = excluded.paused_by
+      `).bind(targetPhone, msgText, auth.name || auth.username || 'Super Admin').run();
+
+      return jsonResponse({
+        success: true,
+        message: 'হোয়াটসঅ্যাপে মেসেজ সফলভাবে পাঠানো হয়েছে!',
+        agent_message: {
+          phone_number: targetPhone,
+          sender: 'agent',
+          message: msgText,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 25.4 PUT /api/whatsapp/chats/:phone/ai-toggle (Toggle Human Takeover / AI Auto-reply)
+  const waAiToggleMatch = pathname.match(/^\/api(?:\/blog\/admin)?\/whatsapp\/chats\/([a-zA-Z0-9_.\-+]+)\/ai-toggle$/);
+  if (waAiToggleMatch && request.method === 'PUT') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin AI স্ট্যাটাস পরিবর্তন করতে পারবেন।' }, 403);
+    }
+
+    const phone = decodeURIComponent(waAiToggleMatch[1]);
+    try {
+      const { ai_paused } = await request.json();
+      const newPaused = ai_paused ? 1 : 0;
+
+      await env.DB.prepare(`
+        UPDATE whatsapp_chats 
+        SET ai_paused = ?, 
+            paused_at = CASE WHEN ? = 1 THEN CURRENT_TIMESTAMP ELSE NULL END, 
+            paused_by = CASE WHEN ? = 1 THEN ? ELSE NULL END 
+        WHERE phone_number = ?
+      `).bind(newPaused, newPaused, newPaused, auth.name || auth.username || 'Super Admin', phone).run();
+
+      return jsonResponse({
+        success: true,
+        ai_paused: Boolean(newPaused),
+        message: newPaused ? 'হিউম্যান টেকওভার সক্রিয় করা হয়েছে (AI পজড)' : 'AI অটো-রিপ্লাই পুনরায় চালু করা হয়েছে'
+      });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
+  // 25.5 DELETE /api/whatsapp/chats/:phone (Delete WhatsApp chat history)
+  const waChatDelMatch = pathname.match(/^\/api(?:\/blog\/admin)?\/whatsapp\/chats\/([a-zA-Z0-9_.\-+]+)$/);
+  if (waChatDelMatch && request.method === 'DELETE') {
+    const auth = verifyAdminAuth(request, env);
+    if (!auth) {
+      return jsonResponse({ success: false, error: 'অননুমোদিত এক্সেস' }, 401);
+    }
+    if (auth.role !== 'super_admin') {
+      return jsonResponse({ success: false, error: 'শুধুমাত্র Super Admin হোয়াটসঅ্যাপ চ্যাট মুছতে পারবেন।' }, 403);
+    }
+
+    const phone = decodeURIComponent(waChatDelMatch[1]);
+    try {
+      await env.DB.prepare('DELETE FROM conversations WHERE phone_number = ?').bind(phone).run();
+      await env.DB.prepare('DELETE FROM whatsapp_chats WHERE phone_number = ?').bind(phone).run();
+      return jsonResponse({ success: true, message: 'চ্যাট ইতিহাস মুছে ফেলা হয়েছে' });
+    } catch (err) {
+      return jsonResponse({ success: false, error: err.message }, 500);
+    }
+  }
+
   return jsonResponse({ error: 'Endpoint Not Found' }, 404);
 }
 
@@ -2136,10 +2338,14 @@ async function processSingleMessage(message, contacts, env) {
   const userText = message.text?.body?.trim();
   if (!userText) return;
 
+  const customerName = contacts && contacts[0] && contacts[0].profile ? contacts[0].profile.name : null;
+
   console.log(`📩 Processing message from [${targetId}]: "${userText}"`);
 
-  // 3. Retrieve conversation history from Cloudflare D1
+  // 3. Retrieve conversation history & check human takeover from Cloudflare D1
   let recentHistory = [];
+  let isAiPaused = false;
+
   if (env.DB) {
     try {
       const rows = await env.DB.prepare(
@@ -2150,7 +2356,7 @@ async function processSingleMessage(message, contacts, env) {
 
       if (rows && rows.results) {
         recentHistory = rows.results.reverse().map((r) => ({
-          role: r.role === 'model' ? 'model' : 'user',
+          role: r.role === 'model' || r.role === 'bot' || r.role === 'agent' ? 'model' : 'user',
           parts: [{ text: r.content }],
         }));
       }
@@ -2161,9 +2367,36 @@ async function processSingleMessage(message, contacts, env) {
       )
         .bind(targetId, 'user', userText)
         .run();
+
+      // Update or insert into whatsapp_chats table
+      await env.DB.prepare(`
+        INSERT INTO whatsapp_chats (phone_number, customer_name, last_message, last_sender, last_timestamp, unread_count)
+        VALUES (?, ?, ?, 'user', CURRENT_TIMESTAMP, 1)
+        ON CONFLICT(phone_number) DO UPDATE SET
+          customer_name = COALESCE(excluded.customer_name, whatsapp_chats.customer_name),
+          last_message = excluded.last_message,
+          last_sender = 'user',
+          last_timestamp = CURRENT_TIMESTAMP,
+          unread_count = whatsapp_chats.unread_count + 1
+      `).bind(targetId, customerName, userText).run();
+
+      // Check if Human Takeover is active
+      const chatRow = await env.DB.prepare(
+        'SELECT ai_paused FROM whatsapp_chats WHERE phone_number = ?'
+      ).bind(targetId).first();
+
+      if (chatRow && chatRow.ai_paused === 1) {
+        isAiPaused = true;
+      }
     } catch (histErr) {
-      console.error('⚠️ D1 history query failed:', histErr);
+      console.error('⚠️ D1 history or chat session query failed:', histErr);
     }
+  }
+
+  // If Human Takeover is active, do not generate automated AI reply
+  if (isAiPaused) {
+    console.log(`👤 Human takeover active for [${targetId}]. Skipping Gemini AI auto-reply.`);
+    return;
   }
 
   // 4. Generate AI response using Google Gemini REST API
@@ -2175,7 +2408,7 @@ async function processSingleMessage(message, contacts, env) {
     botReply = FALLBACK_MESSAGE;
   }
 
-  // 5. Save bot reply to D1
+  // 5. Save bot reply to D1 & update whatsapp_chats
   if (env.DB && botReply) {
     try {
       await env.DB.prepare(
@@ -2183,6 +2416,12 @@ async function processSingleMessage(message, contacts, env) {
       )
         .bind(targetId, 'model', botReply)
         .run();
+
+      await env.DB.prepare(`
+        UPDATE whatsapp_chats 
+        SET last_message = ?, last_sender = 'bot', last_timestamp = CURRENT_TIMESTAMP 
+        WHERE phone_number = ?
+      `).bind(botReply, targetId).run();
     } catch (saveErr) {
       console.error('⚠️ D1 save bot reply failed:', saveErr);
     }
