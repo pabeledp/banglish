@@ -486,15 +486,18 @@ export default function AdminBlogPage() {
       });
       const data = await res.json();
       if (res.ok && data.success && Array.isArray(data.chats)) {
-        setWhatsappChats(data.chats);
-        setTotalWaUnread(data.totalUnread || 0);
+        setWhatsappChats(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(data.chats)) return prev;
+          return data.chats;
+        });
+        setTotalWaUnread(prev => prev === (data.totalUnread || 0) ? prev : (data.totalUnread || 0));
       }
     } catch (err) {
       console.warn('Error fetching whatsapp chats:', err);
     } finally {
       if (!isSilent) setIsLoadingWaChats(false);
     }
-  }, [token, currentUser]);
+  }, [token, currentUser?.role]);
 
   // Fetch WhatsApp Messages for Specific Customer Phone
   const fetchWhatsAppMessages = useCallback(async (phone: string, isSilent = false, authToken?: string) => {
@@ -508,25 +511,41 @@ export default function AdminBlogPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setWaMessages(data.messages || []);
-        if (data.chat) setWaSelectedChat(data.chat);
-        setWhatsappChats(prev => prev.map(c => c.phone_number === phone ? { ...c, unread_count: 0 } : c));
+        setWaMessages(prev => {
+          if (JSON.stringify(prev) === JSON.stringify(data.messages)) return prev;
+          return data.messages || [];
+        });
+        if (data.chat) {
+          setWaSelectedChat(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(data.chat)) return prev;
+            return data.chat;
+          });
+        }
+        setWhatsappChats(prev => {
+          const target = prev.find(c => c.phone_number === phone);
+          if (!target || target.unread_count === 0) return prev;
+          return prev.map(c => c.phone_number === phone ? { ...c, unread_count: 0 } : c);
+        });
       }
     } catch (err) {
       console.warn('Error fetching whatsapp messages:', err);
     } finally {
       if (!isSilent) setIsLoadingWaMessages(false);
     }
-  }, [token, currentUser]);
+  }, [token, currentUser?.role]);
 
-  // Scroll chat to bottom whenever messages update
+  const prevWaMsgCountRef = useRef(0);
+  // Scroll chat to bottom only when new messages actually arrive
   useEffect(() => {
     if (activeNav === 'messages' && inboxMainTab === 'whatsapp' && waChatScrollRef.current) {
-      waChatScrollRef.current.scrollTop = waChatScrollRef.current.scrollHeight;
+      if (waMessages.length !== prevWaMsgCountRef.current) {
+        prevWaMsgCountRef.current = waMessages.length;
+        waChatScrollRef.current.scrollTop = waChatScrollRef.current.scrollHeight;
+      }
     }
-  }, [waMessages, activeNav, inboxMainTab]);
+  }, [waMessages.length, activeNav, inboxMainTab]);
 
-  // Live real-time polling: every 2.5 seconds when activeNav === 'messages' and inboxMainTab === 'whatsapp'
+  // Live real-time polling: every 4 seconds when activeNav === 'messages' and inboxMainTab === 'whatsapp'
   useEffect(() => {
     if (!token || currentUser?.role !== 'super_admin') return;
     if (activeNav !== 'messages' || inboxMainTab !== 'whatsapp') return;
@@ -541,10 +560,10 @@ export default function AdminBlogPage() {
       if (selectedWaPhone) {
         fetchWhatsAppMessages(selectedWaPhone, true, token);
       }
-    }, 2500);
+    }, 4000);
 
     return () => clearInterval(interval);
-  }, [token, currentUser, activeNav, inboxMainTab, selectedWaPhone, fetchWhatsAppChats, fetchWhatsAppMessages]);
+  }, [token, currentUser?.role, activeNav, inboxMainTab, selectedWaPhone, fetchWhatsAppChats, fetchWhatsAppMessages]);
 
   // Send Manual WhatsApp Reply (Triggers Human Takeover automatically)
   const handleSendWhatsAppMessage = async (e?: React.FormEvent) => {
@@ -689,7 +708,7 @@ export default function AdminBlogPage() {
     }
   }, [token, fetchTeamMembers, currentUser, fetchWhatsAppChats]);
 
-  // Check stored auth token on mount
+  // Check stored auth token on mount (Runs once on mount)
   useEffect(() => {
     const savedToken = sessionStorage.getItem('banglish_admin_token') || localStorage.getItem('banglish_admin_token');
     const savedUser = sessionStorage.getItem('banglish_admin_user') || localStorage.getItem('banglish_admin_user');
@@ -700,14 +719,15 @@ export default function AdminBlogPage() {
       setToken(savedToken);
       refreshAllData(savedToken);
     }
-  }, [refreshAllData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Auto-poll in background every 20 seconds for seamless real-time sync
+  // Auto-poll in background every 30 seconds for seamless real-time sync
   useEffect(() => {
     if (!token) return;
     const interval = setInterval(() => {
       refreshAllData(token);
-    }, 20000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [token, refreshAllData]);
 
@@ -1277,7 +1297,7 @@ export default function AdminBlogPage() {
     }
   };
 
-  // Fetch Comments from D1
+  // Fetch Comments from D1 (With deep-equality to prevent message list blinking)
   const fetchAdminComments = async (authToken: string) => {
     try {
       const res = await fetch('/api/blog/admin/comments', {
@@ -1286,8 +1306,11 @@ export default function AdminBlogPage() {
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.comments)) {
-          setComments(data.comments);
-          setUnreadCommentsCount(data.unreadCount || 0);
+          setComments(prev => {
+            if (JSON.stringify(prev) === JSON.stringify(data.comments)) return prev;
+            return data.comments;
+          });
+          setUnreadCommentsCount(prev => prev === (data.unreadCount || 0) ? prev : (data.unreadCount || 0));
         }
       }
     } catch (e) {
@@ -2541,7 +2564,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             >
               <Bell className="w-5 h-5" />
               {unreadCommentsCount > 0 && (
-                <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-blue-600 ring-2 ring-white animate-pulse" />
+                <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-blue-600 ring-2 ring-white" />
               )}
             </button>
 
@@ -3154,7 +3177,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                           {comments.length}
                         </span>
                         {unreadCount > 0 && (
-                          <span className="text-[11px] font-bangla font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 animate-pulse">
+                          <span className="text-[11px] font-bangla font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700">
                             {unreadCount}টি অপঠিত
                           </span>
                         )}
@@ -3208,7 +3231,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                         {allInquiries.length}
                       </span>
                       {pendingCount > 0 && (
-                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
                       )}
                     </button>
 
@@ -3255,7 +3278,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                           </span>
                         )}
                         {totalWaUnread > 0 && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono font-bold animate-pulse">
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500 text-white font-mono font-bold">
                             {totalWaUnread}
                           </span>
                         )}
@@ -3395,7 +3418,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                                       {chat.customer_name ? chat.customer_name.charAt(0).toUpperCase() : <User className="w-5 h-5 text-emerald-700" />}
                                     </div>
                                     {unread > 0 && (
-                                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold font-mono flex items-center justify-center animate-pulse">
+                                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold font-mono flex items-center justify-center">
                                         {unread}
                                       </span>
                                     )}
@@ -5563,7 +5586,7 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
             <div className={`p-1 rounded-xl transition-all relative ${activeNav === 'messages' ? 'bg-blue-50' : ''}`}>
               <Mail className="w-5 h-5" />
               {unreadCommentsCount > 0 && (
-                <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white animate-pulse" />
+                <span className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
               )}
             </div>
             <span className="text-[10px] tracking-tight">Inbox</span>
