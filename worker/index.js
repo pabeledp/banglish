@@ -565,7 +565,7 @@ async function handleBlogApi(request, env, ctx, url) {
 
       // Construct reset URL
       const origin = url.origin || 'https://banglish.bd';
-      const resetLink = `${origin}/admin/blog?resetToken=${token}`;
+      const resetLink = `${origin}/admin?resetToken=${token}`;
 
       // Send Email via Resend
       const resendApiKey = env.RESEND_API_KEY;
@@ -2032,6 +2032,13 @@ async function handleBlogApi(request, env, ctx, url) {
     let totalUnread = 0;
     if (env.DB) {
       try {
+        // Auto-expire human takeovers older than 5 minutes (300 seconds)
+        await env.DB.prepare(`
+          UPDATE whatsapp_chats 
+          SET ai_paused = 0, paused_at = NULL, paused_by = NULL 
+          WHERE ai_paused = 1 AND paused_at IS NOT NULL AND (strftime('%s', 'now') - strftime('%s', paused_at)) >= 300
+        `).run().catch(() => {});
+
         const chatsResult = await env.DB.prepare(
           'SELECT * FROM whatsapp_chats ORDER BY last_timestamp DESC'
         ).all().catch(() => ({ results: [] }));
@@ -2097,6 +2104,20 @@ async function handleBlogApi(request, env, ctx, url) {
         chatInfo = await env.DB.prepare(
           'SELECT * FROM whatsapp_chats WHERE phone_number = ? OR phone_number = ? OR phone_number = ?'
         ).bind(phone, cleanDigits, plusPhone).first().catch(() => null);
+
+        // Check if takeover is older than 5 minutes and auto-expire
+        if (chatInfo && chatInfo.ai_paused === 1 && chatInfo.paused_at) {
+          const pausedIso = chatInfo.paused_at.endsWith('Z') ? chatInfo.paused_at : chatInfo.paused_at + 'Z';
+          const pausedTime = new Date(pausedIso).getTime();
+          if (!isNaN(pausedTime) && (Date.now() - pausedTime) >= 5 * 60 * 1000) {
+            chatInfo.ai_paused = 0;
+            chatInfo.paused_at = null;
+            chatInfo.paused_by = null;
+            await env.DB.prepare(
+              'UPDATE whatsapp_chats SET ai_paused = 0, paused_at = NULL, paused_by = NULL WHERE phone_number = ? OR phone_number = ? OR phone_number = ?'
+            ).bind(phone, cleanDigits, plusPhone).run().catch(() => {});
+          }
+        }
 
         // Reset unread count for this phone
         await env.DB.prepare(
@@ -2454,9 +2475,9 @@ async function processSingleMessage(message, contacts, env) {
         }));
       }
 
-      // Check existing customer record
+      // Check existing customer record and auto-expire human takeover after 5 minutes
       const chatRow = await env.DB.prepare(
-        'SELECT customer_name, ai_paused FROM whatsapp_chats WHERE phone_number = ? OR phone_number = ?'
+        'SELECT customer_name, ai_paused, paused_at FROM whatsapp_chats WHERE phone_number = ? OR phone_number = ?'
       ).bind(targetId, cleanTargetId).first().catch(() => null);
 
       if (chatRow) {
@@ -2464,7 +2485,23 @@ async function processSingleMessage(message, contacts, env) {
           existingCustomerName = chatRow.customer_name.trim();
         }
         if (chatRow.ai_paused === 1) {
-          isAiPaused = true;
+          let isExpired = false;
+          if (chatRow.paused_at) {
+            const pausedIso = chatRow.paused_at.endsWith('Z') ? chatRow.paused_at : chatRow.paused_at + 'Z';
+            const pausedTime = new Date(pausedIso).getTime();
+            if (!isNaN(pausedTime) && (Date.now() - pausedTime) >= 5 * 60 * 1000) {
+              isExpired = true;
+            }
+          }
+          if (isExpired) {
+            // 5 minutes of inactivity elapsed - automatically hand back to AI Agent!
+            await env.DB.prepare(
+              'UPDATE whatsapp_chats SET ai_paused = 0, paused_at = NULL, paused_by = NULL WHERE phone_number = ? OR phone_number = ?'
+            ).bind(targetId, cleanTargetId).run().catch(() => {});
+            isAiPaused = false;
+          } else {
+            isAiPaused = true;
+          }
         }
       }
 
