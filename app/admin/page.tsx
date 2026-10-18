@@ -112,67 +112,241 @@ interface MediaItem {
 /**
  * 4 Direct External Analytics & Console Shortcuts (No names, icon-only)
  */
-const ExternalToolsBar = () => (
-  <div className="flex items-center gap-1.5 bg-slate-100/90 hover:bg-slate-100 p-1 rounded-2xl border border-slate-200/80 transition-all shadow-2xs">
-    {/* 1. Google Search Console */}
-    <a
-      href="https://search.google.com/search-console?resource_id=sc-domain:banglish.bd"
-      target="_blank"
-      rel="noopener noreferrer"
-      title="Google Search Console (banglish.bd)"
-      className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
-    >
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z" fill="#4285F4"/>
-        <path d="M19.07 4.93l-1.41 1.41C19.12 7.79 20 9.79 20 12c0 4.41-3.59 8-8 8s-8-3.59-8-8c0-2.21.88-4.21 2.34-5.66L4.93 4.93C3.12 6.74 2 9.24 2 12c0 5.52 4.48 10 10 10s10-4.48 10-10c0-2.76-1.12-5.26-2.93-7.07z" fill="#34A853"/>
-      </svg>
-    </a>
+/**
+ * External Analytics, Marketing & Social Console Shortcuts + Google App Tray
+ */
+const ExternalToolsBar = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const trayRef = useRef<HTMLDivElement>(null);
 
-    {/* 2. Google Analytics */}
-    <a
-      href="https://analytics.google.com/analytics/web/#/a407794547p558378232/reports/intelligenthome"
-      target="_blank"
-      rel="noopener noreferrer"
-      title="Google Analytics 4"
-      className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-amber-50 text-amber-600 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
-    >
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-        <path fill="#F9AB00" d="M19.5 2H16c-.83 0-1.5.67-1.5 1.5V20c0 .83.67 1.5 1.5 1.5h3.5c.83 0 1.5-.67 1.5-1.5V3.5c0-.83-.67-1.5-1.5-1.5z"/>
-        <path fill="#E37400" d="M12.5 8H9c-.83 0-1.5.67-1.5 1.5V20c0 .83.67 1.5 1.5 1.5h3.5c.83 0 1.5-.67 1.5-1.5V9.5c0-.83-.67-1.5-1.5-1.5z"/>
-        <circle cx="4.5" cy="18.5" r="2.5" fill="#E37400"/>
-      </svg>
-    </a>
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      if (trayRef.current && !trayRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [isOpen]);
 
-    {/* 3. Google Tag Manager */}
-    <a
-      href="https://tagmanager.google.com/?utm_source=marketingplatform.google.com&utm_medium=et&utm_campaign=marketingplatform.google.com%2Fabout%2Ftag-manager%2F#/container/accounts/6378040509/containers/266705962/workspaces/5"
-      target="_blank"
-      rel="noopener noreferrer"
-      title="Google Tag Manager"
-      className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-sky-50 text-sky-600 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
-    >
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-        <path fill="#246FDB" d="M12 2L2 12l10 10 10-10L12 2zm0 4.5l5.5 5.5L12 17.5 6.5 12 12 6.5z"/>
-        <circle cx="12" cy="12" r="2.5" fill="#8AB4F8"/>
-      </svg>
-    </a>
+  const tools = [
+    {
+      name: 'Meta Suite',
+      fullName: 'Meta Business Suite',
+      category: 'Social & Ads',
+      url: 'https://business.facebook.com/latest/home?asset_id=1410933978763199',
+      icon: (
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+          <path d="M16.99 6.5C14.7 6.5 13.06 7.6 12 8.94C10.94 7.6 9.3 6.5 7.01 6.5C3.33 6.5 1 9.49 1 13.12C1 16.75 3.33 19.74 7.01 19.74C9.3 19.74 10.94 18.64 12 17.3C13.06 18.64 14.7 19.74 16.99 19.74C20.67 19.74 23 16.75 23 13.12C23 9.49 20.67 6.5 16.99 6.5ZM7.01 17.43C4.85 17.43 3.31 15.34 3.31 13.12C3.31 10.9 4.85 8.81 7.01 8.81C8.75 8.81 10.15 9.94 10.95 11.66C10.36 12.94 9.44 14.53 8.35 15.89C7.94 16.89 7.49 17.43 7.01 17.43ZM16.99 17.43C16.51 17.43 16.06 16.89 15.65 15.89C14.56 14.53 13.64 12.94 13.05 11.66C13.85 9.94 15.25 8.81 16.99 8.81C19.15 8.81 20.69 10.9 20.69 13.12C20.69 15.34 19.15 17.43 16.99 17.43Z" fill="#0081FB"/>
+        </svg>
+      ),
+    },
+    {
+      name: 'X (Twitter)',
+      fullName: 'X Platform',
+      category: 'Social & Feed',
+      url: 'https://x.com/',
+      icon: (
+        <svg className="w-4 h-4 text-slate-900" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      ),
+    },
+    {
+      name: 'LinkedIn',
+      fullName: 'LinkedIn Admin',
+      category: 'Company Page',
+      url: 'https://www.linkedin.com/company/146740124/admin/dashboard/',
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#0A66C2">
+          <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9h2.79v8.37H6.46v-8.37M7.86 6.54a1.63 1.63 0 0 0-1.63 1.62c0 .9.73 1.63 1.63 1.63.9 0 1.63-.73 1.63-1.63 0-.89-.73-1.62-1.63-1.62z"/>
+        </svg>
+      ),
+    },
+    {
+      name: 'Search Console',
+      fullName: 'Google Search Console',
+      category: 'SEO & Search',
+      url: 'https://search.google.com/search-console?resource_id=sc-domain:banglish.bd',
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z" fill="#4285F4"/>
+          <path d="M19.07 4.93l-1.41 1.41C19.12 7.79 20 9.79 20 12c0 4.41-3.59 8-8 8s-8-3.59-8-8c0-2.21.88-4.21 2.34-5.66L4.93 4.93C3.12 6.74 2 9.24 2 12c0 5.52 4.48 10 10 10s10-4.48 10-10c0-2.76-1.12-5.26-2.93-7.07z" fill="#34A853"/>
+        </svg>
+      ),
+    },
+    {
+      name: 'Analytics',
+      fullName: 'Google Analytics 4',
+      category: 'Traffic & Users',
+      url: 'https://analytics.google.com/analytics/web/#/a407794547p558378232/reports/intelligenthome',
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+          <path fill="#F9AB00" d="M19.5 2H16c-.83 0-1.5.67-1.5 1.5V20c0 .83.67 1.5 1.5 1.5h3.5c.83 0 1.5-.67 1.5-1.5V3.5c0-.83-.67-1.5-1.5-1.5z"/>
+          <path fill="#E37400" d="M12.5 8H9c-.83 0-1.5.67-1.5 1.5V20c0 .83.67 1.5 1.5 1.5h3.5c.83 0 1.5-.67 1.5-1.5V9.5c0-.83-.67-1.5-1.5-1.5z"/>
+          <circle cx="4.5" cy="18.5" r="2.5" fill="#E37400"/>
+        </svg>
+      ),
+    },
+    {
+      name: 'Tag Manager',
+      fullName: 'Google Tag Manager',
+      category: 'Event Tracking',
+      url: 'https://tagmanager.google.com/?utm_source=marketingplatform.google.com&utm_medium=et&utm_campaign=marketingplatform.google.com%2Fabout%2Ftag-manager%2F#/container/accounts/6378040509/containers/266705962/workspaces/5',
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+          <path fill="#246FDB" d="M12 2L2 12l10 10 10-10L12 2zm0 4.5l5.5 5.5L12 17.5 6.5 12 12 6.5z"/>
+          <circle cx="12" cy="12" r="2.5" fill="#8AB4F8"/>
+        </svg>
+      ),
+    },
+    {
+      name: 'MS Clarity',
+      fullName: 'Microsoft Clarity',
+      category: 'Heatmap & Sessions',
+      url: 'https://clarity.microsoft.com/projects/view/yvhsb17iuv/dashboard?date=Last%203%20days',
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+          <rect width="24" height="24" rx="4" fill="#0078D4"/>
+          <circle cx="12" cy="12" r="5" stroke="#FFFFFF" strokeWidth="2.5"/>
+          <circle cx="12" cy="12" r="2" fill="#FFFFFF"/>
+        </svg>
+      ),
+    },
+  ];
 
-    {/* 4. Microsoft Clarity */}
-    <a
-      href="https://clarity.microsoft.com/projects/view/yvhsb17iuv/dashboard?date=Last%203%20days"
-      target="_blank"
-      rel="noopener noreferrer"
-      title="Microsoft Clarity"
-      className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-blue-50 text-blue-600 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
-    >
-      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-        <rect width="24" height="24" rx="4" fill="#0078D4"/>
-        <circle cx="12" cy="12" r="5" stroke="#FFFFFF" strokeWidth="2.5"/>
-        <circle cx="12" cy="12" r="2" fill="#FFFFFF"/>
-      </svg>
-    </a>
-  </div>
-);
+  return (
+    <div className="relative" ref={trayRef}>
+      {/* Top Bar Quick Access + 9-Dots App Tray Button */}
+      <div className="flex items-center gap-1.5 bg-slate-100/90 hover:bg-slate-100 p-1 rounded-2xl border border-slate-200/80 transition-all shadow-2xs">
+        {/* Quick Icon 1: Meta Business Suite */}
+        <a
+          href={tools[0].url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={tools[0].fullName}
+          className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-blue-50 text-slate-700 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
+        >
+          {tools[0].icon}
+        </a>
+
+        {/* Quick Icon 2: Google Search Console */}
+        <a
+          href={tools[3].url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={tools[3].fullName}
+          className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-emerald-50 text-slate-700 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
+        >
+          {tools[3].icon}
+        </a>
+
+        {/* Quick Icon 3: Google Analytics */}
+        <a
+          href={tools[4].url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={tools[4].fullName}
+          className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-amber-50 text-slate-700 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
+        >
+          {tools[4].icon}
+        </a>
+
+        {/* Quick Icon 4: X */}
+        <a
+          href={tools[1].url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title={tools[1].fullName}
+          className="w-8 h-8 rounded-xl flex items-center justify-center bg-white hover:bg-slate-200 text-slate-900 shadow-2xs hover:scale-105 transition-all border border-slate-200/60"
+        >
+          {tools[1].icon}
+        </a>
+
+        {/* Google 9-dots App Tray Icon Button */}
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          title="Google App Tray (সমস্ত ডিরেক্টরি লিংক)"
+          aria-label="Google App Tray"
+          aria-expanded={isOpen}
+          className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer border ${
+            isOpen
+              ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/25 scale-105'
+              : 'bg-white hover:bg-slate-200 text-slate-600 hover:text-slate-900 shadow-2xs border-slate-200/60 hover:scale-105'
+          }`}
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="5" cy="5" r="2.2" />
+            <circle cx="12" cy="5" r="2.2" />
+            <circle cx="19" cy="5" r="2.2" />
+            <circle cx="5" cy="12" r="2.2" />
+            <circle cx="12" cy="12" r="2.2" />
+            <circle cx="19" cy="12" r="2.2" />
+            <circle cx="5" cy="19" r="2.2" />
+            <circle cx="12" cy="19" r="2.2" />
+            <circle cx="19" cy="19" r="2.2" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Reveal Popup Tray (Google App Tray Style) */}
+      {isOpen && (
+        <div className="absolute right-0 mt-3 w-80 sm:w-88 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/90 p-4 z-50 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 px-1">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="5" cy="5" r="2.2" />
+                  <circle cx="12" cy="5" r="2.2" />
+                  <circle cx="19" cy="5" r="2.2" />
+                  <circle cx="5" cy="12" r="2.2" />
+                  <circle cx="12" cy="12" r="2.2" />
+                  <circle cx="19" cy="12" r="2.2" />
+                  <circle cx="5" cy="19" r="2.2" />
+                  <circle cx="12" cy="19" r="2.2" />
+                  <circle cx="19" cy="19" r="2.2" />
+                </svg>
+              </div>
+              <span className="text-xs font-bold text-slate-800 font-sans tracking-wide">Workspace Directory</span>
+            </div>
+            <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-mono">
+              {tools.length} Tools
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            {tools.map((tool) => (
+              <a
+                key={tool.name}
+                href={tool.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsOpen(false)}
+                className="flex flex-col items-center justify-center p-3 rounded-2xl hover:bg-slate-50 transition-all group text-center cursor-pointer border border-transparent hover:border-slate-200/60 hover:shadow-2xs"
+                title={tool.fullName}
+              >
+                <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200/80 flex items-center justify-center mb-1.5 shadow-2xs group-hover:scale-110 group-hover:shadow-xs group-hover:border-blue-200 transition-all">
+                  {tool.icon}
+                </div>
+                <span className="text-[11px] font-bold text-slate-700 group-hover:text-blue-600 transition-colors truncate max-w-full font-sans">
+                  {tool.name}
+                </span>
+                <span className="text-[9px] text-slate-400 truncate max-w-full font-sans mt-0.5">
+                  {tool.category}
+                </span>
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 /**
  * Generate smooth Cubic Bezier path through 2D points
@@ -381,13 +555,13 @@ export default function AdminBlogPage() {
     name: 'A M Pabel',
     email: 'ampabel.edp@gmail.com',
     role: 'Lead Architect & Founder',
-    avatar: '/assets/pabel_light_avatar.webp',
+    avatar: '',
   });
   const [authorProfile, setAuthorProfile] = useState<AuthorProfile>({
     name: 'A M Pabel',
     role: 'Founder, FramEmpire',
     bio: 'Creator of Banglish Keyboard & Lead Architect at Team FramEmpire.',
-    avatar: '/assets/pabel_light_avatar.webp',
+    avatar: '',
   });
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -2663,11 +2837,17 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                 title="প্রোফাইল মেনু"
               >
                 <div className="relative">
-                  <img
-                    src={adminProfile.avatar || '/assets/pabel_light_avatar.webp'}
-                    alt={adminProfile.name}
-                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-slate-100 shadow-xs group-hover:ring-2 group-hover:ring-emerald-400 transition-all"
-                  />
+                  {(currentUser?.avatar || adminProfile.avatar) && (currentUser?.avatar || adminProfile.avatar) !== '/assets/pabel_light_avatar.webp' ? (
+                    <img
+                      src={currentUser?.avatar || adminProfile.avatar}
+                      alt={currentUser?.name || adminProfile.name}
+                      className="w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border-2 border-slate-100 shadow-xs group-hover:ring-2 group-hover:ring-emerald-400 transition-all"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 border-2 border-slate-200 flex items-center justify-center text-slate-500 shadow-xs group-hover:ring-2 group-hover:ring-emerald-400 transition-all">
+                      <User className="w-5 h-5 text-slate-500" />
+                    </div>
+                  )}
                   <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
                 </div>
                 <ChevronDown className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform ${userDropdownOpen ? 'rotate-180' : ''} hidden sm:block`} />
@@ -2819,12 +2999,16 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     </div>
                   </div>
 
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-slate-100 shadow-sm shrink-0">
-                    <img 
-                      src={currentUser?.avatar || adminProfile.avatar || '/assets/pabel_light_avatar.webp'} 
-                      alt={currentUser?.name || adminProfile.name || 'User'} 
-                      className="w-full h-full object-cover" 
-                    />
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-slate-100 shadow-sm shrink-0 flex items-center justify-center bg-slate-100">
+                    {(currentUser?.avatar || adminProfile.avatar) && (currentUser?.avatar || adminProfile.avatar) !== '/assets/pabel_light_avatar.webp' ? (
+                      <img 
+                        src={currentUser?.avatar || adminProfile.avatar} 
+                        alt={currentUser?.name || adminProfile.name || 'User'} 
+                        className="w-full h-full object-cover" 
+                      />
+                    ) : (
+                      <User className="w-8 h-8 text-slate-400" />
+                    )}
                   </div>
                 </div>
 
@@ -4709,11 +4893,17 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                         onClick={() => adminFileInputRef.current?.click()}
                         title="ছবি পরিবর্তন করতে ক্লিক করুন"
                       >
-                        <img 
-                          src={adminProfile.avatar || '/assets/pabel_light_avatar.webp'} 
-                          alt="Avatar" 
-                          className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-slate-200 shadow-sm group-hover:ring-4 group-hover:ring-blue-100 transition-all"
-                        />
+                        {adminProfile.avatar && adminProfile.avatar !== '/assets/pabel_light_avatar.webp' ? (
+                          <img 
+                            src={adminProfile.avatar} 
+                            alt="Avatar" 
+                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-slate-200 shadow-sm group-hover:ring-4 group-hover:ring-blue-100 transition-all"
+                          />
+                        ) : (
+                          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 border-2 border-slate-200 flex items-center justify-center text-slate-400 group-hover:ring-4 group-hover:ring-blue-100 transition-all shadow-sm">
+                            <User className="w-10 h-10 sm:w-12 sm:h-12 text-slate-400" />
+                          </div>
+                        )}
                         <div className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <Camera className="w-6 h-6 text-white drop-shadow-md" />
                         </div>
@@ -4848,11 +5038,17 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                           onClick={() => authorFileInputRef.current?.click()}
                           title="ছবি পরিবর্তন করতে ক্লিক করুন"
                         >
-                          <img 
-                            src={authorProfile.avatar || '/assets/pabel_light_avatar.webp'} 
-                            alt="Author" 
-                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-slate-200 shadow-sm group-hover:ring-4 group-hover:ring-blue-100 transition-all"
-                          />
+                          {authorProfile.avatar && authorProfile.avatar !== '/assets/pabel_light_avatar.webp' ? (
+                            <img 
+                              src={authorProfile.avatar} 
+                              alt="Author" 
+                              className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-slate-200 shadow-sm group-hover:ring-4 group-hover:ring-blue-100 transition-all"
+                            />
+                          ) : (
+                            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 border-2 border-slate-200 flex items-center justify-center text-slate-400 group-hover:ring-4 group-hover:ring-blue-100 transition-all shadow-sm">
+                              <User className="w-10 h-10 sm:w-12 sm:h-12 text-slate-400" />
+                            </div>
+                          )}
                           <div className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <Camera className="w-6 h-6 text-white drop-shadow-md" />
                           </div>
@@ -5290,11 +5486,17 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                           <tr key={member.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="py-4 px-6">
                               <div className="flex items-center gap-3">
-                                <img
-                                  src={member.avatar || '/assets/pabel_light_avatar.webp'}
-                                  alt={member.name}
-                                  className="w-10 h-10 rounded-full object-cover border border-slate-200"
-                                />
+                                {member.avatar && member.avatar !== '/assets/pabel_light_avatar.webp' ? (
+                                  <img
+                                    src={member.avatar}
+                                    alt={member.name}
+                                    className="w-10 h-10 rounded-full object-cover border border-slate-200"
+                                  />
+                                ) : (
+                                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 border border-slate-200 flex items-center justify-center text-slate-500 shrink-0 shadow-2xs">
+                                    <User className="w-5 h-5 text-slate-500" />
+                                  </div>
+                                )}
                                 <div>
                                   <div className="flex items-center gap-1.5 font-bold text-slate-900 font-sans">
                                     <span>{member.name}</span>
@@ -5380,11 +5582,17 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
               <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div className="relative shrink-0">
-                    <img
-                      src={currentUser?.avatar || adminProfile.avatar || '/assets/pabel_light_avatar.webp'}
-                      alt={currentUser?.name || adminProfile.name || 'Admin'}
-                      className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-100 shadow-xs"
-                    />
+                    {(currentUser?.avatar || adminProfile.avatar) && (currentUser?.avatar || adminProfile.avatar) !== '/assets/pabel_light_avatar.webp' ? (
+                      <img
+                        src={currentUser?.avatar || adminProfile.avatar}
+                        alt={currentUser?.name || adminProfile.name || 'Admin'}
+                        className="w-14 h-14 rounded-2xl object-cover border-2 border-slate-100 shadow-xs"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 border-2 border-slate-200 flex items-center justify-center text-slate-400 shadow-xs">
+                        <User className="w-7 h-7 text-slate-400" />
+                      </div>
+                    )}
                     <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 ring-2 ring-white" />
                   </div>
                   <div className="min-w-0">
@@ -5553,12 +5761,62 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <a
+                    href="https://business.facebook.com/latest/home?asset_id=1410933978763199"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-blue-50/80 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
+                        <path d="M16.99 6.5C14.7 6.5 13.06 7.6 12 8.94C10.94 7.6 9.3 6.5 7.01 6.5C3.33 6.5 1 9.49 1 13.12C1 16.75 3.33 19.74 7.01 19.74C9.3 19.74 10.94 18.64 12 17.3C13.06 18.64 14.7 19.74 16.99 19.74C20.67 19.74 23 16.75 23 13.12C23 9.49 20.67 6.5 16.99 6.5ZM7.01 17.43C4.85 17.43 3.31 15.34 3.31 13.12C3.31 10.9 4.85 8.81 7.01 8.81C8.75 8.81 10.15 9.94 10.95 11.66C10.36 12.94 9.44 14.53 8.35 15.89C7.94 16.89 7.49 17.43 7.01 17.43ZM16.99 17.43C16.51 17.43 16.06 16.89 15.65 15.89C14.56 14.53 13.64 12.94 13.05 11.66C13.85 9.94 15.25 8.81 16.99 8.81C19.15 8.81 20.69 10.9 20.69 13.12C20.69 15.34 19.15 17.43 16.99 17.43Z" fill="#0081FB"/>
+                      </svg>
+                    </div>
+                    <span className="text-xs font-bold text-slate-700 font-sans">Meta Suite</span>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
+                  </a>
+
+                  <a
+                    href="https://x.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3.5 rounded-2xl border border-slate-100 hover:border-slate-300 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg className="w-4 h-4 text-slate-900" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                      </svg>
+                    </div>
+                    <span className="text-xs font-bold text-slate-700 font-sans">X Platform</span>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
+                  </a>
+
+                  <a
+                    href="https://www.linkedin.com/company/146740124/admin/dashboard/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
+                  >
+                    <div className="w-8 h-8 rounded-xl bg-sky-50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="#0A66C2">
+                        <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9h2.79v8.37H6.46v-8.37M7.86 6.54a1.63 1.63 0 0 0-1.63 1.62c0 .9.73 1.63 1.63 1.63.9 0 1.63-.73 1.63-1.63 0-.89-.73-1.62-1.63-1.62z"/>
+                      </svg>
+                    </div>
+                    <span className="text-xs font-bold text-slate-700 font-sans">LinkedIn</span>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
+                  </a>
+
+                  <a
                     href="https://search.google.com/search-console"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
                   >
-                    <img src="/icons/search-console.png" alt="GSC" className="w-7 h-7 object-contain group-hover:scale-110 transition-transform" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                    <div className="w-8 h-8 rounded-xl bg-blue-50/50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z" fill="#4285F4"/>
+                        <path d="M19.07 4.93l-1.41 1.41C19.12 7.79 20 9.79 20 12c0 4.41-3.59 8-8 8s-8-3.59-8-8c0-2.21.88-4.21 2.34-5.66L4.93 4.93C3.12 6.74 2 9.24 2 12c0 5.52 4.48 10 10 10s10-4.48 10-10c0-2.76-1.12-5.26-2.93-7.07z" fill="#34A853"/>
+                      </svg>
+                    </div>
                     <span className="text-xs font-bold text-slate-700 font-sans">Search Console</span>
                     <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
                   </a>
@@ -5569,8 +5827,14 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     rel="noopener noreferrer"
                     className="p-3.5 rounded-2xl border border-slate-100 hover:border-amber-200 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
                   >
-                    <img src="/icons/google-analytics.png" alt="GA4" className="w-7 h-7 object-contain group-hover:scale-110 transition-transform" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
-                    <span className="text-xs font-bold text-slate-700 font-sans">Google Analytics</span>
+                    <div className="w-8 h-8 rounded-xl bg-amber-50/50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path fill="#F9AB00" d="M19.5 2H16c-.83 0-1.5.67-1.5 1.5V20c0 .83.67 1.5 1.5 1.5h3.5c.83 0 1.5-.67 1.5-1.5V3.5c0-.83-.67-1.5-1.5-1.5z"/>
+                        <path fill="#E37400" d="M12.5 8H9c-.83 0-1.5.67-1.5 1.5V20c0 .83.67 1.5 1.5 1.5h3.5c.83 0 1.5-.67 1.5-1.5V9.5c0-.83-.67-1.5-1.5-1.5z"/>
+                        <circle cx="4.5" cy="18.5" r="2.5" fill="#E37400"/>
+                      </svg>
+                    </div>
+                    <span className="text-xs font-bold text-slate-700 font-sans">Analytics</span>
                     <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
                   </a>
 
@@ -5580,7 +5844,13 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     rel="noopener noreferrer"
                     className="p-3.5 rounded-2xl border border-slate-100 hover:border-sky-200 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
                   >
-                    <img src="/icons/microsoft-clarity.png" alt="Clarity" className="w-7 h-7 object-contain group-hover:scale-110 transition-transform" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                    <div className="w-8 h-8 rounded-xl bg-sky-50/50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
+                        <rect width="24" height="24" rx="4" fill="#0078D4"/>
+                        <circle cx="12" cy="12" r="5" stroke="#FFFFFF" strokeWidth="2.5"/>
+                        <circle cx="12" cy="12" r="2" fill="#FFFFFF"/>
+                      </svg>
+                    </div>
                     <span className="text-xs font-bold text-slate-700 font-sans">MS Clarity</span>
                     <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
                   </a>
@@ -5591,7 +5861,12 @@ export const blogPosts: BlogPost[] = ${JSON.stringify(posts, null, 2)};
                     rel="noopener noreferrer"
                     className="p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-slate-50 flex flex-col items-center text-center gap-2 transition-all group"
                   >
-                    <img src="/icons/google-tag-manager.png" alt="GTM" className="w-7 h-7 object-contain group-hover:scale-110 transition-transform" onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }} />
+                    <div className="w-8 h-8 rounded-xl bg-blue-50/50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                        <path fill="#246FDB" d="M12 2L2 12l10 10 10-10L12 2zm0 4.5l5.5 5.5L12 17.5 6.5 12 12 6.5z"/>
+                        <circle cx="12" cy="12" r="2.5" fill="#8AB4F8"/>
+                      </svg>
+                    </div>
                     <span className="text-xs font-bold text-slate-700 font-sans">Tag Manager</span>
                     <span className="text-[10px] text-slate-400 flex items-center gap-0.5">Open <ExternalLink className="w-2.5 h-2.5" /></span>
                   </a>

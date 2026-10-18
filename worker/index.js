@@ -340,7 +340,7 @@ async function ensureAdminUsersTable(db) {
       let password = 'PHI1.618';
       let email = 'ampabel.edp@gmail.com';
       let name = 'A M Pabel';
-      let avatar = '/assets/pabel_light_avatar.webp';
+      let avatar = null;
       try {
         const uRow = await db.prepare("SELECT value FROM admin_settings WHERE key = 'admin_username'").first();
         if (uRow && uRow.value) username = uRow.value;
@@ -1713,7 +1713,7 @@ async function handleBlogApi(request, env, ctx, url) {
 
       const res = await env.DB.prepare(`
         INSERT INTO admin_users (name, username, email, password, role, status, avatar)
-        VALUES (?, ?, ?, ?, ?, 'active', '/assets/pabel_light_avatar.webp')
+        VALUES (?, ?, ?, ?, ?, 'active', NULL)
       `).bind(trimmedName, trimmedUser, trimmedEmail, trimmedPass, targetRole).run();
 
       return jsonResponse({
@@ -1725,7 +1725,8 @@ async function handleBlogApi(request, env, ctx, url) {
           username: trimmedUser,
           email: trimmedEmail,
           role: targetRole,
-          status: 'active'
+          status: 'active',
+          avatar: null
         }
       });
     } catch (err) {
