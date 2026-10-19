@@ -154,13 +154,12 @@ class BanglishInputController: IMKInputController {
                        (modifiers.rawValue & NSEvent.ModifierFlags.option.rawValue) != 0
 
         // Universal Language Toggle Shortcuts:
-        // 1) Command + Space OR Control + Space when in Arabic or Bangla => Switch to English!
+        // 1) Command + Space OR Control + Space => Continuous cycle: Bangla -> Arabic -> English -> Bangla
         let isCmdOrCtrlSpace = (isCommand || isControl) && !isShift && !isOption && keyCode == 49
         if isCmdOrCtrlSpace {
             if !buffer.isEmpty { commitBuffer(client: client) }
-            Self.currentMode = .english
-            Self.syncTISInputSource(to: .english)
-            return false // Allow system to complete input source transition to English
+            GlobalHotKeyManager.shared.cycleNextLanguage()
+            return true // Consumed: smoothly cycle to next language in loop
         }
 
         // 2) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Arabic <-> English

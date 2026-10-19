@@ -8,6 +8,8 @@ final class GlobalHotKeyManager {
     private var arabicHotKeyRef: EventHotKeyRef?
     private var banglaHotKeyRef: EventHotKeyRef?
     private var ctrlArabicHotKeyRef: EventHotKeyRef?
+    private var cmdSpaceHotKeyRef: EventHotKeyRef?
+    private var ctrlSpaceHotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
 
     func start() {
@@ -21,12 +23,15 @@ final class GlobalHotKeyManager {
             if hkID.id == 1 || hkID.id == 3 {
                 // Shift + Option + Space OR Control + Option + Space => ARABIC DIRECTLY!
                 GlobalHotKeyManager.shared.activateArabicDirectly()
+                return noErr
             } else if hkID.id == 2 {
                 // Option + Space => BANGLA / ENGLISH TOGGLE!
                 GlobalHotKeyManager.shared.toggleBanglaEnglish()
+                return noErr
             } else if hkID.id == 4 || hkID.id == 5 {
-                // Command + Space OR Control + Space => SWITCH TO ENGLISH IF IN BANGLA OR ARABIC!
-                GlobalHotKeyManager.shared.handleCmdOrCtrlSpace()
+                // Command + Space OR Control + Space => CYCLE: Bangla -> Arabic -> English -> Bangla
+                GlobalHotKeyManager.shared.cycleNextLanguage()
+                return noErr
             }
             return noErr
         }, 1, &eventType, nil, &eventHandlerRef)
@@ -50,13 +55,11 @@ final class GlobalHotKeyManager {
 
         // HotKey 4: Command + Space (keyCode 49, cmdKey)
         let cmdSpaceID = EventHotKeyID(signature: OSType(0x424E4353), id: 4) // 'BNCS'
-        var cmdSpaceRef: EventHotKeyRef?
-        RegisterEventHotKey(49, UInt32(cmdKey), cmdSpaceID, GetEventDispatcherTarget(), 0, &cmdSpaceRef)
+        RegisterEventHotKey(49, UInt32(cmdKey), cmdSpaceID, GetEventDispatcherTarget(), 0, &cmdSpaceHotKeyRef)
 
         // HotKey 5: Control + Space (keyCode 49, controlKey)
         let ctrlSpaceID = EventHotKeyID(signature: OSType(0x424E4354), id: 5) // 'BNCT'
-        var ctrlSpaceRef: EventHotKeyRef?
-        RegisterEventHotKey(49, UInt32(controlKey), ctrlSpaceID, GetEventDispatcherTarget(), 0, &ctrlSpaceRef)
+        RegisterEventHotKey(49, UInt32(controlKey), ctrlSpaceID, GetEventDispatcherTarget(), 0, &ctrlSpaceHotKeyRef)
 
         NSLog("[Banglish] Global HotKeys registered successfully")
         enableAllBanglishModes()
@@ -99,19 +102,31 @@ final class GlobalHotKeyManager {
         }
     }
 
-    /// When user presses Command + Space or Control + Space
-    func handleCmdOrCtrlSpace() {
+    /// Cycle through: Bangla -> Arabic -> English -> Bangla -> ...
+    func cycleNextLanguage() {
         DispatchQueue.main.async {
-            // Check active input source
             guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
             let name = (TISGetInputSourceProperty(current, kTISPropertyLocalizedName).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
             let bId = (TISGetInputSourceProperty(current, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            
-            let isBanglishActive = bId.contains("Banglish") || name.contains("Banglish")
-            if isBanglishActive || BanglishInputController.currentMode != .english {
-                // Switch directly to English!
+            let modeId = (TISGetInputSourceProperty(current, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+
+            let isArabic = modeId == "Arabic" || name.lowercased().contains("arabic") || (bId.contains("Banglish") && BanglishInputController.currentMode == .arabic)
+            let isBangla = modeId == "Bangla" || (bId.contains("Banglish") && BanglishInputController.currentMode == .bangla)
+
+            if isBangla {
+                // Bangla -> Arabic
+                BanglishInputController.currentMode = .arabic
+                BanglishInputController.lastNonEnglishMode = .arabic
+                self.selectBanglishInputSource(modeKeyword: "Arabic")
+            } else if isArabic {
+                // Arabic -> English
                 BanglishInputController.currentMode = .english
                 self.selectEnglishInputSource()
+            } else {
+                // English -> Bangla
+                BanglishInputController.currentMode = .bangla
+                BanglishInputController.lastNonEnglishMode = .bangla
+                self.selectBanglishInputSource(modeKeyword: "Bangla")
             }
         }
     }
