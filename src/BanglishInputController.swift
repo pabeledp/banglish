@@ -30,8 +30,6 @@ class BanglishInputController: IMKInputController {
             Self.currentMode = .bangla
             Self.lastNonEnglishMode = .bangla
         }
-
-        BanglishStatusBarManager.shared.update(mode: Self.currentMode)
     }
 
     private static weak var activeController: BanglishInputController?
@@ -63,7 +61,6 @@ class BanglishInputController: IMKInputController {
             }
 
             CandidateWindow.shared.hide()
-            BanglishStatusBarManager.shared.update(mode: currentMode)
         }
     }
 
@@ -72,7 +69,6 @@ class BanglishInputController: IMKInputController {
             currentMode = .arabic
             lastNonEnglishMode = .arabic
             CandidateWindow.shared.hide()
-            BanglishStatusBarManager.shared.update(mode: .arabic)
         }
     }
 
@@ -213,7 +209,6 @@ class BanglishInputController: IMKInputController {
                 Self.currentMode = .arabic
                 Self.lastNonEnglishMode = .arabic
             }
-            BanglishStatusBarManager.shared.update(mode: Self.currentMode)
             return true
         }
 
@@ -639,18 +634,15 @@ class BanglishInputController: IMKInputController {
     @objc func switchToBangla() {
         Self.currentMode = .bangla
         Self.lastNonEnglishMode = .bangla
-        BanglishStatusBarManager.shared.update(mode: .bangla)
     }
 
     @objc func switchToArabic() {
         Self.currentMode = .arabic
         Self.lastNonEnglishMode = .arabic
-        BanglishStatusBarManager.shared.update(mode: .arabic)
     }
 
     @objc func switchToEnglish() {
         Self.currentMode = .english
-        BanglishStatusBarManager.shared.update(mode: .english)
     }
 
     @objc func openDashboard() {
