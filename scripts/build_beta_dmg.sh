@@ -31,6 +31,7 @@ mkdir -p "${BUILD_DIR}/ModuleCache"
     -target arm64-apple-macos12.0 \
     -module-cache-path "${BUILD_DIR}/ModuleCache" \
     -framework Cocoa \
+    -framework Carbon \
     -framework InputMethodKit \
     "${PROJECT_DIR}/src/BanglishData.swift" \
     "${PROJECT_DIR}/src/BanglishEngine.swift" \
@@ -40,6 +41,7 @@ mkdir -p "${BUILD_DIR}/ModuleCache"
     "${PROJECT_DIR}/src/ArabicDictionary.swift" \
     "${PROJECT_DIR}/src/CandidateWindow.swift" \
     "${PROJECT_DIR}/src/BanglishInputController.swift" \
+    "${PROJECT_DIR}/src/GlobalHotKeyManager.swift" \
     "${PROJECT_DIR}/src/AppUI.swift" \
     "${PROJECT_DIR}/src/main.swift" \
     -o "${APP_DIR}/Contents/MacOS/${APP_NAME}"
@@ -108,11 +110,6 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 		<dict>
 			<key>org.banglish.inputmethod.Banglish.Bangla</key>
 			<dict>
-				<key>TISIconLabels</key>
-				<dict>
-					<key>Primary</key>
-					<string>বা</string>
-				</dict>
 				<key>tsInputModeCharacterRepertoireKey</key>
 				<array>
 					<string>Beng</string>
@@ -134,11 +131,6 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 			</dict>
 			<key>org.banglish.inputmethod.Banglish.Arabic</key>
 			<dict>
-				<key>TISIconLabels</key>
-				<dict>
-					<key>Primary</key>
-					<string>ع</string>
-				</dict>
 				<key>tsInputModeCharacterRepertoireKey</key>
 				<array>
 					<string>Arab</string>
@@ -210,8 +202,10 @@ STRINGS
 # 5. Resources (icons & words dictionary)
 cp "${PROJECT_DIR}/Resources/AppIcon.icns" "${APP_DIR}/Contents/Resources/"
 cp "${PROJECT_DIR}/Resources/MenuIcon.png" "${APP_DIR}/Contents/Resources/"
+cp "${PROJECT_DIR}/Resources/MenuIcon@2x.png" "${APP_DIR}/Contents/Resources/" 2>/dev/null || true
 cp "${PROJECT_DIR}/Resources/MenuIcon.tiff" "${APP_DIR}/Contents/Resources/"
 cp "${PROJECT_DIR}/Resources/MenuIconAR.png" "${APP_DIR}/Contents/Resources/"
+cp "${PROJECT_DIR}/Resources/MenuIconAR@2x.png" "${APP_DIR}/Contents/Resources/" 2>/dev/null || true
 cp "${PROJECT_DIR}/Resources/MenuIconAR.tiff" "${APP_DIR}/Contents/Resources/"
 if [ -f "${PROJECT_DIR}/Resources/words.txt" ]; then
     cp "${PROJECT_DIR}/Resources/words.txt" "${APP_DIR}/Contents/Resources/"

@@ -11,6 +11,8 @@ autoreleasepool {
     let delegate = BanglishAppCoordinator()
     NSApplication.shared.delegate = delegate
 
+    GlobalHotKeyManager.shared.start()
+
     withExtendedLifetime(delegate) {
         NSApplication.shared.run()
     }
