@@ -328,8 +328,8 @@ final class BanglishAppCoordinator: NSObject, NSApplicationDelegate {
             rulesHeader.textColor = .wineDark
             rulesBox.addSubview(rulesHeader)
 
-            let rulesContent = NSTextField(labelWithString: "• ami ➔ আমি    • bangla ➔ বাংলা    • sundor ➔ সুন্দর    • kormo ➔ কর্ম    • Dhaka ➔ ঢাকা    • t`` ➔ ৎ    • . ➔ ।    • $ ➔ ৳\n• কীবোর্ড শর্টকাট: যেকোনো অ্যাপে Option + Space (⌥ + Space) চাপলে সরাসরি বাংলা ও ইংরেজির মধ্যে সুইচ হবে।")
-            rulesContent.frame = NSRect(x: 16, y: 8, width: winWidth - 110, height: 42)
+            let rulesContent = NSTextField(labelWithString: "• বাংলা: ami ➔ আমি | sundor ➔ সুন্দর | Dhaka ➔ ঢাকা | kormo ➔ কর্ম | . ➔ ।\n• আরবি: 7abibi ➔ حبيبي | shokran ➔ شكرا | 3arab ➔ عرب | mar7aba ➔ مرحبا | salam ➔ سلام\n• কীবোর্ড শর্টকাট: বাংলা ⌥ + Space | আরবি (Banglish AR) ⇧ + ⌥ + Space (বা ⌃+⌥+Space) | Fn/Globe (🌐) কী দিয়েও সুইচ করা যায়।")
+            rulesContent.frame = NSRect(x: 16, y: 4, width: winWidth - 110, height: 48)
             rulesContent.font = NSFont.systemFont(ofSize: 11.5)
             rulesContent.textColor = .textMuted
             rulesBox.addSubview(rulesContent)

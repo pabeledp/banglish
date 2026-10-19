@@ -94,20 +94,25 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
 	<key>TISIconIsTemplate</key>
-	<false/>
+	<true/>
 	<key>tsInputMethodCharacterRepertoireKey</key>
 	<array>
 		<string>Beng</string>
 		<string>Arab</string>
 	</array>
 	<key>tsInputMethodIconFileKey</key>
-	<string>MenuIcon</string>
+	<string>MenuIcon.tiff</string>
 	<key>ComponentInputModeDict</key>
 	<dict>
 		<key>tsInputModeListKey</key>
 		<dict>
 			<key>org.banglish.inputmethod.Banglish.Bangla</key>
 			<dict>
+				<key>TISIconLabels</key>
+				<dict>
+					<key>Primary</key>
+					<string>বা</string>
+				</dict>
 				<key>tsInputModeCharacterRepertoireKey</key>
 				<array>
 					<string>Beng</string>
@@ -119,16 +124,21 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeKeyEquivalentModifiersKey</key>
 				<integer>0</integer>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>MenuIcon</string>
+				<string>MenuIcon.tiff</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIcon</string>
+				<string>MenuIcon.tiff</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
-				<string>smBengali</string>
+				<string>smUnicodeScript</string>
 			</dict>
 			<key>org.banglish.inputmethod.Banglish.Arabic</key>
 			<dict>
+				<key>TISIconLabels</key>
+				<dict>
+					<key>Primary</key>
+					<string>ع</string>
+				</dict>
 				<key>tsInputModeCharacterRepertoireKey</key>
 				<array>
 					<string>Arab</string>
@@ -140,13 +150,13 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeKeyEquivalentModifiersKey</key>
 				<integer>0</integer>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>MenuIconAR</string>
+				<string>MenuIconAR.tiff</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIconAR</string>
+				<string>MenuIconAR.tiff</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
-				<string>smArabic</string>
+				<string>smUnicodeScript</string>
 			</dict>
 		</dict>
 	</dict>
@@ -160,6 +170,10 @@ cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/English.lproj/InfoPlist.string
 "CFBundleDisplayName" = "Banglish";
 "org.banglish.inputmethod.Banglish.Bangla" = "Banglish";
 "org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
+"org.banglish.inputmethod.Banglish.Banglish.Bangla" = "Banglish";
+"org.banglish.inputmethod.Banglish.Banglish.Arabic" = "Banglish AR";
+"Banglish" = "Banglish";
+"Banglish AR" = "Banglish AR";
 "CFBundleShortVersionString" = "Banglish version 1.0.002-beta";
 "CFBundleGetInfoString" = "Banglish 1.0.002 Beta, Bangla & Arabic Phonetic Keyboard";
 "NSHumanReadableCopyright" = "Copyright © 2026 Banglish";
@@ -170,6 +184,10 @@ cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/bn.lproj/InfoPlist.strings"
 "CFBundleDisplayName" = "বাংলিশ (Banglish)";
 "org.banglish.inputmethod.Banglish.Bangla" = "বাংলিশ";
 "org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
+"org.banglish.inputmethod.Banglish.Banglish.Bangla" = "বাংলিশ";
+"org.banglish.inputmethod.Banglish.Banglish.Arabic" = "Banglish AR";
+"Banglish" = "বাংলিশ";
+"Banglish AR" = "Banglish AR";
 "CFBundleShortVersionString" = "বাংলিশ সংস্করণ ১.০.০০২-বিটা";
 "CFBundleGetInfoString" = "বাংলিশ ১.০.০০২ বিটা, বাংলা ও আরবি ফোনেটিক কীবোর্ড";
 "NSHumanReadableCopyright" = "কপিরাইট © ২০২৬ বাংলিশ";
@@ -180,6 +198,10 @@ cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/ar.lproj/InfoPlist.strings"
 "CFBundleDisplayName" = "Banglish AR";
 "org.banglish.inputmethod.Banglish.Bangla" = "Banglish";
 "org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
+"org.banglish.inputmethod.Banglish.Banglish.Bangla" = "Banglish";
+"org.banglish.inputmethod.Banglish.Banglish.Arabic" = "Banglish AR";
+"Banglish" = "Banglish";
+"Banglish AR" = "Banglish AR";
 "CFBundleShortVersionString" = "Banglish 1.0.002-beta";
 "CFBundleGetInfoString" = "Banglish 1.0.002 Beta, لوحة مفاتيح صوتية للبنغالية والعربية";
 "NSHumanReadableCopyright" = "حقوق النشر © 2026 Banglish";
@@ -281,7 +303,7 @@ cat << 'EOF' > "${DMG_STAGING}/ইনস্টল ও ব্যবহার ক�
 
 কীবোর্ড শর্টকাট:
 - বাংলা <-> ইংলিশ: Option + Space (⌥ + Space)
-- আরবি <-> ইংলিশ: Control + Option + Space (^ + ⌥ + Space)
+- আরবি <-> ইংলিশ: Shift + Option + Space (⇧ + ⌥ + Space) অথবা Control + Option + Space (^ + ⌥ + Space)
 - ম্যাকের Dedicated Fn/Globe (🌐) কী ট্যাপ করলেও ভাষা পরিবর্তন হবে।
 
 ============================================================

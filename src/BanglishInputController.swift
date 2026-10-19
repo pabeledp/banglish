@@ -1,5 +1,6 @@
 import Cocoa
 import InputMethodKit
+import Carbon
 
 public enum InputMode: Int {
     case bangla = 0
@@ -14,6 +15,23 @@ class BanglishInputController: IMKInputController {
     private static let emptyRange = NSRange(location: NSNotFound, length: 0)
     public static var currentMode: InputMode = .bangla
     public static var lastNonEnglishMode: InputMode = .bangla
+
+    public static func syncTISInputSource(to mode: InputMode) {
+        guard mode != .english else { return }
+        let targetSuffix = (mode == .arabic) ? ".Arabic" : ".Bangla"
+        DispatchQueue.main.async {
+            guard let list = TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource] else { return }
+            for source in list {
+                if let ptrId = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) {
+                    let id = Unmanaged<CFString>.fromOpaque(ptrId).takeUnretainedValue() as String
+                    if id.lowercased().contains("banglish") && id.hasSuffix(targetSuffix) {
+                        TISSelectInputSource(source)
+                        return
+                    }
+                }
+            }
+        }
+    }
 
     public static var isBanglaMode: Bool {
         get { return currentMode == .bangla }
@@ -94,6 +112,7 @@ class BanglishInputController: IMKInputController {
                         } else {
                             Self.currentMode = .english
                         }
+                        Self.syncTISInputSource(to: Self.currentMode)
                     }
                 }
             }
@@ -121,10 +140,14 @@ class BanglishInputController: IMKInputController {
             } else {
                 Self.currentMode = .english
             }
+            Self.syncTISInputSource(to: Self.currentMode)
             return true
         }
 
         // Check modifier keys cleanly
+        let isShift = modifiers.contains(.shift) ||
+                      modifiers.intersection(.deviceIndependentFlagsMask).contains(.shift) ||
+                      (modifiers.rawValue & NSEvent.ModifierFlags.shift.rawValue) != 0
         let isCommand = modifiers.contains(.command) ||
                         modifiers.intersection(.deviceIndependentFlagsMask).contains(.command) ||
                         (modifiers.rawValue & NSEvent.ModifierFlags.command.rawValue) != 0
@@ -136,9 +159,8 @@ class BanglishInputController: IMKInputController {
                        (modifiers.rawValue & NSEvent.ModifierFlags.option.rawValue) != 0
 
         // Universal Language Toggle Shortcuts:
-        // 1) Control + Option + Space (^ + ⌥ + Space) => Arabic <-> English
-        // 2) Option + Space (⌥ + Space) or Control + Space (^ + Space) => Bangla <-> English
-        let isArabicToggle = isControl && isOption && !isCommand && keyCode == 49
+        // 1) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Arabic <-> English
+        let isArabicToggle = !isCommand && ((isShift && isOption) || (isControl && isOption)) && keyCode == 49
         if isArabicToggle {
             if !buffer.isEmpty { commitBuffer(client: client) }
             if Self.currentMode == .arabic {
@@ -147,10 +169,12 @@ class BanglishInputController: IMKInputController {
                 Self.currentMode = .arabic
                 Self.lastNonEnglishMode = .arabic
             }
+            Self.syncTISInputSource(to: Self.currentMode)
             return true
         }
 
-        let isBanglaToggle = (isOption || isControl) && !isCommand && keyCode == 49
+        // 2) Option + Space (⌥ + Space) => Bangla <-> English (or active language <-> English)
+        let isBanglaToggle = !isCommand && !isShift && !isControl && isOption && keyCode == 49
         if isBanglaToggle {
             if !buffer.isEmpty { commitBuffer(client: client) }
             if Self.currentMode == .bangla {
@@ -159,6 +183,7 @@ class BanglishInputController: IMKInputController {
                 Self.currentMode = .bangla
                 Self.lastNonEnglishMode = .bangla
             }
+            Self.syncTISInputSource(to: Self.currentMode)
             return true
         }
 
@@ -312,31 +337,39 @@ class BanglishInputController: IMKInputController {
 
         // Full stop / Daari (.)
         if char == "." {
-            if !buffer.isEmpty {
-                if buffer == "." {
-                    // Typing dot again ("..") directly commits "."
-                    client.insertText("." as NSString, replacementRange: Self.emptyRange)
-                    buffer.removeAll()
-                    CandidateWindow.shared.hide()
-                    return true
+            if Self.currentMode == .bangla {
+                if !buffer.isEmpty {
+                    if buffer == "." {
+                        // Typing dot again ("..") directly commits "."
+                        client.insertText("." as NSString, replacementRange: Self.emptyRange)
+                        buffer.removeAll()
+                        CandidateWindow.shared.hide()
+                        return true
+                    }
+                    // Commit previous buffer word first
+                    commitBuffer(client: client)
                 }
-                // Commit previous buffer word first
-                commitBuffer(client: client)
+                buffer = "."
+                updateMarkedText(client: client)
+                updateCandidates(client: client)
+                return true
+            } else {
+                if !buffer.isEmpty {
+                    commitBuffer(client: client)
+                }
+                return false
             }
-            buffer = "."
-            updateMarkedText(client: client)
-            updateCandidates(client: client)
-            return true
         }
 
-        // Digits 0...9 direct insertion (Bengali numerals)
+        // Digits 0...9 direct insertion (Bengali numerals) - ONLY in Bangla mode
         // Directly insert Bengali numerals to avoid composition / marked-text replacement
         // bugs in non-standard editors like Adobe After Effects, Illustrator, Photoshop, etc.
         let banglaDigits: [Character: String] = [
             "0": "০", "1": "১", "2": "২", "3": "৩", "4": "৪",
             "5": "৫", "6": "৬", "7": "৭", "8": "৮", "9": "৯"
         ]
-        if let char = char, let bDigit = banglaDigits[char],
+        if Self.currentMode == .bangla,
+           let char = char, let bDigit = banglaDigits[char],
            !modifiers.contains(.command), !modifiers.contains(.control), !modifiers.contains(.option), !modifiers.contains(.shift) {
             if !buffer.isEmpty {
                 commitBuffer(client: client)
@@ -530,7 +563,7 @@ class BanglishInputController: IMKInputController {
         if Self.currentMode == .bangla { banglaItem.state = .on }
         menu.addItem(banglaItem)
 
-        let arabicItem = NSMenuItem(title: "العربية (Banglish AR) — ⌃ + ⌥ + Space", action: #selector(switchToArabic), keyEquivalent: "")
+        let arabicItem = NSMenuItem(title: "العربية (Banglish AR) — ⇧ + ⌥ + Space", action: #selector(switchToArabic), keyEquivalent: "")
         arabicItem.target = self
         if Self.currentMode == .arabic { arabicItem.state = .on }
         menu.addItem(arabicItem)
@@ -555,11 +588,13 @@ class BanglishInputController: IMKInputController {
     @objc func switchToBangla() {
         Self.currentMode = .bangla
         Self.lastNonEnglishMode = .bangla
+        Self.syncTISInputSource(to: .bangla)
     }
 
     @objc func switchToArabic() {
         Self.currentMode = .arabic
         Self.lastNonEnglishMode = .arabic
+        Self.syncTISInputSource(to: .arabic)
     }
 
     @objc func switchToEnglish() {
