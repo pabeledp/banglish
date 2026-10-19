@@ -46,6 +46,19 @@ final class GlobalHotKeyManager {
         RegisterEventHotKey(49, UInt32(controlKey | optionKey), ctrlArabicID, GetEventDispatcherTarget(), 0, &ctrlArabicHotKeyRef)
 
         NSLog("[Banglish] Global HotKeys registered successfully (Shift+Opt+Space for Arabic, Opt+Space for Bangla)")
+        enableAllBanglishModes()
+    }
+
+    func enableAllBanglishModes() {
+        guard let list = TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource] else { return }
+        for source in list {
+            if let ptrId = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) {
+                let id = Unmanaged<CFString>.fromOpaque(ptrId).takeUnretainedValue() as String
+                if id.lowercased().contains("banglish") {
+                    TISEnableInputSource(source)
+                }
+            }
+        }
     }
 
     /// Directly switch to Arabic mode regardless of which app or language was active
@@ -53,7 +66,7 @@ final class GlobalHotKeyManager {
         DispatchQueue.main.async {
             BanglishInputController.currentMode = .arabic
             BanglishInputController.lastNonEnglishMode = .arabic
-            self.selectBanglishInputSource(modeSuffix: ".Arabic")
+            self.selectBanglishInputSource(modeKeyword: "Arabic")
             BanglishInputController.syncTISInputSource(to: .arabic)
         }
     }
@@ -69,19 +82,19 @@ final class GlobalHotKeyManager {
                 // If in English or Arabic, switch to Bangla
                 BanglishInputController.currentMode = .bangla
                 BanglishInputController.lastNonEnglishMode = .bangla
-                self.selectBanglishInputSource(modeSuffix: ".Bangla")
+                self.selectBanglishInputSource(modeKeyword: "Bangla")
             }
             BanglishInputController.syncTISInputSource(to: BanglishInputController.currentMode)
         }
     }
 
-    private func selectBanglishInputSource(modeSuffix: String) {
+    private func selectBanglishInputSource(modeKeyword: String) {
         guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return }
-        // 1. First try mode-specific source (e.g. .Arabic or .Bangla)
+        // 1. First try mode-specific source (e.g. Arabic or Bangla)
         for source in list {
             if let ptrId = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) {
                 let id = Unmanaged<CFString>.fromOpaque(ptrId).takeUnretainedValue() as String
-                if id.lowercased().contains("banglish") && id.hasSuffix(modeSuffix) {
+                if id.lowercased().contains("banglish") && id.contains(modeKeyword) {
                     TISSelectInputSource(source)
                     return
                 }

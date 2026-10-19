@@ -108,7 +108,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 	<dict>
 		<key>tsInputModeListKey</key>
 		<dict>
-			<key>org.banglish.inputmethod.Banglish.Bangla</key>
+			<key>Bangla</key>
 			<dict>
 				<key>tsInputModeCharacterRepertoireKey</key>
 				<array>
@@ -129,7 +129,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeScriptKey</key>
 				<string>smUnicodeScript</string>
 			</dict>
-			<key>org.banglish.inputmethod.Banglish.Arabic</key>
+			<key>Arabic</key>
 			<dict>
 				<key>tsInputModeCharacterRepertoireKey</key>
 				<array>
@@ -160,10 +160,10 @@ PLIST
 cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/English.lproj/InfoPlist.strings"
 "CFBundleName" = "Banglish";
 "CFBundleDisplayName" = "Banglish";
+"Bangla" = "Banglish";
+"Arabic" = "Banglish AR";
 "org.banglish.inputmethod.Banglish.Bangla" = "Banglish";
 "org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
-"org.banglish.inputmethod.Banglish.Banglish.Bangla" = "Banglish";
-"org.banglish.inputmethod.Banglish.Banglish.Arabic" = "Banglish AR";
 "Banglish" = "Banglish";
 "Banglish AR" = "Banglish AR";
 "CFBundleShortVersionString" = "Banglish version 1.0.002-beta";
@@ -174,10 +174,10 @@ STRINGS
 cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/bn.lproj/InfoPlist.strings"
 "CFBundleName" = "বাংলিশ";
 "CFBundleDisplayName" = "বাংলিশ (Banglish)";
+"Bangla" = "বাংলিশ";
+"Arabic" = "Banglish AR";
 "org.banglish.inputmethod.Banglish.Bangla" = "বাংলিশ";
 "org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
-"org.banglish.inputmethod.Banglish.Banglish.Bangla" = "বাংলিশ";
-"org.banglish.inputmethod.Banglish.Banglish.Arabic" = "Banglish AR";
 "Banglish" = "বাংলিশ";
 "Banglish AR" = "Banglish AR";
 "CFBundleShortVersionString" = "বাংলিশ সংস্করণ ১.০.০০২-বিটা";
@@ -188,10 +188,10 @@ STRINGS
 cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/ar.lproj/InfoPlist.strings"
 "CFBundleName" = "بانجليش";
 "CFBundleDisplayName" = "Banglish AR";
+"Bangla" = "Banglish";
+"Arabic" = "Banglish AR";
 "org.banglish.inputmethod.Banglish.Bangla" = "Banglish";
 "org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
-"org.banglish.inputmethod.Banglish.Banglish.Bangla" = "Banglish";
-"org.banglish.inputmethod.Banglish.Banglish.Arabic" = "Banglish AR";
 "Banglish" = "Banglish";
 "Banglish AR" = "Banglish AR";
 "CFBundleShortVersionString" = "Banglish 1.0.002-beta";
@@ -254,6 +254,31 @@ xattr -cr "$INSTALL_DIR/Banglish.app" 2>/dev/null || true
 rm -f "/Applications/Banglish.app" 2>/dev/null || true
 rm -rf "/Applications/Banglish.app" 2>/dev/null || true
 ln -sf "$INSTALL_DIR/Banglish.app" "/Applications/Banglish.app"
+
+# Register both Banglish and Banglish AR into user's enabled input sources
+python3 -c "
+import plistlib, os
+path = os.path.expanduser('$REAL_HOME/Library/Preferences/com.apple.HIToolbox.plist')
+if os.path.exists(path):
+    try:
+        with open(path, 'rb') as f:
+            pl = plistlib.load(f)
+        enabled = pl.get('AppleEnabledInputSources', [])
+        im_entry = {'InputSourceKind': 'Keyboard Input Method', 'Bundle ID': 'org.banglish.inputmethod.Banglish'}
+        bangla_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Bangla'}
+        arabic_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Arabic'}
+        if not any(i.get('Input Mode') == bangla_mode['Input Mode'] for i in enabled):
+            enabled.append(bangla_mode)
+        if not any(i.get('Input Mode') == arabic_mode['Input Mode'] for i in enabled):
+            enabled.append(arabic_mode)
+        if not any(i.get('Bundle ID') == im_entry['Bundle ID'] and i.get('InputSourceKind') == im_entry['InputSourceKind'] for i in enabled):
+            enabled.append(im_entry)
+        pl['AppleEnabledInputSources'] = enabled
+        with open(path, 'wb') as f:
+            plistlib.dump(pl, f)
+    except Exception:
+        pass
+" 2>/dev/null || true
 
 killall Banglish 2>/dev/null || true
 sleep 0.5
