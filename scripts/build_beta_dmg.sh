@@ -120,6 +120,8 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<true/>
 				<key>tsInputModeKeyEquivalentModifiersKey</key>
 				<integer>0</integer>
+				<key>tsInputModeKeyLayoutKey</key>
+				<string>com.apple.keylayout.US</string>
 				<key>tsInputModeMenuIconFileKey</key>
 				<string>MenuIcon.tiff</string>
 				<key>tsInputModePaletteIconFileKey</key>
@@ -141,6 +143,8 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<true/>
 				<key>tsInputModeKeyEquivalentModifiersKey</key>
 				<integer>0</integer>
+				<key>tsInputModeKeyLayoutKey</key>
+				<string>com.apple.keylayout.US</string>
 				<key>tsInputModeMenuIconFileKey</key>
 				<string>MenuIconAR.tiff</string>
 				<key>tsInputModePaletteIconFileKey</key>

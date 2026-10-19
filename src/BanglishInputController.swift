@@ -16,19 +16,68 @@ class BanglishInputController: IMKInputController {
     public static var currentMode: InputMode = .bangla
     public static var lastNonEnglishMode: InputMode = .bangla
 
+    public static func selectSystemInputSource(mode: InputMode) {
+        let modeProps = [kTISPropertyInputSourceType: "TISTypeKeyboardInputMode"] as CFDictionary
+        if let modeList = TISCreateInputSourceList(modeProps, true)?.takeRetainedValue() as? [TISInputSource] {
+            for s in modeList {
+                let modeId = (TISGetInputSourceProperty(s, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+                let bId = (TISGetInputSourceProperty(s, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+                if bId.contains("Banglish") {
+                    if mode == .bangla && modeId == "Bangla" {
+                        TISSelectInputSource(s)
+                        Self.currentMode = .bangla
+                        Self.lastNonEnglishMode = .bangla
+                        return
+                    } else if mode == .arabic && modeId == "Arabic" {
+                        TISSelectInputSource(s)
+                        Self.currentMode = .arabic
+                        Self.lastNonEnglishMode = .arabic
+                        return
+                    }
+                }
+            }
+        }
+
+        if mode == .english {
+            if let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] {
+                for s in list {
+                    let id = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+                    if id == "com.apple.keylayout.US" || id.contains("keylayout.US") || id.contains("ABC") {
+                        TISSelectInputSource(s)
+                        Self.currentMode = .english
+                        return
+                    }
+                }
+            }
+        }
+    }
+
     private func cycleLanguage(client: any IMKTextInput) {
         if !buffer.isEmpty { commitBuffer(client: client) }
         CandidateWindow.shared.hide()
 
         switch Self.currentMode {
         case .bangla:
-            Self.currentMode = .arabic
-            Self.lastNonEnglishMode = .arabic
+            Self.selectSystemInputSource(mode: .arabic)
         case .arabic:
-            Self.currentMode = .english
+            Self.selectSystemInputSource(mode: .english)
         case .english:
-            Self.currentMode = .bangla
-            Self.lastNonEnglishMode = .bangla
+            Self.selectSystemInputSource(mode: .bangla)
+        }
+    }
+
+    private func updateModeFromSystem() {
+        if let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() {
+            if let ptr = TISGetInputSourceProperty(src, kTISPropertyInputModeID) {
+                let id = Unmanaged<CFString>.fromOpaque(ptr).takeUnretainedValue() as String
+                if id.contains("Arabic") {
+                    Self.currentMode = .arabic
+                    Self.lastNonEnglishMode = .arabic
+                } else if id.contains("Bangla") {
+                    Self.currentMode = .bangla
+                    Self.lastNonEnglishMode = .bangla
+                }
+            }
         }
     }
 
@@ -44,30 +93,21 @@ class BanglishInputController: IMKInputController {
 
     public static func cycleLanguageGlobal() {
         DispatchQueue.main.async {
-            if let active = activeController, let client = active.currentClient() {
-                active.cycleLanguage(client: client)
-                return
-            }
-
             switch currentMode {
             case .bangla:
-                currentMode = .arabic
-                lastNonEnglishMode = .arabic
+                selectSystemInputSource(mode: .arabic)
             case .arabic:
-                currentMode = .english
+                selectSystemInputSource(mode: .english)
             case .english:
-                currentMode = .bangla
-                lastNonEnglishMode = .bangla
+                selectSystemInputSource(mode: .bangla)
             }
-
             CandidateWindow.shared.hide()
         }
     }
 
     public static func activateArabicDirectly() {
         DispatchQueue.main.async {
-            currentMode = .arabic
-            lastNonEnglishMode = .arabic
+            selectSystemInputSource(mode: .arabic)
             CandidateWindow.shared.hide()
         }
     }
@@ -112,6 +152,7 @@ class BanglishInputController: IMKInputController {
         CandidateWindow.shared.hide()
         _ = currentClient(sender: sender)
         buffer.removeAll()
+        updateModeFromSystem()
     }
 
     override func deactivateServer(_ sender: Any!) {
@@ -191,31 +232,19 @@ class BanglishInputController: IMKInputController {
                        (modifiers.rawValue & NSEvent.ModifierFlags.option.rawValue) != 0
 
         // Universal Language Toggle Shortcuts:
-        // 1) Command + Space OR Control + Space => Continuous cycle: Bangla -> Arabic -> English -> Bangla
-        let isCmdOrCtrlSpace = (isCommand || isControl) && !isShift && !isOption && keyCode == 49
-        if isCmdOrCtrlSpace {
+        // 1) Option + Space (⌥ + Space) => Continuous cycle with system tray update
+        let isOptionSpace = !isCommand && !isShift && !isControl && isOption && keyCode == 49
+        if isOptionSpace {
             cycleLanguage(client: client)
-            return true // Consumed: smoothly cycle to next language in loop with 0% focus loss
+            return true
         }
 
-        // 2) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Arabic direct switch
+        // 2) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Direct to Arabic with system tray update
         let isArabicToggle = !isCommand && ((isShift && isOption) || (isControl && isOption)) && keyCode == 49
         if isArabicToggle {
             if !buffer.isEmpty { commitBuffer(client: client) }
             CandidateWindow.shared.hide()
-            if Self.currentMode == .arabic {
-                Self.currentMode = .english
-            } else {
-                Self.currentMode = .arabic
-                Self.lastNonEnglishMode = .arabic
-            }
-            return true
-        }
-
-        // 3) Option + Space (⌥ + Space) => Continuous cycle: Bangla -> Arabic -> English -> Bangla
-        let isBanglaToggle = !isCommand && !isShift && !isControl && isOption && keyCode == 49
-        if isBanglaToggle {
-            cycleLanguage(client: client)
+            Self.selectSystemInputSource(mode: (Self.currentMode == .arabic) ? .english : .arabic)
             return true
         }
 
@@ -356,7 +385,9 @@ class BanglishInputController: IMKInputController {
         // Arrows (123, 124), Home (115), End (119), PgUp (116), PgDn (121), Del (117), Ins (114)
         // Numpad Operators: + (69), - (78), * (67), / (75), . (65), Clear (71), = (81)
         // Function Keys: F1-F12 (122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111)
-        let isNavOrSpecial = keyCode == 123 || keyCode == 124 || keyCode == 115 || keyCode == 119 ||
+        let isNavOrSpecial = keyCode == 123 || keyCode == 124 ||
+                             (!CandidateWindow.shared.isCandidateWindowVisible && (keyCode == 125 || keyCode == 126)) ||
+                             keyCode == 115 || keyCode == 119 ||
                              keyCode == 116 || keyCode == 121 || keyCode == 117 || keyCode == 114 ||
                              keyCode == 69 || keyCode == 78 || keyCode == 67 || keyCode == 75 || keyCode == 65 || keyCode == 71 || keyCode == 81 ||
                              (keyCode >= 96 && keyCode <= 101) || keyCode == 103 || keyCode == 109 || keyCode == 111 || keyCode == 118 || keyCode == 120 || keyCode == 122
@@ -632,17 +663,15 @@ class BanglishInputController: IMKInputController {
     }
 
     @objc func switchToBangla() {
-        Self.currentMode = .bangla
-        Self.lastNonEnglishMode = .bangla
+        Self.selectSystemInputSource(mode: .bangla)
     }
 
     @objc func switchToArabic() {
-        Self.currentMode = .arabic
-        Self.lastNonEnglishMode = .arabic
+        Self.selectSystemInputSource(mode: .arabic)
     }
 
     @objc func switchToEnglish() {
-        Self.currentMode = .english
+        Self.selectSystemInputSource(mode: .english)
     }
 
     @objc func openDashboard() {
