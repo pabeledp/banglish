@@ -67,7 +67,6 @@ final class GlobalHotKeyManager {
             BanglishInputController.currentMode = .arabic
             BanglishInputController.lastNonEnglishMode = .arabic
             self.selectBanglishInputSource(modeKeyword: "Arabic")
-            BanglishInputController.syncTISInputSource(to: .arabic)
         }
     }
 
@@ -84,7 +83,6 @@ final class GlobalHotKeyManager {
                 BanglishInputController.lastNonEnglishMode = .bangla
                 self.selectBanglishInputSource(modeKeyword: "Bangla")
             }
-            BanglishInputController.syncTISInputSource(to: BanglishInputController.currentMode)
         }
     }
 
