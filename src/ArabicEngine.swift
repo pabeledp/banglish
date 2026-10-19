@@ -60,7 +60,13 @@ public final class ArabicEngine {
             }
 
             if !matched {
-                result.append(buffer.removeFirst())
+                let firstChar = buffer.removeFirst()
+                let lowerStr = String(firstChar).lowercased()
+                if let rule = ArabicData.rules.first(where: { $0.latin == lowerStr }) {
+                    result.append(rule.arabic)
+                } else {
+                    result.append(firstChar)
+                }
             }
         }
         return result

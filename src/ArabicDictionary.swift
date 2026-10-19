@@ -130,7 +130,7 @@ public final class ArabicDictionary {
         "ful": "فول",
         "kabab": "كباب",
         "arab": "عرب",
-        "Erab": "عرب",
+        "Erab": "عراب",
         "arabi": "عربي",
         "Erabi": "عربي",
         "lugha": "لغة"

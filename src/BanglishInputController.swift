@@ -35,6 +35,40 @@ class BanglishInputController: IMKInputController {
         LanguageHUD.shared.show(mode: Self.currentMode, near: rect)
     }
 
+    private static weak var activeController: BanglishInputController?
+
+    public static func cycleLanguageGlobal() {
+        DispatchQueue.main.async {
+            if let active = activeController, let client = active.currentClient() {
+                active.cycleLanguage(client: client)
+                return
+            }
+
+            switch currentMode {
+            case .bangla:
+                currentMode = .arabic
+                lastNonEnglishMode = .arabic
+            case .arabic:
+                currentMode = .english
+            case .english:
+                currentMode = .bangla
+                lastNonEnglishMode = .bangla
+            }
+
+            CandidateWindow.shared.hide()
+            LanguageHUD.shared.show(mode: currentMode)
+        }
+    }
+
+    public static func activateArabicDirectly() {
+        DispatchQueue.main.async {
+            currentMode = .arabic
+            lastNonEnglishMode = .arabic
+            CandidateWindow.shared.hide()
+            LanguageHUD.shared.show(mode: .arabic)
+        }
+    }
+
     public static var isBanglaMode: Bool {
         get { return currentMode == .bangla }
         set { currentMode = newValue ? .bangla : .english }
@@ -43,6 +77,7 @@ class BanglishInputController: IMKInputController {
 
     override init!(server: IMKServer!, delegate: Any!, client: Any!) {
         super.init(server: server, delegate: delegate, client: client)
+        Self.activeController = self
         if let c = client as? (any IMKTextInput) {
             self.lastClient = c
         }
@@ -70,6 +105,7 @@ class BanglishInputController: IMKInputController {
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
+        Self.activeController = self
         CandidateWindow.shared.hide()
         _ = currentClient(sender: sender)
         buffer.removeAll()
@@ -79,6 +115,9 @@ class BanglishInputController: IMKInputController {
         CandidateWindow.shared.hide()
         if let client = currentClient(sender: sender), !buffer.isEmpty {
             commitBuffer(client: client)
+        }
+        if Self.activeController === self {
+            Self.activeController = nil
         }
         super.deactivateServer(sender)
     }
