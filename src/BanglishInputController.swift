@@ -16,16 +16,23 @@ class BanglishInputController: IMKInputController {
     public static var currentMode: InputMode = .bangla
     public static var lastNonEnglishMode: InputMode = .bangla
 
-    public static func syncTISInputSource(to mode: InputMode) {
-        DispatchQueue.main.async {
-            if mode == .english {
-                GlobalHotKeyManager.shared.selectEnglishInputSource()
-            } else if mode == .arabic {
-                GlobalHotKeyManager.shared.selectBanglishInputSource(modeKeyword: "Arabic")
-            } else {
-                GlobalHotKeyManager.shared.selectBanglishInputSource(modeKeyword: "Bangla")
-            }
+    private func cycleLanguage(client: any IMKTextInput) {
+        if !buffer.isEmpty { commitBuffer(client: client) }
+        CandidateWindow.shared.hide()
+
+        switch Self.currentMode {
+        case .bangla:
+            Self.currentMode = .arabic
+            Self.lastNonEnglishMode = .arabic
+        case .arabic:
+            Self.currentMode = .english
+        case .english:
+            Self.currentMode = .bangla
+            Self.lastNonEnglishMode = .bangla
         }
+
+        let rect = cursorRect(for: client)
+        LanguageHUD.shared.show(mode: Self.currentMode, near: rect)
     }
 
     public static var isBanglaMode: Bool {
@@ -101,13 +108,7 @@ class BanglishInputController: IMKInputController {
                     let elapsed = CACurrentMediaTime() - Self.fnKeyDownTime
                     // Dedicated tap (released within 500ms without combination)
                     if !Self.fnUsedWithOtherKey && elapsed > 0.01 && elapsed < 0.6 {
-                        if !buffer.isEmpty { commitBuffer(client: client) }
-                        if Self.currentMode == .english {
-                            Self.currentMode = Self.lastNonEnglishMode
-                        } else {
-                            Self.currentMode = .english
-                        }
-                        Self.syncTISInputSource(to: Self.currentMode)
+                        cycleLanguage(client: client)
                     }
                 }
             }
@@ -129,13 +130,7 @@ class BanglishInputController: IMKInputController {
 
         // Dedicated hardware Fn / Globe key (keycode 63) keyDown fallback
         if keyCode == 63 {
-            if !buffer.isEmpty { commitBuffer(client: client) }
-            if Self.currentMode == .english {
-                Self.currentMode = Self.lastNonEnglishMode
-            } else {
-                Self.currentMode = .english
-            }
-            Self.syncTISInputSource(to: Self.currentMode)
+            cycleLanguage(client: client)
             return true
         }
 
@@ -157,36 +152,30 @@ class BanglishInputController: IMKInputController {
         // 1) Command + Space OR Control + Space => Continuous cycle: Bangla -> Arabic -> English -> Bangla
         let isCmdOrCtrlSpace = (isCommand || isControl) && !isShift && !isOption && keyCode == 49
         if isCmdOrCtrlSpace {
-            if !buffer.isEmpty { commitBuffer(client: client) }
-            GlobalHotKeyManager.shared.cycleNextLanguage()
-            return true // Consumed: smoothly cycle to next language in loop
+            cycleLanguage(client: client)
+            return true // Consumed: smoothly cycle to next language in loop with 0% focus loss
         }
 
-        // 2) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Arabic <-> English
+        // 2) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Arabic direct switch
         let isArabicToggle = !isCommand && ((isShift && isOption) || (isControl && isOption)) && keyCode == 49
         if isArabicToggle {
             if !buffer.isEmpty { commitBuffer(client: client) }
+            CandidateWindow.shared.hide()
             if Self.currentMode == .arabic {
                 Self.currentMode = .english
             } else {
                 Self.currentMode = .arabic
                 Self.lastNonEnglishMode = .arabic
             }
-            Self.syncTISInputSource(to: Self.currentMode)
+            let rect = cursorRect(for: client)
+            LanguageHUD.shared.show(mode: Self.currentMode, near: rect)
             return true
         }
 
-        // 3) Option + Space (⌥ + Space) => Bangla <-> English (or active language <-> English)
+        // 3) Option + Space (⌥ + Space) => Continuous cycle: Bangla -> Arabic -> English -> Bangla
         let isBanglaToggle = !isCommand && !isShift && !isControl && isOption && keyCode == 49
         if isBanglaToggle {
-            if !buffer.isEmpty { commitBuffer(client: client) }
-            if Self.currentMode == .bangla {
-                Self.currentMode = .english
-            } else {
-                Self.currentMode = .bangla
-                Self.lastNonEnglishMode = .bangla
-            }
-            Self.syncTISInputSource(to: Self.currentMode)
+            cycleLanguage(client: client)
             return true
         }
 
@@ -561,17 +550,17 @@ class BanglishInputController: IMKInputController {
         menu.addItem(item1)
         menu.addItem(NSMenuItem.separator())
 
-        let banglaItem = NSMenuItem(title: "বাংলা (Bangla) — ⌥ + Space", action: #selector(switchToBangla), keyEquivalent: "")
+        let banglaItem = NSMenuItem(title: "বাংলা (Bangla) — ⌘ + Space", action: #selector(switchToBangla), keyEquivalent: "")
         banglaItem.target = self
         if Self.currentMode == .bangla { banglaItem.state = .on }
         menu.addItem(banglaItem)
 
-        let arabicItem = NSMenuItem(title: "العربية (Banglish AR) — ⇧ + ⌥ + Space", action: #selector(switchToArabic), keyEquivalent: "")
+        let arabicItem = NSMenuItem(title: "العربية (Banglish AR) — ⌘ + Space", action: #selector(switchToArabic), keyEquivalent: "")
         arabicItem.target = self
         if Self.currentMode == .arabic { arabicItem.state = .on }
         menu.addItem(arabicItem)
 
-        let englishItem = NSMenuItem(title: "English", action: #selector(switchToEnglish), keyEquivalent: "")
+        let englishItem = NSMenuItem(title: "English — ⌘ + Space", action: #selector(switchToEnglish), keyEquivalent: "")
         englishItem.target = self
         if Self.currentMode == .english { englishItem.state = .on }
         menu.addItem(englishItem)
@@ -591,17 +580,18 @@ class BanglishInputController: IMKInputController {
     @objc func switchToBangla() {
         Self.currentMode = .bangla
         Self.lastNonEnglishMode = .bangla
-        Self.syncTISInputSource(to: .bangla)
+        LanguageHUD.shared.show(mode: .bangla)
     }
 
     @objc func switchToArabic() {
         Self.currentMode = .arabic
         Self.lastNonEnglishMode = .arabic
-        Self.syncTISInputSource(to: .arabic)
+        LanguageHUD.shared.show(mode: .arabic)
     }
 
     @objc func switchToEnglish() {
         Self.currentMode = .english
+        LanguageHUD.shared.show(mode: .english)
     }
 
     @objc func openDashboard() {

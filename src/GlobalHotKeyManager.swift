@@ -5,64 +5,10 @@ import InputMethodKit
 final class GlobalHotKeyManager {
     static let shared = GlobalHotKeyManager()
 
-    private var arabicHotKeyRef: EventHotKeyRef?
-    private var banglaHotKeyRef: EventHotKeyRef?
-    private var ctrlArabicHotKeyRef: EventHotKeyRef?
-    private var cmdSpaceHotKeyRef: EventHotKeyRef?
-    private var ctrlSpaceHotKeyRef: EventHotKeyRef?
-    private var eventHandlerRef: EventHandlerRef?
-
     func start() {
-        var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-
-        let status = InstallEventHandler(GetEventDispatcherTarget(), { (nextHandler, theEvent, userData) -> OSStatus in
-            var hkID = EventHotKeyID()
-            let err = GetEventParameter(theEvent, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &hkID)
-            guard err == noErr else { return noErr }
-
-            if hkID.id == 1 || hkID.id == 3 {
-                // Shift + Option + Space OR Control + Option + Space => ARABIC DIRECTLY!
-                GlobalHotKeyManager.shared.activateArabicDirectly()
-                return noErr
-            } else if hkID.id == 2 {
-                // Option + Space => BANGLA / ENGLISH TOGGLE!
-                GlobalHotKeyManager.shared.toggleBanglaEnglish()
-                return noErr
-            } else if hkID.id == 4 || hkID.id == 5 {
-                // Command + Space OR Control + Space => CYCLE: Bangla -> Arabic -> English -> Bangla
-                GlobalHotKeyManager.shared.cycleNextLanguage()
-                return noErr
-            }
-            return noErr
-        }, 1, &eventType, nil, &eventHandlerRef)
-
-        guard status == noErr else {
-            NSLog("[Banglish] Failed to install Carbon Event Handler: %d", status)
-            return
-        }
-
-        // HotKey 1: Shift + Option + Space (keyCode 49, shiftKey | optionKey) => ARABIC
-        let arabicID = EventHotKeyID(signature: OSType(0x424E4152), id: 1) // 'BNAR'
-        RegisterEventHotKey(49, UInt32(shiftKey | optionKey), arabicID, GetEventDispatcherTarget(), 0, &arabicHotKeyRef)
-
-        // HotKey 2: Option + Space (keyCode 49, optionKey) => BANGLA
-        let banglaID = EventHotKeyID(signature: OSType(0x424E4247), id: 2) // 'BNBG'
-        RegisterEventHotKey(49, UInt32(optionKey), banglaID, GetEventDispatcherTarget(), 0, &banglaHotKeyRef)
-
-        // HotKey 3: Control + Option + Space (keyCode 49, controlKey | optionKey) => ARABIC (fallback)
-        let ctrlArabicID = EventHotKeyID(signature: OSType(0x424E4341), id: 3) // 'BNCA'
-        RegisterEventHotKey(49, UInt32(controlKey | optionKey), ctrlArabicID, GetEventDispatcherTarget(), 0, &ctrlArabicHotKeyRef)
-
-        // HotKey 4: Command + Space (keyCode 49, cmdKey)
-        let cmdSpaceID = EventHotKeyID(signature: OSType(0x424E4353), id: 4) // 'BNCS'
-        RegisterEventHotKey(49, UInt32(cmdKey), cmdSpaceID, GetEventDispatcherTarget(), 0, &cmdSpaceHotKeyRef)
-
-        // HotKey 5: Control + Space (keyCode 49, controlKey)
-        let ctrlSpaceID = EventHotKeyID(signature: OSType(0x424E4354), id: 5) // 'BNCT'
-        RegisterEventHotKey(49, UInt32(controlKey), ctrlSpaceID, GetEventDispatcherTarget(), 0, &ctrlSpaceHotKeyRef)
-
-        NSLog("[Banglish] Global HotKeys registered successfully")
+        // Ensure both Banglish (Bangla) and Banglish AR (Arabic) modes are enabled in TIS
         enableAllBanglishModes()
+        NSLog("[Banglish] Global manager started cleanly (carbon hotkeys omitted to preserve app focus)")
     }
 
     func enableAllBanglishModes() {
@@ -76,88 +22,4 @@ final class GlobalHotKeyManager {
             }
         }
     }
-
-    /// Directly switch to Arabic mode regardless of which app or language was active
-    func activateArabicDirectly() {
-        DispatchQueue.main.async {
-            BanglishInputController.currentMode = .arabic
-            BanglishInputController.lastNonEnglishMode = .arabic
-            self.selectBanglishInputSource(modeKeyword: "Arabic")
-        }
-    }
-
-    /// Toggle between Bangla and English
-    func toggleBanglaEnglish() {
-        DispatchQueue.main.async {
-            if BanglishInputController.currentMode == .bangla {
-                // If already in Bangla, switch to English
-                BanglishInputController.currentMode = .english
-                self.selectEnglishInputSource()
-            } else {
-                // If in English or Arabic, switch to Bangla
-                BanglishInputController.currentMode = .bangla
-                BanglishInputController.lastNonEnglishMode = .bangla
-                self.selectBanglishInputSource(modeKeyword: "Bangla")
-            }
-        }
-    }
-
-    /// Cycle through: Bangla -> Arabic -> English -> Bangla -> ...
-    func cycleNextLanguage() {
-        DispatchQueue.main.async {
-            guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
-            let name = (TISGetInputSourceProperty(current, kTISPropertyLocalizedName).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let bId = (TISGetInputSourceProperty(current, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let modeId = (TISGetInputSourceProperty(current, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-
-            let isArabic = modeId == "Arabic" || name.lowercased().contains("arabic") || (bId.contains("Banglish") && BanglishInputController.currentMode == .arabic)
-            let isBangla = modeId == "Bangla" || (bId.contains("Banglish") && BanglishInputController.currentMode == .bangla)
-
-            if isBangla {
-                // Bangla -> Arabic
-                BanglishInputController.currentMode = .arabic
-                BanglishInputController.lastNonEnglishMode = .arabic
-                self.selectBanglishInputSource(modeKeyword: "Arabic")
-            } else if isArabic {
-                // Arabic -> English
-                BanglishInputController.currentMode = .english
-                self.selectEnglishInputSource()
-            } else {
-                // English -> Bangla
-                BanglishInputController.currentMode = .bangla
-                BanglishInputController.lastNonEnglishMode = .bangla
-                self.selectBanglishInputSource(modeKeyword: "Bangla")
-            }
-        }
-    }
-
-    func selectBanglishInputSource(modeKeyword: String) {
-        guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return }
-        for source in list {
-            let modeId = (TISGetInputSourceProperty(source, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let name = (TISGetInputSourceProperty(source, kTISPropertyLocalizedName).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            if modeId == modeKeyword || name.lowercased().contains(modeKeyword.lowercased()) {
-                TISSelectInputSource(source)
-                return
-            }
-        }
-    }
-
-    func selectEnglishInputSource() {
-        guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return }
-        for source in list {
-            let bId = (TISGetInputSourceProperty(source, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let id = (TISGetInputSourceProperty(source, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let name = (TISGetInputSourceProperty(source, kTISPropertyLocalizedName).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let cat = (TISGetInputSourceProperty(source, kTISPropertyInputSourceCategory).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            
-            if cat == (kTISCategoryKeyboardInputSource as String) &&
-               !bId.contains("Banglish") &&
-               (id.contains("keylayout") || id.contains("US") || id.contains("ABC") || name == "U.S." || name == "ABC") {
-                TISSelectInputSource(source)
-                return
-            }
-        }
-    }
 }
-
