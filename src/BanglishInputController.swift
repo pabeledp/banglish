@@ -22,13 +22,14 @@ class BanglishInputController: IMKInputController {
             for s in modeList {
                 let modeId = (TISGetInputSourceProperty(s, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
                 let bId = (TISGetInputSourceProperty(s, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-                if bId.contains("Banglish") {
-                    if mode == .bangla && modeId == "Bangla" {
+                let sId = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+                if bId.contains("Banglish") || sId.contains("Banglish") {
+                    if mode == .bangla && (modeId.contains("Bangla") || sId.contains("Bangla")) {
                         TISSelectInputSource(s)
                         Self.currentMode = .bangla
                         Self.lastNonEnglishMode = .bangla
                         return
-                    } else if mode == .arabic && modeId == "Arabic" {
+                    } else if mode == .arabic && (modeId.contains("Arabic") || sId.contains("Arabic")) {
                         TISSelectInputSource(s)
                         Self.currentMode = .arabic
                         Self.lastNonEnglishMode = .arabic
@@ -157,9 +158,7 @@ class BanglishInputController: IMKInputController {
 
     override func deactivateServer(_ sender: Any!) {
         CandidateWindow.shared.hide()
-        if let client = currentClient(sender: sender), !buffer.isEmpty {
-            commitBuffer(client: client)
-        }
+        buffer.removeAll()
         if Self.activeController === self {
             Self.activeController = nil
         }
@@ -614,6 +613,17 @@ class BanglishInputController: IMKInputController {
     }
 
     // MARK: - Multiple Input Source Registration (Banglish & Banglish AR)
+    override func value(forTag tag: Int, client sender: Any!) -> Any! {
+        if tag == 1186 || tag == 0x6D6F6465 || tag == 1953655152 {
+            if Self.currentMode == .arabic {
+                return "org.banglish.inputmethod.Banglish.Arabic" as NSString
+            } else {
+                return "org.banglish.inputmethod.Banglish.Bangla" as NSString
+            }
+        }
+        return super.value(forTag: tag, client: sender)
+    }
+
     override func setValue(_ value: Any!, forTag tag: Int, client sender: Any!) {
         if let modeStr = value as? String {
             if modeStr.contains("Arabic") {

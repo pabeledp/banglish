@@ -93,7 +93,7 @@ final class GlobalHotKeyManager {
             let isBanglish = bId.contains("Banglish") || sId.contains("Banglish")
 
             if isBanglish {
-                if modeId == "Arabic" || BanglishInputController.currentMode == .arabic {
+                if modeId.contains("Arabic") || sId.contains("Arabic") || BanglishInputController.currentMode == .arabic {
                     // Arabic -> English
                     self.selectEnglishInputSource()
                 } else {
@@ -113,9 +113,10 @@ final class GlobalHotKeyManager {
             for s in modeList {
                 let modeId = (TISGetInputSourceProperty(s, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
                 let bId = (TISGetInputSourceProperty(s, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-                if bId.contains("Banglish") && modeId == modeKeyword {
+                let sId = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+                if (bId.contains("Banglish") || sId.contains("Banglish")) && (modeId.contains(modeKeyword) || sId.contains(modeKeyword)) {
                     TISSelectInputSource(s)
-                    if modeKeyword == "Arabic" {
+                    if modeKeyword.contains("Arabic") {
                         BanglishInputController.currentMode = .arabic
                         BanglishInputController.lastNonEnglishMode = .arabic
                     } else {

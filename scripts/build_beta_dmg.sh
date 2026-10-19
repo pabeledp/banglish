@@ -110,6 +110,37 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 		<dict>
 			<key>Bangla</key>
 			<dict>
+				<key>TISInputSourceID</key>
+				<string>org.banglish.inputmethod.Banglish.Bangla</string>
+				<key>TISIntendedLanguage</key>
+				<string>bn</string>
+				<key>tsInputModeCharacterRepertoireKey</key>
+				<array>
+					<string>Beng</string>
+				</array>
+				<key>tsInputModeDefaultStateKey</key>
+				<true/>
+				<key>tsInputModeIsVisibleKey</key>
+				<true/>
+				<key>tsInputModeKeyEquivalentModifiersKey</key>
+				<integer>0</integer>
+				<key>tsInputModeKeyLayoutKey</key>
+				<string>com.apple.keylayout.US</string>
+				<key>tsInputModeMenuIconFileKey</key>
+				<string>MenuIcon.tiff</string>
+				<key>tsInputModePaletteIconFileKey</key>
+				<string>MenuIcon.tiff</string>
+				<key>tsInputModePrimaryInScriptKey</key>
+				<true/>
+				<key>tsInputModeScriptKey</key>
+				<string>smUnicodeScript</string>
+			</dict>
+			<key>org.banglish.inputmethod.Banglish.Bangla</key>
+			<dict>
+				<key>TISInputSourceID</key>
+				<string>org.banglish.inputmethod.Banglish.Bangla</string>
+				<key>TISIntendedLanguage</key>
+				<string>bn</string>
 				<key>tsInputModeCharacterRepertoireKey</key>
 				<array>
 					<string>Beng</string>
@@ -133,6 +164,37 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 			</dict>
 			<key>Arabic</key>
 			<dict>
+				<key>TISInputSourceID</key>
+				<string>org.banglish.inputmethod.Banglish.Arabic</string>
+				<key>TISIntendedLanguage</key>
+				<string>ar</string>
+				<key>tsInputModeCharacterRepertoireKey</key>
+				<array>
+					<string>Arab</string>
+				</array>
+				<key>tsInputModeDefaultStateKey</key>
+				<true/>
+				<key>tsInputModeIsVisibleKey</key>
+				<true/>
+				<key>tsInputModeKeyEquivalentModifiersKey</key>
+				<integer>0</integer>
+				<key>tsInputModeKeyLayoutKey</key>
+				<string>com.apple.keylayout.US</string>
+				<key>tsInputModeMenuIconFileKey</key>
+				<string>MenuIconAR.tiff</string>
+				<key>tsInputModePaletteIconFileKey</key>
+				<string>MenuIconAR.tiff</string>
+				<key>tsInputModePrimaryInScriptKey</key>
+				<true/>
+				<key>tsInputModeScriptKey</key>
+				<string>smUnicodeScript</string>
+			</dict>
+			<key>org.banglish.inputmethod.Banglish.Arabic</key>
+			<dict>
+				<key>TISInputSourceID</key>
+				<string>org.banglish.inputmethod.Banglish.Arabic</string>
+				<key>TISIntendedLanguage</key>
+				<string>ar</string>
 				<key>tsInputModeCharacterRepertoireKey</key>
 				<array>
 					<string>Arab</string>
@@ -155,6 +217,13 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<string>smUnicodeScript</string>
 			</dict>
 		</dict>
+		<key>tsVisibleInputModeOrderedArrayKey</key>
+		<array>
+			<string>Bangla</string>
+			<string>Arabic</string>
+			<string>org.banglish.inputmethod.Banglish.Bangla</string>
+			<string>org.banglish.inputmethod.Banglish.Arabic</string>
+		</array>
 	</dict>
 </dict>
 </plist>
@@ -164,6 +233,8 @@ PLIST
 cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/English.lproj/InfoPlist.strings"
 "CFBundleName" = "Banglish";
 "CFBundleDisplayName" = "Banglish";
+"org.banglish.inputmethod.Banglish.Bangla" = "Banglish";
+"org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
 "Bangla" = "Banglish";
 "Arabic" = "Banglish AR";
 "Banglish" = "Banglish";
@@ -176,6 +247,8 @@ STRINGS
 cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/bn.lproj/InfoPlist.strings"
 "CFBundleName" = "বাংলিশ";
 "CFBundleDisplayName" = "বাংলিশ (Banglish)";
+"org.banglish.inputmethod.Banglish.Bangla" = "বাংলিশ";
+"org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
 "Bangla" = "বাংলিশ";
 "Arabic" = "Banglish AR";
 "Banglish" = "বাংলিশ";
@@ -188,6 +261,8 @@ STRINGS
 cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/ar.lproj/InfoPlist.strings"
 "CFBundleName" = "بانجليش";
 "CFBundleDisplayName" = "Banglish AR";
+"org.banglish.inputmethod.Banglish.Bangla" = "Banglish";
+"org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
 "Bangla" = "Banglish";
 "Arabic" = "Banglish AR";
 "Banglish" = "Banglish";
