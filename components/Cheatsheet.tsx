@@ -12,8 +12,41 @@ interface RuleItem {
   note?: string;
 }
 
+interface ArabicConsonantItem {
+  key: string;
+  letter: string;
+  name: string;
+}
+
+interface ArabiziDigitItem {
+  key: string;
+  letter: string;
+  name: string;
+  example: string;
+  result: string;
+}
+
+interface ArabicSpecialItem {
+  key: string;
+  arabic: string;
+  description: string;
+  example?: string;
+}
+
+interface ArabicHarakatItem {
+  key: string;
+  harakat: string;
+  meaning: string;
+}
+
+interface ArabicPunctuationItem {
+  key: string;
+  arabic: string;
+  name: string;
+}
+
 export default function Cheatsheet() {
-  const [activeTab, setActiveTab] = useState<'all' | 'vowels' | 'consonants' | 'modifiers' | 'conjuncts' | 'rules'>('all');
+  const [activeLang, setActiveLang] = useState<'bangla' | 'arabic'>('bangla');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -353,6 +386,140 @@ export default function Cheatsheet() {
     );
   }, [searchQuery, modifiers]);
 
+  // Arabic Datasets (Arabizi / Franco-Arabic)
+  const arabicConsonants: ArabicConsonantItem[] = [
+    { key: 'A বা aa', letter: 'ا', name: 'আলিফ (Alif)' },
+    { key: 'b বা p', letter: 'ب', name: 'বা (Ba)' },
+    { key: 't', letter: 'ت', name: 'তা (Ta)' },
+    { key: 'th', letter: 'ث', name: 'ছা (Tha)' },
+    { key: 'j বা g', letter: 'ج', name: 'জীম (Jim)' },
+    { key: 'H বা 7', letter: 'ح', name: 'হা (Pharyngeal Ha)' },
+    { key: 'kh বা 5', letter: 'خ', name: 'খা (Kha)' },
+    { key: 'd', letter: 'د', name: 'দাল (Dal)' },
+    { key: 'dh', letter: 'ذ', name: 'যাল (Dhal)' },
+    { key: 'r', letter: 'ر', name: 'রা (Ra)' },
+    { key: 'z', letter: 'ز', name: 'যা (Zay)' },
+    { key: 's', letter: 'س', name: 'সীন (Sin)' },
+    { key: 'sh', letter: 'ش', name: 'শীন (Shin)' },
+    { key: 'f বা v', letter: 'ف', name: 'ফা (Fa)' },
+    { key: 'q বা 8', letter: 'ق', name: 'ক্বাফ (Qaf)' },
+    { key: 'k বা c', letter: 'ك', name: 'কাফ (Kaf)' },
+    { key: 'l', letter: 'ل', name: 'লাম (Lam)' },
+    { key: 'm', letter: 'م', name: 'মীম (Mim)' },
+    { key: 'n', letter: 'ن', name: 'নূন (Nun)' },
+    { key: 'h', letter: 'ه', name: 'হা (Soft Ha)' },
+    { key: 'w বা oo', letter: 'و', name: 'ওয়াও (Waw)' },
+    { key: 'y বা ee', letter: 'ي', name: 'ইয়া (Ya)' },
+  ];
+
+  const arabiziDigits: ArabiziDigitItem[] = [
+    { key: '2', letter: 'ء', name: 'হামযাহ', example: '2', result: 'ء' },
+    { key: "2'", letter: 'أ', name: 'আলিফ হামযাহ', example: "2'amal", result: 'أمل' },
+    { key: '3', letter: 'ع', name: 'আইন', example: '3ali', result: 'علي' },
+    { key: "3'", letter: 'غ', name: 'গাইন', example: "3'aza", result: 'غزة' },
+    { key: "5 / 7'", letter: 'خ', name: 'খা', example: '5alid', result: 'خالد' },
+    { key: '6', letter: 'ط', name: 'ত্বা', example: '6ayeb', result: 'طيب' },
+    { key: "6'", letter: 'ظ', name: 'যা', example: "6'ohr", result: 'ظهر' },
+    { key: '7', letter: 'ح', name: 'হা', example: '7amd', result: 'حمد' },
+    { key: '8', letter: 'ق', name: 'ক্বাফ', example: '8alam', result: 'قلم' },
+    { key: '9', letter: 'ص', name: 'সোয়াদ', example: '9abr', result: 'صبر' },
+    { key: "9'", letter: 'ض', name: 'দোয়াদ', example: "9'aw2", result: 'ضوء' },
+  ];
+
+  const arabicSpecials: ArabicSpecialItem[] = [
+    { key: 'T', arabic: 'ة', description: 'তা-মারবূতাহ (Ta Marbuta)' },
+    { key: 'Y', arabic: 'ى', description: 'আলিফ মাকসূরা (Alif Maqsura)' },
+    { key: 'la বা lA', arabic: 'لا', description: 'লাম-আলিফ (Lam-Alif)' },
+    { key: 'শব্দের শুরুতে al', arabic: 'ال', description: 'আলিফ-লাম', example: 'alhamdulillah → الحمدلله' },
+  ];
+
+  const arabicHarakat: ArabicHarakatItem[] = [
+    { key: 'a', harakat: 'َ', meaning: 'ফাতহা (যবর)' },
+    { key: 'i / e', harakat: 'ِ', meaning: 'কাসরা (যের)' },
+    { key: 'u / o', harakat: 'ُ', meaning: 'দাম্মা (পেশ)' },
+    { key: 'an', harakat: 'ً', meaning: 'ফাতহাতান (দুই যবর)' },
+    { key: 'in', harakat: 'ٍ', meaning: 'কাসরাতাইন (দুই যের)' },
+    { key: 'un', harakat: 'ٌ', meaning: 'দাম্মাতাইন (দুই পেশ)' },
+    { key: 'sk', harakat: 'ْ', meaning: 'সুকুন (জযম)' },
+    { key: 'shd', harakat: 'ّ', meaning: 'তাশদীদ (Shaddah)' },
+  ];
+
+  const arabicPunctuations: ArabicPunctuationItem[] = [
+    { key: '?', arabic: '؟', name: 'Arabic Question Mark' },
+    { key: ',', arabic: '،', name: 'Arabic Comma' },
+    { key: ';', arabic: '؛', name: 'Arabic Semicolon' },
+  ];
+
+  const arabicExamples = [
+    { input: 'salam', output: 'سلام' },
+    { input: 'shukran', output: 'شكرا' },
+    { input: 'alhamdulillah', output: 'الحمدلله' },
+    { input: 'bismillah', output: 'بسمالله' },
+    { input: 'mar7aba বা marhaba', output: 'مرحبا' },
+    { input: 'kayfa 7aluka?', output: 'كيف حالك؟' },
+  ];
+
+  const filteredArabicConsonants = useMemo(() => {
+    if (!searchQuery) return arabicConsonants;
+    const q = searchQuery.toLowerCase().trim();
+    return arabicConsonants.filter(item =>
+      item.key.toLowerCase().includes(q) ||
+      item.letter.includes(q) ||
+      item.name.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  const filteredArabiziDigits = useMemo(() => {
+    if (!searchQuery) return arabiziDigits;
+    const q = searchQuery.toLowerCase().trim();
+    return arabiziDigits.filter(item =>
+      item.key.toLowerCase().includes(q) ||
+      item.letter.includes(q) ||
+      item.name.toLowerCase().includes(q) ||
+      item.example.toLowerCase().includes(q) ||
+      item.result.includes(q)
+    );
+  }, [searchQuery]);
+
+  const filteredArabicSpecials = useMemo(() => {
+    if (!searchQuery) return arabicSpecials;
+    const q = searchQuery.toLowerCase().trim();
+    return arabicSpecials.filter(item =>
+      item.key.toLowerCase().includes(q) ||
+      item.arabic.includes(q) ||
+      item.description.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  const filteredArabicHarakat = useMemo(() => {
+    if (!searchQuery) return arabicHarakat;
+    const q = searchQuery.toLowerCase().trim();
+    return arabicHarakat.filter(item =>
+      item.key.toLowerCase().includes(q) ||
+      item.harakat.includes(q) ||
+      item.meaning.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  const filteredArabicPunctuations = useMemo(() => {
+    if (!searchQuery) return arabicPunctuations;
+    const q = searchQuery.toLowerCase().trim();
+    return arabicPunctuations.filter(item =>
+      item.key.toLowerCase().includes(q) ||
+      item.arabic.includes(q) ||
+      item.name.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
+
+  const filteredArabicExamples = useMemo(() => {
+    if (!searchQuery) return arabicExamples;
+    const q = searchQuery.toLowerCase().trim();
+    return arabicExamples.filter(item =>
+      item.input.toLowerCase().includes(q) ||
+      item.output.includes(q)
+    );
+  }, [searchQuery]);
+
   return (
     <section id="cheatsheet" className="py-16 sm:py-24 bg-gradient-to-b from-slate-50/70 via-white to-emerald-50/20 border-t border-b border-emerald-100/70 relative">
       
@@ -366,13 +533,16 @@ export default function Cheatsheet() {
         <div className="text-center max-w-3xl mx-auto space-y-3">
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-semibold font-mono uppercase tracking-wider shadow-2xs">
             <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            <span>অফিসিয়াল অভ্র ফোনেটিক স্কিম নির্দেশিকা</span>
+            <span>{activeLang === 'bangla' ? 'অফিসিয়াল অভ্র ফোনেটিক স্কিম নির্দেশিকা' : 'Arabizi / Franco-Arabic Phonetic Guide'}</span>
           </div>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 font-sans tracking-tight">
-            সম্পূর্ণ ফোনেটিক কী-চার্ট ও টাইপিং গাইড
+            {activeLang === 'bangla' ? 'সম্পূর্ণ ফোনেটিক কী-চার্ট ও টাইপিং গাইড' : 'Arabic Phonetic Keyboard Chart'}
           </h2>
           <p className="text-sm sm:text-base text-slate-600 font-bangla leading-relaxed">
-            ইংরেজি অক্ষরের উচ্চারণে স্বয়ংক্রিয়ভাবে বাংলা লেখার জন্য অভ্র ফোনেটিকের পূর্ণাঙ্গ বর্ণতালিকা, কার, ফলা এবং ১২০+ যুক্তাক্ষরের নির্ভুল রেফারেন্স।
+            {activeLang === 'bangla' 
+              ? 'ইংরেজি অক্ষরের উচ্চারণে স্বয়ংক্রিয়ভাবে বাংলা লেখার জন্য অভ্র ফোনেটিকের পূর্ণাঙ্গ বর্ণতালিকা, কার, ফলা এবং ১২০+ যুক্তাক্ষরের নির্ভুল রেফারেন্স।'
+              : 'Banglish-এ আরবি ফোনেটিক টাইপিং (Arabizi / Franco-Arabic) কীবোর্ড চার্ট ও লেখার পূর্ণাঙ্গ নির্দেশিকা।'
+            }
           </p>
         </div>
 
@@ -387,7 +557,7 @@ export default function Cheatsheet() {
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="সার্চ করুন (যেমন: ক্ষ, জ্ঞ, kkh, shr, ষ্ণ, ইত্যাদি)..."
+                placeholder={activeLang === 'bangla' ? 'সার্চ করুন (যেমন: ক্ষ, জ্ঞ, kkh, shr, ষ্ণ, ইত্যাদি)...' : 'সার্চ করুন (যেমন: 7, 3, kh, shukran, salam, ইত্যাদি)...'}
                 className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs sm:text-sm font-bangla focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-slate-800 placeholder:text-slate-400"
               />
               {searchQuery && (
@@ -400,36 +570,40 @@ export default function Cheatsheet() {
               )}
             </div>
 
-            {/* Category Filter Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto p-1 bg-slate-100/90 rounded-2xl">
-              {[
-                { id: 'all', label: 'সকল চার্ট' },
-                { id: 'vowels', label: '১. স্বরবর্ণ ও কার' },
-                { id: 'consonants', label: '২. ব্যঞ্জনবর্ণ' },
-                { id: 'modifiers', label: '৩. ফলা ও রেফ' },
-                { id: 'conjuncts', label: '৪. যুক্তাক্ষর (১২০+)' },
-                { id: 'rules', label: '৫. বিশেষ নিয়ম' },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer font-bangla ${
-                    activeTab === tab.id
-                      ? 'bg-white text-emerald-800 shadow-xs font-bold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            {/* Language Selection Tabs: বাংলা | Arabic */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-2xl shrink-0">
+              <button
+                type="button"
+                onClick={() => { setActiveLang('bangla'); setSearchQuery(''); }}
+                className={`px-5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all cursor-pointer font-bangla ${
+                  activeLang === 'bangla'
+                    ? 'bg-white text-emerald-800 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                বাংলা
+              </button>
+              <button
+                type="button"
+                onClick={() => { setActiveLang('arabic'); setSearchQuery(''); }}
+                className={`px-5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all cursor-pointer font-sans ${
+                  activeLang === 'arabic'
+                    ? 'bg-white text-emerald-800 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+                }`}
+              >
+                Arabic
+              </button>
             </div>
 
           </div>
         </div>
 
-        {/* 1. স্বরবর্ণ ও কার রূপ (Vowels Table) */}
-        {(activeTab === 'all' || activeTab === 'vowels') && (
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
+        {/* BANGLA VIEW */}
+        {activeLang === 'bangla' && (
+          <div className="space-y-8">
+            {/* 1. স্বরবর্ণ ও কার রূপ (Vowels Table) */}
+            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
             <div className="px-6 py-4.5 bg-gradient-to-r from-emerald-50/90 via-emerald-50/40 to-teal-50/20 border-b border-slate-200/80 flex items-center justify-between">
               <h3 className="text-base sm:text-lg font-bold text-slate-900 font-bangla flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
@@ -477,208 +651,502 @@ export default function Cheatsheet() {
               </table>
             </div>
           </div>
-        )}
 
         {/* 2. ব্যঞ্জনবর্ণ (Consonants Grid) */}
-        {(activeTab === 'all' || activeTab === 'consonants') && (
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 font-bangla flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span>২. ব্যঞ্জনবর্ণ তালিকা (Consonants & Signs)</span>
-                </h3>
-                <p className="text-xs text-slate-500 font-bangla mt-0.5">
-                  ক্যাপিটাল ও স্মল লেটারের পার্থক্য অনুযায়ী সঠিক ব্যঞ্জনবর্ণ টাইপ করুন।
-                </p>
-              </div>
-              <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-100/80 px-3 py-1 rounded-full">
-                ৩৯টি বর্ণ ও চিহ্ন
-              </span>
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 font-bangla flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>২. ব্যঞ্জনবর্ণ তালিকা (Consonants & Signs)</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-bangla mt-0.5">
+                ক্যাপিটাল ও স্মল লেটারের পার্থক্য অনুযায়ী সঠিক ব্যঞ্জনবর্ণ টাইপ করুন।
+              </p>
             </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-              {filteredConsonants.map((c, idx) => (
-                <div 
-                  key={idx} 
-                  onClick={() => handleCopy(c.key)}
-                  className="p-3.5 rounded-2xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-200/80 hover:border-emerald-300 transition-all flex items-center justify-between group cursor-pointer relative"
-                  title="কপি করতে ক্লিক করুন"
-                >
-                  <div>
-                    <span className="font-mono text-xs sm:text-sm font-bold text-emerald-800 block">
-                      {c.key}
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-bangla block truncate max-w-[80px]">
-                      {c.example.split('→')[0]}
-                    </span>
-                  </div>
-                  <span className="font-bangla text-2xl font-bold text-slate-900 group-hover:scale-110 transition-transform">
-                    {c.letter}
-                  </span>
-                  {copiedKey === c.key && (
-                    <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded shadow z-10">
-                      কপি হয়েছে!
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
+            <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-100/80 px-3 py-1 rounded-full">
+              ৩৯টি বর্ণ ও চিহ্ন
+            </span>
           </div>
-        )}
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+            {filteredConsonants.map((c, idx) => (
+              <div 
+                key={idx} 
+                onClick={() => handleCopy(c.key)}
+                className="p-3.5 rounded-2xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-200/80 hover:border-emerald-300 transition-all flex items-center justify-between group cursor-pointer relative"
+                title="কপি করতে ক্লিক করুন"
+              >
+                <div>
+                  <span className="font-mono text-xs sm:text-sm font-bold text-emerald-800 block">
+                    {c.key}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-bangla block truncate max-w-[80px]">
+                    {c.example.split('→')[0]}
+                  </span>
+                </div>
+                <span className="font-bangla text-2xl font-bold text-slate-900 group-hover:scale-110 transition-transform">
+                  {c.letter}
+                </span>
+                {copiedKey === c.key && (
+                  <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded shadow z-10">
+                    কপি হয়েছে!
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* 3. ফলা, রেফ ও বিশেষ চিহ্ন (Modifiers, Fola & Punctuation) */}
-        {(activeTab === 'all' || activeTab === 'modifiers') && (
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 font-bangla flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span>৩. ফলা, রেফ ও যতিচিহ্ন লেখার নিয়ম (Modifiers & Signs)</span>
-                </h3>
-                <p className="text-xs text-slate-500 font-bangla mt-0.5">
-                  ব-ফলা, য-ফলা, র-ফলা, রেফ, হসন্ত ও দাঁড়ি লেখার সহজ কৌশল।
-                </p>
-              </div>
-              <span className="text-xs font-mono text-teal-700 font-bold bg-teal-100/80 px-3 py-1 rounded-full">
-                ১০টি নিয়ম
-              </span>
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 font-bangla flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>৩. ফলা, রেফ ও যতিচিহ্ন লেখার নিয়ম (Modifiers & Signs)</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-bangla mt-0.5">
+                ব-ফলা, য-ফলা, র-ফলা, রেফ, হসন্ত ও দাঁড়ি লেখার সহজ কৌশল।
+              </p>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {filteredModifiers.map((m, idx) => (
-                <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                      {m.key}
-                    </span>
-                    <span className="text-lg font-bold text-slate-900 font-bangla">
-                      {m.letter}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-700 font-mono bg-white p-2 rounded-xl border border-slate-200/60">
-                    {m.example}
-                  </div>
-                  {m.note && (
-                    <p className="text-[11px] text-slate-500 font-bangla leading-relaxed">
-                      💡 {m.note}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+            <span className="text-xs font-mono text-teal-700 font-bold bg-teal-100/80 px-3 py-1 rounded-full">
+              ১০টি নিয়ম
+            </span>
           </div>
-        )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {filteredModifiers.map((m, idx) => (
+              <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    {m.key}
+                  </span>
+                  <span className="text-lg font-bold text-slate-900 font-bangla">
+                    {m.letter}
+                  </span>
+                </div>
+                <div className="text-xs text-slate-700 font-mono bg-white p-2 rounded-xl border border-slate-200/60">
+                  {m.example}
+                </div>
+                {m.note && (
+                  <p className="text-[11px] text-slate-500 font-bangla leading-relaxed">
+                    <span className="font-semibold text-emerald-700">নোট: </span>{m.note}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* 4. সম্পূর্ণ যুক্তাক্ষর তালিকা (Complete Conjuncts - 120+) */}
-        {(activeTab === 'all' || activeTab === 'conjuncts') && (
-          <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900 font-bangla flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <span>৪. পূর্ণাঙ্গ বাংলা যুক্তাক্ষর ও যুক্তবর্ণের তালিকা (Complete Conjuncts)</span>
-                </h3>
-                <p className="text-xs text-slate-500 font-bangla mt-0.5">
-                  যেসব বর্ণ পাশাপাশি লিখলে স্বয়ংক্রিয়ভাবে জটিল যুক্তবর্ণ গঠিত হয়। যেকোনোটিতে ক্লিক করে কি-কোড কপি করতে পারেন।
-                </p>
-              </div>
-              <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-100/80 px-3 py-1 rounded-full self-start sm:self-auto">
-                {filteredConjuncts.length} টি যুক্তাক্ষর
-              </span>
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 font-bangla flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>৪. পূর্ণাঙ্গ বাংলা যুক্তাক্ষর ও যুক্তবর্ণের তালিকা (Complete Conjuncts)</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-bangla mt-0.5">
+                যেসব বর্ণ পাশাপাশি লিখলে স্বয়ংক্রিয়ভাবে জটিল যুক্তবর্ণ গঠিত হয়। যেকোনোটিতে ক্লিক করে কি-কোড কপি করতে পারেন।
+              </p>
             </div>
-
-            {/* Quick Conjuncts Bento Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
-              {filteredConjuncts.map((cj, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => handleCopy(cj.keys)}
-                  className="p-3 rounded-2xl bg-slate-50/90 hover:bg-emerald-50/70 border border-slate-200/80 hover:border-emerald-300 transition-all flex flex-col items-center justify-center gap-1 group cursor-pointer relative"
-                  title={`${cj.glyph} লিখতে টাইপ করুন: ${cj.keys}`}
-                >
-                  <span className="font-bangla text-2xl font-bold text-slate-900 group-hover:scale-110 transition-transform">
-                    {cj.glyph}
-                  </span>
-                  <span className="font-mono text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-slate-200 text-center w-full truncate">
-                    {cj.keys}
-                  </span>
-                  {cj.eg && (
-                    <span className="text-[10px] text-slate-400 font-mono truncate w-full text-center">
-                      {cj.eg.split('→')[0]}
-                    </span>
-                  )}
-                  {copiedKey === cj.keys && (
-                    <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded shadow z-10">
-                      কপি হয়েছে!
-                    </span>
-                  )}
-                </div>
-              ))}
-            </div>
+            <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-100/80 px-3 py-1 rounded-full self-start sm:self-auto">
+              {filteredConjuncts.length} টি যুক্তাক্ষর
+            </span>
           </div>
-        )}
+
+          {/* Quick Conjuncts Bento Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5">
+            {filteredConjuncts.map((cj, idx) => (
+              <div
+                key={idx}
+                onClick={() => handleCopy(cj.keys)}
+                className="p-3 rounded-2xl bg-slate-50/90 hover:bg-emerald-50/70 border border-slate-200/80 hover:border-emerald-300 transition-all flex flex-col items-center justify-center gap-1 group cursor-pointer relative"
+                title={`${cj.glyph} লিখতে টাইপ করুন: ${cj.keys}`}
+              >
+                <span className="font-bangla text-2xl font-bold text-slate-900 group-hover:scale-110 transition-transform">
+                  {cj.glyph}
+                </span>
+                <span className="font-mono text-[11px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-md border border-slate-200 text-center w-full truncate">
+                  {cj.keys}
+                </span>
+                {cj.eg && (
+                  <span className="text-[10px] text-slate-400 font-mono truncate w-full text-center">
+                    {cj.eg.split('→')[0]}
+                  </span>
+                )}
+                {copiedKey === cj.keys && (
+                  <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded shadow z-10">
+                    কপি হয়েছে!
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* 5. বিশেষ নিয়ম ও অটোকরেক্ট ট্রিকস (Special Rules & Tricks) */}
-        {(activeTab === 'all' || activeTab === 'rules') && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* Rule Card 1 */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm space-y-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs font-mono">
-                  ১
-                </div>
-                <h4 className="font-bold text-slate-900 font-bangla text-base">জোরপূর্বক মূল স্বরবর্ণ</h4>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Rule Card 1 */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs font-mono">
+                ১
               </div>
-              <p className="text-xs text-slate-600 font-bangla leading-relaxed">
-                ব্যঞ্জনের পর কার-চিহ্ন না হয়ে যদি মূল স্বরবর্ণ প্রয়োজন হয়, তবে মাঝে <strong>Accent Key (`)</strong> ব্যবহার করুন:
-              </p>
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-mono space-y-1.5 text-slate-800">
-                <div><span className="text-emerald-700 font-bold">eki</span> → একি</div>
-                <div><span className="text-emerald-700 font-bold">ek`i</span> → একই</div>
-                <div><span className="text-emerald-700 font-bold">`o / `a / `i</span> → অ / আ / ই</div>
-              </div>
+              <h4 className="font-bold text-slate-900 font-bangla text-base">জোরপূর্বক মূল স্বরবর্ণ</h4>
             </div>
-
-            {/* Rule Card 2 */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm space-y-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xs font-mono">
-                  ২
-                </div>
-                <h4 className="font-bold text-slate-900 font-bangla text-base">যুক্তাক্ষর হতে বাধা দেয়া</h4>
-              </div>
-              <p className="text-xs text-slate-600 font-bangla leading-relaxed">
-                দুটি ব্যঞ্জনবর্ণের মাঝে <strong>Accent Key (`)</strong> দিলে তারা যুক্তবর্ণ হবে না, আলাদা থাকবে:
-              </p>
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-mono space-y-1.5 text-slate-800">
-                <div><span className="text-rose-600 font-bold">ekTa</span> → এক্টা (ভুল)</div>
-                <div><span className="text-emerald-700 font-bold">ek`Ta</span> → একটা (সঠিক)</div>
-                <div><span className="text-emerald-700 font-bold">ag`lano</span> → আগলানো</div>
-              </div>
+            <p className="text-xs text-slate-600 font-bangla leading-relaxed">
+              ব্যঞ্জনের পর কার-চিহ্ন না হয়ে যদি মূল স্বরবর্ণ প্রয়োজন হয়, তবে মাঝে <strong>Accent Key (`)</strong> ব্যবহার করুন:
+            </p>
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-mono space-y-1.5 text-slate-800">
+              <div><span className="text-emerald-700 font-bold">eki</span> → একি</div>
+              <div><span className="text-emerald-700 font-bold">ek`i</span> → একই</div>
+              <div><span className="text-emerald-700 font-bold">`o / `a / `i</span> → অ / আ / ই</div>
             </div>
-
-            {/* Rule Card 3 */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm space-y-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs font-mono">
-                  ৩
-                </div>
-                <h4 className="font-bold text-slate-900 font-bangla text-base">অটোকরেক্ট ও ডিকশনারি</h4>
-              </div>
-              <p className="text-xs text-slate-600 font-bangla leading-relaxed">
-                ব্যতিক্রমী শব্দগুলো প্রতিবার Accent Key দিয়ে না লিখে বাংলিশের স্বয়ংক্রিয় অটোকরেক্ট ফিচার ব্যবহার করুন:
-              </p>
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-mono space-y-1.5 text-slate-800">
-                <div><span className="text-blue-700 font-bold">amra</span> → আমরা (অটো-কারেক্ট)</div>
-                <div><span className="text-blue-700 font-bold">software</span> → সফটওয়্যার</div>
-                <div><span className="text-blue-700 font-bold">samia</span> → সামিয়া</div>
-              </div>
-            </div>
-
           </div>
-        )}
+
+          {/* Rule Card 2 */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xs font-mono">
+                ২
+              </div>
+              <h4 className="font-bold text-slate-900 font-bangla text-base">যুক্তাক্ষর হতে বাধা দেয়া</h4>
+            </div>
+            <p className="text-xs text-slate-600 font-bangla leading-relaxed">
+              দুটি ব্যঞ্জনবর্ণের মাঝে <strong>Accent Key (`)</strong> দিলে তারা যুক্তবর্ণ হবে না, আলাদা থাকবে:
+            </p>
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-mono space-y-1.5 text-slate-800">
+              <div><span className="text-rose-600 font-bold">ekTa</span> → এক্টা (ভুল)</div>
+              <div><span className="text-emerald-700 font-bold">ek`Ta</span> → একটা (সঠিক)</div>
+              <div><span className="text-emerald-700 font-bold">ag`lano</span> → আগলানো</div>
+            </div>
+          </div>
+
+          {/* Rule Card 3 */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm space-y-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-xs font-mono">
+                ৩
+              </div>
+              <h4 className="font-bold text-slate-900 font-bangla text-base">অটোকরেক্ট ও ডিকশনারি</h4>
+            </div>
+            <p className="text-xs text-slate-600 font-bangla leading-relaxed">
+              ব্যতিক্রমী শব্দগুলো প্রতিবার Accent Key দিয়ে না লিখে বাংলিশের স্বয়ংক্রিয় অটোকরেক্ট ফিচার ব্যবহার করুন:
+            </p>
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs font-mono space-y-1.5 text-slate-800">
+              <div><span className="text-blue-700 font-bold">amra</span> → আমরা (অটো-কারেক্ট)</div>
+              <div><span className="text-blue-700 font-bold">software</span> → সফটওয়্যার</div>
+              <div><span className="text-blue-700 font-bold">samia</span> → সামিয়া</div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    )}
+
+    {/* ARABIC VIEW */}
+    {activeLang === 'arabic' && (
+      <div className="space-y-8">
+        
+        {/* ১. মূল বর্ণমালা (Arabic Consonants) */}
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
+          <div className="px-6 py-4.5 bg-gradient-to-r from-emerald-50/90 via-emerald-50/40 to-teal-50/20 border-b border-slate-200/80 flex items-center justify-between">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>১. মূল বর্ণমালা (Arabic Consonants)</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-bangla mt-0.5">
+                ইংরেজি অক্ষর দিয়ে সহজে আরবি হরফ লেখার তালিকা।
+              </p>
+            </div>
+            <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-100/80 px-3 py-1 rounded-full">
+              {filteredArabicConsonants.length}টি বর্ণমালা
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-bangla text-xs">
+                  <th className="py-3 px-5 sm:px-6 font-bold">English Key</th>
+                  <th className="py-3 px-5 sm:px-6 font-bold text-center">Arabic Letter</th>
+                  <th className="py-3 px-5 sm:px-6 font-bold">নাম ও উচ্চারণ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredArabicConsonants.map((c, idx) => (
+                  <tr 
+                    key={idx} 
+                    onClick={() => handleCopy(c.key.split(' বা ')[0])}
+                    className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                    title="কপি করতে ক্লিক করুন"
+                  >
+                    <td className="py-3.5 px-5 sm:px-6 font-mono font-bold text-emerald-700">
+                      <span className="bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 inline-block">
+                        {c.key}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-5 sm:px-6 text-center">
+                      <span className="font-serif text-2xl font-bold text-slate-900 group-hover:text-emerald-700 transition-colors inline-block" dir="rtl">
+                        {c.letter}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-5 sm:px-6 text-slate-700 font-bangla font-medium">
+                      {c.name}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ২. ফ্র্যাঙ্কো-আরবি ডিজিট এবং শক্ত উচ্চারণ (Arabizi Digits) */}
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>২. ফ্র্যাঙ্কো-আরবি ডিজিট এবং শক্ত উচ্চারণ (Arabizi Digits)</span>
+              </h3>
+              <p className="text-xs text-slate-600 font-bangla mt-1">
+                আরবিতে যেসব হরফের সরাসরি ইংরেজি অক্ষর নেই, সেগুলো Arabizi স্ট্যান্ডার্ড ডিজিট দিয়ে খুব সহজে লেখা যায়:
+              </p>
+            </div>
+            <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-100/80 px-3 py-1 rounded-full self-start sm:self-auto">
+              {filteredArabiziDigits.length}টি ডিজিট রুল
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-bangla text-xs">
+                  <th className="py-3 px-5 sm:px-6 font-bold">Key</th>
+                  <th className="py-3 px-5 sm:px-6 font-bold text-center">Arabic Letter</th>
+                  <th className="py-3 px-5 sm:px-6 font-bold">উদাহরণ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredArabiziDigits.map((d, idx) => (
+                  <tr 
+                    key={idx} 
+                    onClick={() => handleCopy(d.key.split(' / ')[0])}
+                    className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                    title="কপি করতে ক্লিক করুন"
+                  >
+                    <td className="py-3.5 px-5 sm:px-6 font-mono font-bold text-emerald-700">
+                      <span className="bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 inline-block">
+                        {d.key}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-5 sm:px-6 text-center">
+                      <span className="font-serif text-2xl font-bold text-slate-900 group-hover:text-emerald-700 transition-colors inline-block" dir="rtl">
+                        {d.letter}
+                      </span>
+                      <span className="text-xs text-slate-500 font-bangla ml-2">
+                        ({d.name})
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-5 sm:px-6 font-mono text-slate-700">
+                      <span className="font-bold text-emerald-800">{d.example}</span>
+                      <span className="mx-2 text-slate-400">→</span>
+                      <span className="font-serif text-lg font-bold text-slate-900" dir="rtl">{d.result}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ৩. যুক্তবর্ণ ও বিশেষ হরফ (Special Characters) */}
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>৩. যুক্তবর্ণ ও বিশেষ হরফ (Special Characters)</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-bangla mt-0.5">
+                তা-মারবূতাহ, আলিফ মাকসূরা ও লাম-আলিফের সহজ নিয়ম।
+              </p>
+            </div>
+            <span className="text-xs font-mono text-teal-700 font-bold bg-teal-100/80 px-3 py-1 rounded-full">
+              {filteredArabicSpecials.length}টি বিশেষ নিয়ম
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-bangla text-xs">
+                  <th className="py-3 px-5 sm:px-6 font-bold">Key</th>
+                  <th className="py-3 px-5 sm:px-6 font-bold text-center">Arabic</th>
+                  <th className="py-3 px-5 sm:px-6 font-bold">বিবরণ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredArabicSpecials.map((s, idx) => (
+                  <tr 
+                    key={idx} 
+                    onClick={() => handleCopy(s.key.split(' বা ')[0])}
+                    className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                    title="কপি করতে ক্লিক করুন"
+                  >
+                    <td className="py-3.5 px-5 sm:px-6 font-mono font-bold text-emerald-700">
+                      <span className="bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 inline-block">
+                        {s.key}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-5 sm:px-6 text-center">
+                      <span className="font-serif text-2xl font-bold text-slate-900 group-hover:text-emerald-700 transition-colors inline-block" dir="rtl">
+                        {s.arabic}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-5 sm:px-6 text-slate-700 font-bangla">
+                      <span className="font-medium text-slate-900">{s.description}</span>
+                      {s.example && (
+                        <span className="ml-2 font-mono text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                          {s.example}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ৪. হরকত ও তানভীন (Tashkeel / Diacritics) */}
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>৪. হরকত ও তানভীন (Tashkeel / Diacritics)</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-bangla mt-0.5">
+                যবর, যের, পেশ, তানভীন, সুকুন ও তাশদীদ লেখার শর্টকাট।
+              </p>
+            </div>
+            <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-100/80 px-3 py-1 rounded-full">
+              {filteredArabicHarakat.length}টি হরকত
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            {filteredArabicHarakat.map((h, idx) => (
+              <div
+                key={idx}
+                onClick={() => handleCopy(h.key.split(' / ')[0])}
+                className="p-3.5 rounded-2xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-200/80 hover:border-emerald-300 transition-all flex items-center justify-between group cursor-pointer"
+                title="কপি করতে ক্লিক করুন"
+              >
+                <div>
+                  <span className="font-mono text-xs font-bold text-emerald-800 bg-white px-2 py-0.5 rounded border border-slate-200 block mb-1">
+                    {h.key}
+                  </span>
+                  <span className="text-xs text-slate-600 font-bangla font-medium">
+                    {h.meaning}
+                  </span>
+                </div>
+                <span className="font-serif text-3xl font-bold text-slate-900 group-hover:scale-110 transition-transform px-2" dir="rtl">
+                  {h.harakat}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ৫. আরবি বিরামচিহ্ন (Punctuation) */}
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>৫. আরবি বিরামচিহ্ন (Punctuation)</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-bangla mt-0.5">
+                আরবি প্রশ্নবোধক চিহ্ন, কমা এবং সেমিকোলন।
+              </p>
+            </div>
+            <span className="text-xs font-mono text-teal-700 font-bold bg-teal-100/80 px-3 py-1 rounded-full">
+              {filteredArabicPunctuations.length}টি চিহ্ন
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {filteredArabicPunctuations.map((p, idx) => (
+              <div
+                key={idx}
+                onClick={() => handleCopy(p.key)}
+                className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-emerald-300 transition-all flex items-center justify-between group cursor-pointer"
+                title="কপি করতে ক্লিক করুন"
+              >
+                <div>
+                  <span className="font-mono text-sm font-bold text-emerald-800 bg-white px-2.5 py-1 rounded border border-slate-200 block mb-1">
+                    {p.key}
+                  </span>
+                  <span className="text-xs text-slate-500 font-sans">
+                    {p.name}
+                  </span>
+                </div>
+                <span className="font-serif text-3xl font-bold text-slate-900 group-hover:scale-110 transition-transform px-2" dir="rtl">
+                  {p.arabic}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* কয়েকটি বাস্তব উদাহরণ (Real-world Examples) */}
+        <div className="bg-white rounded-3xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-6">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 font-sans flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                <span>কয়েকটি বাস্তব উদাহরণ</span>
+              </h3>
+              <p className="text-xs text-slate-500 font-bangla mt-0.5">
+                দৈনন্দিন প্রচলিত আরবি শব্দ ফ্র্যাঙ্কো-আরবি বা ফোনেটিকে লেখার নমুনা।
+              </p>
+            </div>
+            <span className="text-xs font-mono text-emerald-700 font-bold bg-emerald-100/80 px-3 py-1 rounded-full">
+              {filteredArabicExamples.length}টি উদাহরণ
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {filteredArabicExamples.map((ex, idx) => (
+              <div
+                key={idx}
+                onClick={() => handleCopy(ex.input.split(' বা ')[0])}
+                className="p-3.5 rounded-2xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-200/80 hover:border-emerald-300 transition-all flex items-center justify-between group cursor-pointer"
+                title="কপি করতে ক্লিক করুন"
+              >
+                <span className="font-mono text-xs sm:text-sm font-bold text-emerald-800">
+                  {ex.input}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 text-xs">→</span>
+                  <span className="font-serif text-xl font-bold text-slate-900 group-hover:text-emerald-700 transition-colors" dir="rtl">
+                    {ex.output}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+    )}
 
         {/* Practice Live CTA Banner */}
         <div className="bg-gradient-to-r from-emerald-800 to-teal-950 rounded-3xl p-6 sm:p-8 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-xl shadow-emerald-950/10">
