@@ -96,7 +96,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
 	<key>TISIconIsTemplate</key>
-	<true/>
+	<false/>
 	<key>tsInputMethodCharacterRepertoireKey</key>
 	<array>
 		<string>Beng</string>
@@ -162,8 +162,6 @@ cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/English.lproj/InfoPlist.string
 "CFBundleDisplayName" = "Banglish";
 "Bangla" = "Banglish";
 "Arabic" = "Banglish AR";
-"org.banglish.inputmethod.Banglish.Bangla" = "Banglish";
-"org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
 "Banglish" = "Banglish";
 "Banglish AR" = "Banglish AR";
 "CFBundleShortVersionString" = "Banglish version 1.0.002-beta";
@@ -176,8 +174,6 @@ cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/bn.lproj/InfoPlist.strings"
 "CFBundleDisplayName" = "বাংলিশ (Banglish)";
 "Bangla" = "বাংলিশ";
 "Arabic" = "Banglish AR";
-"org.banglish.inputmethod.Banglish.Bangla" = "বাংলিশ";
-"org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
 "Banglish" = "বাংলিশ";
 "Banglish AR" = "Banglish AR";
 "CFBundleShortVersionString" = "বাংলিশ সংস্করণ ১.০.০০২-বিটা";
@@ -190,8 +186,6 @@ cat << 'STRINGS' > "${APP_DIR}/Contents/Resources/ar.lproj/InfoPlist.strings"
 "CFBundleDisplayName" = "Banglish AR";
 "Bangla" = "Banglish";
 "Arabic" = "Banglish AR";
-"org.banglish.inputmethod.Banglish.Bangla" = "Banglish";
-"org.banglish.inputmethod.Banglish.Arabic" = "Banglish AR";
 "Banglish" = "Banglish";
 "Banglish AR" = "Banglish AR";
 "CFBundleShortVersionString" = "Banglish 1.0.002-beta";
@@ -256,7 +250,7 @@ rm -rf "/Applications/Banglish.app" 2>/dev/null || true
 ln -sf "$INSTALL_DIR/Banglish.app" "/Applications/Banglish.app"
 
 # Register both Banglish and Banglish AR into user's enabled input sources
-python3 -c "
+DEVELOPER_DIR=/Library/Developer/CommandLineTools /Library/Developer/CommandLineTools/usr/bin/python3 -c "
 import plistlib, os
 path = os.path.expanduser('$REAL_HOME/Library/Preferences/com.apple.HIToolbox.plist')
 if os.path.exists(path):
@@ -265,8 +259,8 @@ if os.path.exists(path):
             pl = plistlib.load(f)
         enabled = pl.get('AppleEnabledInputSources', [])
         im_entry = {'InputSourceKind': 'Keyboard Input Method', 'Bundle ID': 'org.banglish.inputmethod.Banglish'}
-        bangla_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Bangla'}
-        arabic_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Arabic'}
+        bangla_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'Bangla'}
+        arabic_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'Arabic'}
         if not any(i.get('Input Mode') == bangla_mode['Input Mode'] for i in enabled):
             enabled.append(bangla_mode)
         if not any(i.get('Input Mode') == arabic_mode['Input Mode'] for i in enabled):
@@ -280,6 +274,7 @@ if os.path.exists(path):
         pass
 " 2>/dev/null || true
 
+killall cfprefsd 2>/dev/null || true
 killall Banglish 2>/dev/null || true
 sleep 0.5
 su "$REAL_USER" -c "open '$INSTALL_DIR/Banglish.app'" 2>/dev/null || true
