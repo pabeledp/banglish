@@ -45,6 +45,18 @@ public struct ArabicData {
         (",",     "\u{060C}"), // Arabic comma (،)
         (";",     "\u{061B}"), // Arabic semicolon (؛)
 
+        // 4b. Arabic-Indic Numerals
+        ("0",     "\u{0660}"), // ٠
+        ("1",     "\u{0661}"), // ١
+        ("2",     "\u{0662}"), // ٢
+        ("3",     "\u{0663}"), // ٣
+        ("4",     "\u{0664}"), // ٤
+        ("5",     "\u{0665}"), // ٥
+        ("6",     "\u{0666}"), // ٦
+        ("7",     "\u{0667}"), // ٧
+        ("8",     "\u{0668}"), // ٨
+        ("9",     "\u{0669}"), // ٩
+
         // 5. Two-Character Compounds (Case-Insensitive variants supported)
         ("Th",    "\u{0629}"), // Ta Marbuta (ة)
         ("TH",    "\u{062B}"), // Tha (ث)

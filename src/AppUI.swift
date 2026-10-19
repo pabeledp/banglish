@@ -120,7 +120,8 @@ final class BanglishAppCoordinator: NSObject, NSApplicationDelegate {
     private var mainWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Pure background input method
+        // Initialize tray / menu bar status item
+        BanglishStatusBarManager.shared.setup()
     }
 
     @objc func openSystemKeyboardSettings() {
@@ -395,6 +396,147 @@ final class BanglishAppCoordinator: NSObject, NSApplicationDelegate {
     }
 
     @objc func quitApp() {
+        NSApplication.shared.terminate(nil)
+    }
+}
+
+// MARK: - Dynamic Menu Bar / Tray Status Item Manager
+public final class BanglishStatusBarManager: NSObject {
+    public static let shared = BanglishStatusBarManager()
+
+    private var statusItem: NSStatusItem?
+
+    public func setup() {
+        DispatchQueue.main.async {
+            if self.statusItem == nil {
+                self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+                self.setupMenu()
+                self.update(mode: BanglishInputController.currentMode)
+            }
+        }
+    }
+
+    private func setupMenu() {
+        guard let item = statusItem else { return }
+        let menu = NSMenu()
+
+        let headerItem = NSMenuItem(title: "🇧🇩 Banglish v1.0.002 (Beta)", action: nil, keyEquivalent: "")
+        headerItem.isEnabled = false
+        menu.addItem(headerItem)
+        menu.addItem(NSMenuItem.separator())
+
+        let banglaItem = NSMenuItem(title: "বাংলা (Bangla) — ⌘ + Space", action: #selector(selectBangla), keyEquivalent: "")
+        banglaItem.target = self
+        banglaItem.tag = 100
+        menu.addItem(banglaItem)
+
+        let arabicItem = NSMenuItem(title: "العربية (Arabic) — ⌘ + Space", action: #selector(selectArabic), keyEquivalent: "")
+        arabicItem.target = self
+        arabicItem.tag = 101
+        menu.addItem(arabicItem)
+
+        let englishItem = NSMenuItem(title: "English — ⌘ + Space", action: #selector(selectEnglish), keyEquivalent: "")
+        englishItem.target = self
+        englishItem.tag = 102
+        menu.addItem(englishItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let dashItem = NSMenuItem(title: "Open Banglish Dashboard...", action: #selector(openDashboard), keyEquivalent: "")
+        dashItem.target = self
+        menu.addItem(dashItem)
+
+        let prefsItem = NSMenuItem(title: "Open macOS Keyboard Settings...", action: #selector(openSettings), keyEquivalent: "")
+        prefsItem.target = self
+        menu.addItem(prefsItem)
+
+        menu.addItem(NSMenuItem.separator())
+
+        let quitItem = NSMenuItem(title: "Quit Banglish", action: #selector(quitApp), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        item.menu = menu
+    }
+
+    public func update(mode: InputMode) {
+        DispatchQueue.main.async {
+            guard let item = self.statusItem, let button = item.button else { return }
+
+            if let menu = item.menu {
+                menu.item(withTag: 100)?.state = (mode == .bangla) ? .on : .off
+                menu.item(withTag: 101)?.state = (mode == .arabic) ? .on : .off
+                menu.item(withTag: 102)?.state = (mode == .english) ? .on : .off
+            }
+
+            let bundlePath = Bundle.main.resourcePath ?? ""
+
+            switch mode {
+            case .bangla:
+                let img = NSImage(contentsOfFile: bundlePath + "/MenuIcon.png")
+                    ?? NSImage(contentsOfFile: "/Users/rmacstudio2/Documents/Banglish/Resources/MenuIcon.png")
+                    ?? NSImage(named: "MenuIcon")
+                img?.size = NSSize(width: 18, height: 18)
+                img?.isTemplate = true
+                button.image = img
+                button.imagePosition = .imageOnly
+                button.title = ""
+                button.toolTip = "বাংলিশ (Bangla Phonetic) — ⌘+Space to cycle"
+
+            case .arabic:
+                let img = NSImage(contentsOfFile: bundlePath + "/MenuIconAR.png")
+                    ?? NSImage(contentsOfFile: "/Users/rmacstudio2/Documents/Banglish/Resources/MenuIconAR.png")
+                    ?? NSImage(named: "MenuIconAR")
+                img?.size = NSSize(width: 18, height: 18)
+                img?.isTemplate = true
+                button.image = img
+                button.imagePosition = .imageOnly
+                button.title = ""
+                button.toolTip = "Banglish AR (العربية) — ⌘+Space to cycle"
+
+            case .english:
+                button.image = nil
+                button.imagePosition = .noImage
+                let attrTitle = NSAttributedString(string: "EN", attributes: [
+                    .font: NSFont.systemFont(ofSize: 12, weight: .bold),
+                    .foregroundColor: NSColor.controlTextColor
+                ])
+                button.attributedTitle = attrTitle
+                button.toolTip = "English (Pass-through) — ⌘+Space to cycle"
+            }
+        }
+    }
+
+    @objc private func selectBangla() {
+        BanglishInputController.currentMode = .bangla
+        BanglishInputController.lastNonEnglishMode = .bangla
+        update(mode: .bangla)
+    }
+
+    @objc private func selectArabic() {
+        BanglishInputController.currentMode = .arabic
+        BanglishInputController.lastNonEnglishMode = .arabic
+        update(mode: .arabic)
+    }
+
+    @objc private func selectEnglish() {
+        BanglishInputController.currentMode = .english
+        update(mode: .english)
+    }
+
+    @objc private func openDashboard() {
+        if let delegate = NSApplication.shared.delegate as? BanglishAppCoordinator {
+            delegate.showMainWindow()
+        }
+    }
+
+    @objc private func openSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
     }
 }

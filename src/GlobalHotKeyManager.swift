@@ -12,6 +12,8 @@ final class GlobalHotKeyManager {
     private var ctrlSpaceHotKeyRef: EventHotKeyRef?
     private var eventHandlerRef: EventHandlerRef?
 
+    private var lastCycleTimestamp: TimeInterval = 0
+
     func start() {
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
 
@@ -20,15 +22,21 @@ final class GlobalHotKeyManager {
             let err = GetEventParameter(theEvent, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &hkID)
             guard err == noErr else { return noErr }
 
+            let now = CACurrentMediaTime()
+            if now - GlobalHotKeyManager.shared.lastCycleTimestamp < 0.25 {
+                // Debounce rapid duplicate trigger within 250ms
+                return noErr
+            }
+            GlobalHotKeyManager.shared.lastCycleTimestamp = now
+
             if hkID.id == 1 || hkID.id == 3 {
-                // Shift + Option + Space OR Control + Option + Space => ARABIC DIRECTLY!
-                BanglishInputController.activateArabicDirectly()
+                // Shift + Option + Space OR Control + Option + Space => Direct to Arabic!
+                GlobalHotKeyManager.shared.selectArabic()
                 return noErr
             } else if hkID.id == 2 || hkID.id == 4 || hkID.id == 5 {
                 // Command + Space OR Option + Space OR Control + Space =>
-                // Continuous 3-Way Cycle: Bangla -> Arabic -> English -> Bangla
-                // Cycle in-memory without TIS teardown to maintain 100% focus in Notes & Antigravity!
-                BanglishInputController.cycleLanguageGlobal()
+                // Cycle: Bangla -> Arabic -> English (US) -> Bangla
+                GlobalHotKeyManager.shared.cycleNextInputSource()
                 return noErr
             }
             return noErr
@@ -51,7 +59,7 @@ final class GlobalHotKeyManager {
         let ctrlArabicID = EventHotKeyID(signature: OSType(0x424E4341), id: 3) // 'BNCA'
         RegisterEventHotKey(49, UInt32(controlKey | optionKey), ctrlArabicID, GetEventDispatcherTarget(), 0, &ctrlArabicHotKeyRef)
 
-        // HotKey 4: Command + Space (keyCode 49, cmdKey) => Cycle: Bangla -> Arabic -> English -> Bangla
+        // HotKey 4: Command + Space (keyCode 49, cmdKey) => Cycle
         let cmdSpaceID = EventHotKeyID(signature: OSType(0x424E4353), id: 4) // 'BNCS'
         RegisterEventHotKey(49, UInt32(cmdKey), cmdSpaceID, GetEventDispatcherTarget(), 0, &cmdSpaceHotKeyRef)
 
@@ -60,7 +68,6 @@ final class GlobalHotKeyManager {
         RegisterEventHotKey(49, UInt32(controlKey), ctrlSpaceID, GetEventDispatcherTarget(), 0, &ctrlSpaceHotKeyRef)
 
         enableAllBanglishModes()
-        NSLog("[Banglish] Global HotKeys registered cleanly without TIS deactivations")
     }
 
     func enableAllBanglishModes() {
@@ -73,5 +80,16 @@ final class GlobalHotKeyManager {
                 }
             }
         }
+    }
+
+    /// Select Arabic input mode directly
+    func selectArabic() {
+        BanglishInputController.activateArabicDirectly()
+    }
+
+    /// Continuous 3-Way Cycle:
+    /// Bangla -> Arabic -> English -> Bangla
+    func cycleNextInputSource() {
+        BanglishInputController.cycleLanguageGlobal()
     }
 }

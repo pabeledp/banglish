@@ -12,6 +12,7 @@ autoreleasepool {
     NSApplication.shared.delegate = delegate
 
     GlobalHotKeyManager.shared.start()
+    BanglishStatusBarManager.shared.setup()
 
     withExtendedLifetime(delegate) {
         NSApplication.shared.run()

@@ -31,11 +31,18 @@ class BanglishInputController: IMKInputController {
             Self.lastNonEnglishMode = .bangla
         }
 
-        let rect = cursorRect(for: client)
-        LanguageHUD.shared.show(mode: Self.currentMode, near: rect)
+        BanglishStatusBarManager.shared.update(mode: Self.currentMode)
     }
 
     private static weak var activeController: BanglishInputController?
+
+    public static func commitActiveBuffer() {
+        if let active = activeController, let client = active.currentClient() {
+            if !active.buffer.isEmpty {
+                active.commitBuffer(client: client)
+            }
+        }
+    }
 
     public static func cycleLanguageGlobal() {
         DispatchQueue.main.async {
@@ -56,7 +63,7 @@ class BanglishInputController: IMKInputController {
             }
 
             CandidateWindow.shared.hide()
-            LanguageHUD.shared.show(mode: currentMode)
+            BanglishStatusBarManager.shared.update(mode: currentMode)
         }
     }
 
@@ -65,7 +72,7 @@ class BanglishInputController: IMKInputController {
             currentMode = .arabic
             lastNonEnglishMode = .arabic
             CandidateWindow.shared.hide()
-            LanguageHUD.shared.show(mode: .arabic)
+            BanglishStatusBarManager.shared.update(mode: .arabic)
         }
     }
 
@@ -206,8 +213,7 @@ class BanglishInputController: IMKInputController {
                 Self.currentMode = .arabic
                 Self.lastNonEnglishMode = .arabic
             }
-            let rect = cursorRect(for: client)
-            LanguageHUD.shared.show(mode: Self.currentMode, near: rect)
+            BanglishStatusBarManager.shared.update(mode: Self.currentMode)
             return true
         }
 
@@ -222,8 +228,7 @@ class BanglishInputController: IMKInputController {
         // Never eat or corrupt user clipboard / editor actions!
         if isCommand {
             if !buffer.isEmpty {
-                buffer.removeAll()
-                CandidateWindow.shared.hide()
+                commitBuffer(client: client)
             }
             return false
         }
@@ -231,8 +236,7 @@ class BanglishInputController: IMKInputController {
         // Pass through Control or Option application shortcuts (e.g. Ctrl+Tab, Option+Arrow, etc. where keyCode != 49)
         if isControl || (isOption && keyCode != 49) {
             if !buffer.isEmpty {
-                buffer.removeAll()
-                CandidateWindow.shared.hide()
+                commitBuffer(client: client)
             }
             return false
         }
@@ -392,19 +396,35 @@ class BanglishInputController: IMKInputController {
             }
         }
 
-        // Digits 0...9 direct insertion (Bengali numerals) - ONLY in Bangla mode
-        // Directly insert Bengali numerals to avoid composition / marked-text replacement
-        // bugs in non-standard editors like Adobe After Effects, Illustrator, Photoshop, etc.
+        // Digits 0...9 direct insertion (Arabic-Indic & Bengali numerals)
+        // Works on both top number row AND extended keyboard numpad!
         let banglaDigits: [Character: String] = [
             "0": "০", "1": "১", "2": "২", "3": "৩", "4": "৪",
             "5": "৫", "6": "৬", "7": "৭", "8": "৮", "9": "৯"
         ]
+        let arabicDigits: [Character: String] = [
+            "0": "٠", "1": "١", "2": "٢", "3": "٣", "4": "٤",
+            "5": "٥", "6": "٦", "7": "٧", "8": "٨", "9": "٩"
+        ]
+
+        if Self.currentMode == .arabic,
+           let char = char, let aDigit = arabicDigits[char],
+           !modifiers.contains(.command), !modifiers.contains(.control), !modifiers.contains(.option) {
+            if !buffer.isEmpty {
+                commitBuffer(client: client)
+            }
+            CandidateWindow.shared.hide()
+            client.insertText(aDigit as NSString, replacementRange: Self.emptyRange)
+            return true
+        }
+
         if Self.currentMode == .bangla,
            let char = char, let bDigit = banglaDigits[char],
            !modifiers.contains(.command), !modifiers.contains(.control), !modifiers.contains(.option), !modifiers.contains(.shift) {
             if !buffer.isEmpty {
                 commitBuffer(client: client)
             }
+            CandidateWindow.shared.hide()
             client.insertText(bDigit as NSString, replacementRange: Self.emptyRange)
             return true
         }
@@ -619,18 +639,18 @@ class BanglishInputController: IMKInputController {
     @objc func switchToBangla() {
         Self.currentMode = .bangla
         Self.lastNonEnglishMode = .bangla
-        LanguageHUD.shared.show(mode: .bangla)
+        BanglishStatusBarManager.shared.update(mode: .bangla)
     }
 
     @objc func switchToArabic() {
         Self.currentMode = .arabic
         Self.lastNonEnglishMode = .arabic
-        LanguageHUD.shared.show(mode: .arabic)
+        BanglishStatusBarManager.shared.update(mode: .arabic)
     }
 
     @objc func switchToEnglish() {
         Self.currentMode = .english
-        LanguageHUD.shared.show(mode: .english)
+        BanglishStatusBarManager.shared.update(mode: .english)
     }
 
     @objc func openDashboard() {

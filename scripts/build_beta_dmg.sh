@@ -40,7 +40,6 @@ mkdir -p "${BUILD_DIR}/ModuleCache"
     "${PROJECT_DIR}/src/ArabicEngine.swift" \
     "${PROJECT_DIR}/src/ArabicDictionary.swift" \
     "${PROJECT_DIR}/src/CandidateWindow.swift" \
-    "${PROJECT_DIR}/src/LanguageHUD.swift" \
     "${PROJECT_DIR}/src/BanglishInputController.swift" \
     "${PROJECT_DIR}/src/GlobalHotKeyManager.swift" \
     "${PROJECT_DIR}/src/AppUI.swift" \
