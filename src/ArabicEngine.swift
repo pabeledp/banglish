@@ -1,14 +1,16 @@
 import Foundation
 
-/// Arabizi (English to Arabic) Phonetic Transliteration Engine in Swift
+/// Clean, Deterministic Latin-to-Arabic Phonetic Transliteration Engine
 public final class ArabicEngine {
     public static let shared = ArabicEngine()
 
     public init() {}
 
-    private let vowels: Set<String> = ["a", "u", "i", "o", "e", "A"]
+    public static func transliterate(_ text: String) -> String {
+        return shared.transliterate(text)
+    }
 
-    /// Strip Harakat (Diacritics) for unvocalized search & fallback
+    /// Strip Harakat (Diacritics) for unvocalized text search & fallback
     public func stripDiacritics(_ text: String) -> String {
         let diacriticScalars: Set<UInt32> = [
             0x064B, // Fathatan
@@ -24,81 +26,43 @@ public final class ArabicEngine {
         return String(String.UnicodeScalarView(stripped))
     }
 
-    /// Transliterate Arabizi phonetic string into Arabic Unicode
-    public func transliterate(_ rawInput: String) -> String {
-        guard !rawInput.isEmpty else { return "" }
+    /// Transliterate Latin phonetic string into Arabic Unicode (Case-Sensitive, Greedy Longest-Prefix Match)
+    public func transliterate(_ text: String) -> String {
+        guard !text.isEmpty else { return "" }
+        var result = ""
+        var buffer = text
 
-        let chars = rawInput.map { String($0) }
-        let total = chars.count
-        var output = ""
-        var cur = 0
-
-        while cur < total {
-            let isWordStart = (cur == 0) || (cur > 0 && (chars[cur - 1] == " " || chars[cur - 1] == "-"))
-
-            // 1. Initial Vowel Handling: In Arabic, words cannot start with a floating diacritic
-            if isWordStart {
-                // Initial 'al' -> ال (Alif-Lam)
-                if cur + 1 < total && chars[cur].lowercased() == "a" && chars[cur + 1].lowercased() == "l" {
-                    output.append("ال")
-                    cur += 2
-                    continue
-                }
-                // Initial 'a' -> أ / ا
-                if chars[cur] == "a" {
-                    output.append("أ")
-                    cur += 1
-                    continue
-                }
-                if chars[cur] == "A" || (cur + 1 < total && chars[cur].lowercased() == "a" && chars[cur + 1].lowercased() == "a") {
-                    output.append("ا")
-                    cur += (chars[cur] == "A") ? 1 : 2
-                    continue
-                }
-                // Initial 'i' -> إ
-                if chars[cur].lowercased() == "i" || chars[cur].lowercased() == "e" {
-                    output.append("إ")
-                    cur += 1
-                    continue
-                }
-                // Initial 'u' / 'o' -> أُ
-                if chars[cur].lowercased() == "u" || chars[cur].lowercased() == "o" {
-                    output.append("أُ")
-                    cur += 1
+        while !buffer.isEmpty {
+            // Check for initial 'al' ligature at word start
+            let isWordStart = result.isEmpty || result.hasSuffix(" ") || result.hasSuffix("\n") || result.hasSuffix("-")
+            if isWordStart && buffer.count >= 2 {
+                if buffer.hasPrefix("al") || buffer.hasPrefix("Al") {
+                    result.append("ال")
+                    buffer.removeFirst(2)
                     continue
                 }
             }
 
-            // 2. Greedy Pattern Matching from ArabicData
             var matched = false
-            for pattern in ArabicData.patterns {
-                let pFind = pattern.find
-                let pLen = pFind.count
-                let end = cur + pLen
-
-                if end <= total {
-                    let sub = chars[cur..<end].joined()
-                    if sub == pFind {
-                        // Lam-Alif Ligature check
-                        if output.hasSuffix("ل") && (pattern.replace == "ا" || pattern.replace == "أ") {
-                            output.removeLast()
-                            output.append(ArabicData.lamAlif)
-                        } else {
-                            output.append(pattern.replace)
-                        }
-                        cur = end
-                        matched = true
-                        break
+            for rule in ArabicData.rules {
+                if buffer.hasPrefix(rule.latin) {
+                    // Check Lam-Alif ligature if previous character is Lam and rule produces Alif
+                    if result.hasSuffix("ل") && (rule.arabic == "\u{0627}" || rule.arabic == "\u{0623}") {
+                        result.removeLast()
+                        result.append("\u{0644}\u{0627}")
+                    } else {
+                        result.append(rule.arabic)
                     }
+                    buffer.removeFirst(rule.latin.count)
+                    matched = true
+                    break
                 }
             }
 
             if !matched {
-                output.append(chars[cur])
-                cur += 1
+                result.append(buffer.removeFirst())
             }
         }
-
-        return output
+        return result
     }
 }

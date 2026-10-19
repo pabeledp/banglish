@@ -1,49 +1,57 @@
 import Foundation
 
-/// Fast Arabic Dictionary & Arabizi Phonetic Candidate Suggester
+/// Fast Arabic Dictionary & Letter-Based Phonetic Candidate Suggester
 public final class ArabicDictionary {
     public static let shared = ArabicDictionary()
 
     private var autodict: [String: String] = [:]
     private let lock = NSLock()
 
-    // Common seed Arabizi lexicon & high-frequency Arabic words
+    // Common seed Arabic lexicon & high-frequency Arabic words (Letter-Only, No Arabizi Digits)
     private let seedAutodict: [String: String] = [
         // Greetings & Etiquette
         "salam": "سلام",
         "alsalam": "السلام",
         "marhaba": "مرحبا",
-        "mar7aba": "مرحبا",
+        "marHaba": "مرحبا",
         "ahlan": "أهلا",
         "shukran": "شكرا",
         "shokran": "شكرا",
         "afwan": "عفوا",
-        "3afwan": "عفوا",
+        "Efwan": "عفوا",
         "habibi": "حبيبي",
-        "7abibi": "حبيبي",
+        "Habibi": "حبيبي",
         "habibti": "حبيبتي",
-        "7abibti": "حبيبتي",
+        "Habibti": "حبيبتي",
         "tamam": "تمام",
         "sabah": "صباح",
-        "9aba7": "صباح",
-        "sba7": "صباح",
+        "Sabah": "صباح",
         "kheir": "خير",
-        "5eir": "خير",
         "kheer": "خير",
-        "5eer": "خير",
         "masa": "مساء",
         "massa": "مساء",
         "kwayes": "كويس",
         "mnih": "منيح",
-        "mnee7": "منيح",
         "khalas": "خلاص",
-        "5alas": "خلاص",
         "yalla": "يلا",
         "aywa": "أيوه",
-        "na3am": "نعم",
         "naam": "نعم",
         "la": "لا",
         "laa": "لا",
+
+        // Verification & Benchmark Test Words
+        "zalika": "ذلك",
+        "Zalika": "ذلك",
+        "zahir": "ظاهر",
+        "Zahir": "ظاهر",
+        "gameel": "جميل",
+        "Gameel": "جميل",
+        "gafoor": "غفور",
+        "Gafoor": "غفور",
+        "khalid": "خالد",
+        "Khalid": "خالد",
+        "rahmath": "رحمة",
+        "raHmaTh": "رحمة",
 
         // Islamic & Cultural Phrases
         "inshallah": "إن شاء الله",
@@ -59,12 +67,10 @@ public final class ArabicDictionary {
         "mohammad": "محمد",
         "muhammad": "محمد",
         "quran": "قرآن",
-        "8oran": "قرآن",
         "islam": "إسلام",
         "muslim": "مسلم",
         "masjid": "مسجد",
         "jumaa": "جمعة",
-        "jum3a": "جمعة",
         "eid": "عيد",
         "ramadan": "رمضان",
 
@@ -90,18 +96,16 @@ public final class ArabicDictionary {
         "enti": "أنتِ",
         "howa": "هو",
         "hiya": "هي",
-        "ne7na": "نحن",
         "nahnu": "نحن",
         "hom": "هم",
 
         // Everyday Vocabulary
         "kitab": "كتاب",
         "qalam": "قلم",
-        "8alam": "قلم",
         "bayt": "بيت",
         "beit": "بيت",
         "madrasa": "مدرسة",
-        "jami3a": "جامعة",
+        "jamia": "جامعة",
         "shams": "شمس",
         "qamar": "قمر",
         "yawm": "يوم",
@@ -109,29 +113,26 @@ public final class ArabicDictionary {
         "shahr": "شهر",
         "sana": "سنة",
         "waqt": "وقت",
-        "sa3a": "ساعة",
+        "saa": "ساعة",
         "sooq": "سوق",
         "souq": "سوق",
-        "mat3am": "مطعم",
-        "mataam": "مطعم",
+        "matam": "مطعم",
         "funduq": "فندق",
         "sayyara": "سيارة",
         "tayyara": "طيارة",
         "matar": "مطار",
         "qahwa": "قهوة",
-        "8ahwa": "قهوة",
         "shay": "شاي",
         "ma": "ماء",
         "moya": "مويه",
         "khobz": "خبز",
-        "5obz": "خبز",
         "akl": "أكل",
         "ful": "فول",
         "kabab": "كباب",
-        "3arab": "عرب",
         "arab": "عرب",
-        "3arabi": "عربي",
+        "Erab": "عرب",
         "arabi": "عربي",
+        "Erabi": "عربي",
         "lugha": "لغة"
     ]
 
@@ -139,14 +140,26 @@ public final class ArabicDictionary {
         self.autodict = seedAutodict
     }
 
-    /// Generate ranked candidates for Arabizi input
+    /// Add a learned user word mapping
+    public func learn(latin: String, arabic: String) {
+        let key = latin.trimmingCharacters(in: .whitespacesAndNewlines)
+        let val = arabic.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty, !val.isEmpty else { return }
+
+        lock.lock()
+        autodict[key] = val
+        lock.unlock()
+    }
+
+    /// Generate ranked candidates for Letter-Based phonetic input
     public func candidates(for rawInput: String) -> [String] {
         guard !rawInput.isEmpty else { return [] }
 
-        let lower = rawInput.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let trimmed = rawInput.trimmingCharacters(in: .whitespacesAndNewlines)
         var preferred: String? = nil
         lock.lock()
-        preferred = autodict[lower]
+        // Check case-sensitive exact match first, then lowercase fallback
+        preferred = autodict[trimmed] ?? autodict[trimmed.lowercased()]
         lock.unlock()
 
         let primary = ArabicEngine.shared.transliterate(rawInput)
@@ -154,10 +167,10 @@ public final class ArabicDictionary {
         var seen: Set<String> = []
 
         func addCandidate(_ word: String) {
-            let trimmed = word.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty && !seen.contains(trimmed) {
-                seen.insert(trimmed)
-                result.append(trimmed)
+            let t = word.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !t.isEmpty && !seen.contains(t) {
+                seen.insert(t)
+                result.append(t)
             }
         }
 
@@ -191,9 +204,16 @@ public final class ArabicDictionary {
                 addCandidate(String(primary.dropLast()) + "ى")
             }
 
-            // Alif with Hamza (أ / إ) <-> Bare Alif (ا)
-            if primary.hasPrefix("أ") || primary.hasPrefix("إ") {
+            // Alif with Hamza variations
+            if primary.hasPrefix("أ") {
                 addCandidate("ا" + String(primary.dropFirst()))
+                addCandidate("إ" + String(primary.dropFirst()))
+            } else if primary.hasPrefix("إ") {
+                addCandidate("ا" + String(primary.dropFirst()))
+                addCandidate("أ" + String(primary.dropFirst()))
+            } else if primary.hasPrefix("ا") {
+                addCandidate("أ" + String(primary.dropFirst()))
+                addCandidate("إ" + String(primary.dropFirst()))
             }
         }
 

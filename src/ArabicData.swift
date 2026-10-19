@@ -1,115 +1,72 @@
 import Foundation
 
-/// Arabizi (Franco-Arabic) Phonetic Mapping & Rule Definitions
-public struct ArabicPattern {
-    public let find: String
-    public let replace: String
-    public let isDiacritic: Bool
-
-    public init(find: String, replace: String, isDiacritic: Bool = false) {
-        self.find = find
-        self.replace = replace
-        self.isDiacritic = isDiacritic
-    }
-}
-
+/// Clean, Deterministic Latin-to-Arabic Letter-Only Specification
 public struct ArabicData {
-    // Diacritics (Harakat & Tanwin)
-    public static let fathatan   = "\u{064B}" // ً
-    public static let dammatan   = "\u{064C}" // ٌ
-    public static let kasratan   = "\u{064D}" // ٍ
-    public static let fatha      = "\u{064E}" // َ
-    public static let damma      = "\u{064F}" // ُ
-    public static let kasra      = "\u{0650}" // ِ
-    public static let shaddah    = "\u{0651}" // ّ
-    public static let sukun      = "\u{0652}" // ْ
+    public static let rules: [(latin: String, arabic: String)] = [
+        // Harakat & Modifiers
+        ("`an", "\u{064B}"), // Tanwin Fath (ً)
+        ("`in", "\u{064D}"), // Tanwin Kasr (ٍ)
+        ("`un", "\u{064C}"), // Tanwin Damm (ٌ)
+        ("`a",  "\u{064E}"), // Fatha (َ)
+        ("`i",  "\u{0650}"), // Kasra (ِ)
+        ("`u",  "\u{064F}"), // Damma (ُ)
+        ("`o",  "\u{0652}"), // Sukun (ْ)
+        ("`s",  "\u{0651}"), // Shaddah (ّ)
 
-    // Special Letters
-    public static let hamza      = "\u{0621}" // ء
-    public static let alif       = "\u{0627}" // ا
-    public static let alifHamzaU = "\u{0623}" // أ
-    public static let alifHamzaL = "\u{0625}" // إ
-    public static let alifMadda  = "\u{0622}" // آ
-    public static let taMarbuta  = "\u{0629}" // ة
-    public static let alifMaqsura = "\u{0649}" // ى
-    public static let lamAlif    = "\u{0644}\u{0627}" // لا
+        // Punctuation
+        ("?", "\u{061F}"), // Arabic Question Mark (؟)
+        (",", "\u{060C}"), // Arabic Comma (،)
+        (";", "\u{061B}"), // Arabic Semicolon (؛)
 
-    /// All phonetic patterns sorted in descending order of length to ensure greedy matching
-    public static let patterns: [ArabicPattern] = [
-        // 1. Multi-character Harakat & Tanwin Shortcuts
-        ArabicPattern(find: "shd", replace: shaddah, isDiacritic: true), // ّ Shaddah
-        ArabicPattern(find: "an",  replace: fathatan, isDiacritic: true), // ً Fathatan
-        ArabicPattern(find: "un",  replace: dammatan, isDiacritic: true), // ٌ Dammatan
-        ArabicPattern(find: "in",  replace: kasratan, isDiacritic: true), // ٍ Kasratan
-        ArabicPattern(find: "sk",  replace: sukun, isDiacritic: true),    // ْ Sukun
+        // Two-character compounds (High Priority)
+        ("Th", "\u{0629}"), // Ta Marbuta (ة)
+        ("kh", "\u{062E}"), // Kha (خ)
+        ("sh", "\u{0634}"), // Sheen (ش)
+        ("gh", "\u{063A}"), // Ghayn (غ)
+        ("th", "\u{062B}"), // Tha (ث)
+        ("la", "\u{0644}\u{0627}"), // Lam-Alif Ligature (لا)
+        ("lA", "\u{0644}\u{0627}"), // Lam-Alif Ligature (لا)
+        ("aa", "\u{0627}"), // Long Alif (ا)
+        ("ee", "\u{064A}"), // Long Ya (ي)
+        ("oo", "\u{0648}"), // Long Waw (و)
+        ("ou", "\u{0648}"), // Waw (و)
 
-        // 2. 2-Character Special Letters & Digits with Apostrophe
-        ArabicPattern(find: "9'", replace: "\u{0636}"), // ض (Dad)
-        ArabicPattern(find: "6'", replace: "\u{0638}"), // ظ (Za)
-        ArabicPattern(find: "3'", replace: "\u{063A}"), // غ (Ghayn)
-        ArabicPattern(find: "7'", replace: "\u{062E}"), // خ (Kha alternative)
-        ArabicPattern(find: "2'", replace: "\u{0623}"), // أ (Alif with Hamza)
+        // Single Uppercase (Shifted) Letters
+        ("Z", "\u{0638}"), // Dhaa / Zha Heavy (ظ)
+        ("G", "\u{063A}"), // Ghayn (غ)
+        ("H", "\u{062D}"), // Pharyngeal Ha (ح)
+        ("S", "\u{0635}"), // Saad (ص)
+        ("D", "\u{0636}"), // Daad (ض)
+        ("T", "\u{0637}"), // Taa Heavy (ط)
+        ("E", "\u{0639}"), // Ayn (ع)
+        ("A", "\u{0627}"), // Explicit Alif (ا)
+        ("Y", "\u{0649}"), // Alif Maqsura (ى)
+        ("K", "\u{062E}"), // Kha alternative (خ)
 
-        ArabicPattern(find: "sh", replace: "\u{0634}"), // ش (Shin)
-        ArabicPattern(find: "kh", replace: "\u{062E}"), // خ (Kha)
-        ArabicPattern(find: "th", replace: "\u{062B}"), // ث (Tha)
-        ArabicPattern(find: "gh", replace: "\u{063A}"), // غ (Ghayn)
-        ArabicPattern(find: "dh", replace: "\u{0630}"), // ذ (Dhal)
-        ArabicPattern(find: "ch", replace: "\u{0686}"), // چ / تش
-
-        // Long Vowels / Common Digraphs
-        ArabicPattern(find: "aa", replace: "\u{0627}"), // ا (Long Alif)
-        ArabicPattern(find: "ee", replace: "\u{064A}"), // ي (Long Ya)
-        ArabicPattern(find: "oo", replace: "\u{0648}"), // و (Long Waw)
-        ArabicPattern(find: "ou", replace: "\u{0648}"), // و (Waw)
-        ArabicPattern(find: "la", replace: lamAlif),    // لا (Lam-Alif)
-        ArabicPattern(find: "lA", replace: lamAlif),    // لا (Lam-Alif)
-
-        // 3. Arabizi Digit Numbers
-        ArabicPattern(find: "2", replace: hamza),       // ء (Hamza)
-        ArabicPattern(find: "3", replace: "\u{0639}"), // ع (Ayn)
-        ArabicPattern(find: "5", replace: "\u{062E}"), // خ (Kha)
-        ArabicPattern(find: "6", replace: "\u{0637}"), // ط (Ta emphatic)
-        ArabicPattern(find: "7", replace: "\u{062D}"), // ح (Ha pharyngeal)
-        ArabicPattern(find: "8", replace: "\u{0642}"), // ق (Qaf)
-        ArabicPattern(find: "9", replace: "\u{0635}"), // ص (Sad)
-
-        // 4. Single-Character Short Harakat
-        ArabicPattern(find: "a", replace: fatha, isDiacritic: true), // َ Fatha
-        ArabicPattern(find: "u", replace: damma, isDiacritic: true), // ُ Damma
-        ArabicPattern(find: "i", replace: kasra, isDiacritic: true), // ِ Kasra
-        ArabicPattern(find: "o", replace: damma, isDiacritic: true), // ُ Damma fallback
-        ArabicPattern(find: "e", replace: kasra, isDiacritic: true), // ِ Kasra fallback
-
-        // 5. Root Consonants & Standard Letters
-        ArabicPattern(find: "A", replace: alif),        // ا (Alif explicit)
-        ArabicPattern(find: "b", replace: "\u{0628}"), // ب (Ba)
-        ArabicPattern(find: "p", replace: "\u{0628}"), // ب / پ (Ba fallback)
-        ArabicPattern(find: "t", replace: "\u{062A}"), // ت (Ta)
-        ArabicPattern(find: "T", replace: taMarbuta),   // ة (Ta Marbuta explicit)
-        ArabicPattern(find: "j", replace: "\u{062C}"), // ج (Jim)
-        ArabicPattern(find: "g", replace: "\u{062C}"), // ج (Jim / Geem)
-        ArabicPattern(find: "d", replace: "\u{062F}"), // د (Dal)
-        ArabicPattern(find: "r", replace: "\u{0631}"), // ر (Ra)
-        ArabicPattern(find: "z", replace: "\u{0632}"), // ز (Zay)
-        ArabicPattern(find: "s", replace: "\u{0633}"), // س (Sin)
-        ArabicPattern(find: "f", replace: "\u{0641}"), // ف (Fa)
-        ArabicPattern(find: "v", replace: "\u{0641}"), // ف (Fa fallback)
-        ArabicPattern(find: "q", replace: "\u{0642}"), // ق (Qaf)
-        ArabicPattern(find: "k", replace: "\u{0643}"), // ك (Kaf)
-        ArabicPattern(find: "c", replace: "\u{0643}"), // ك (Kaf fallback)
-        ArabicPattern(find: "l", replace: "\u{0644}"), // ل (Lam)
-        ArabicPattern(find: "m", replace: "\u{0645}"), // م (Mim)
-        ArabicPattern(find: "n", replace: "\u{0646}"), // ن (Nun)
-        ArabicPattern(find: "h", replace: "\u{0647}"), // ه (Ha)
-        ArabicPattern(find: "H", replace: "\u{062D}"), // ح (Ha pharyngeal explicit)
-        ArabicPattern(find: "w", replace: "\u{0648}"), // و (Waw)
-        ArabicPattern(find: "y", replace: "\u{064A}"), // ي (Ya)
-        ArabicPattern(find: "Y", replace: alifMaqsura),// ى (Alif Maqsura explicit)
-
-        // 6. Punctuation
-        ArabicPattern(find: "?", replace: "\u{061F}"), // ؟ (Arabic question mark)
-        ArabicPattern(find: ",", replace: "\u{060C}"), // ، (Arabic comma)
-        ArabicPattern(find: ";", replace: "\u{061B}"), // ؛ (Arabic semicolon)
+        // Single Lowercase Letters
+        ("z", "\u{0630}"), // Dhal (ذ)
+        ("g", "\u{062C}"), // Jeem (ج)
+        ("h", "\u{0647}"), // Soft Ha (ه)
+        ("s", "\u{0633}"), // Seen (س)
+        ("d", "\u{062F}"), // Dal (د)
+        ("t", "\u{062A}"), // Soft Ta (ت)
+        ("b", "\u{0628}"), // Ba (ب)
+        ("p", "\u{0628}"), // Ba fallback (ب)
+        ("r", "\u{0631}"), // Ra (ر)
+        ("f", "\u{0641}"), // Fa (ف)
+        ("v", "\u{0641}"), // Fa fallback (ف)
+        ("q", "\u{0642}"), // Qaaf (ق)
+        ("k", "\u{0643}"), // Kaaf (ك)
+        ("l", "\u{0644}"), // Lam (ل)
+        ("m", "\u{0645}"), // Meem (م)
+        ("n", "\u{0646}"), // Noon (ن)
+        ("w", "\u{0648}"), // Waw (و)
+        ("y", "\u{064A}"), // Ya (ي)
+        ("j", "\u{062C}"), // Jeem fallback (ج)
+        ("a", "\u{0627}"), // Initial Alif (ا)
+        ("i", "\u{064A}"), // Ya (ي)
+        ("u", "\u{0648}"), // Waw (و)
+        ("e", "\u{064A}"), // Ya fallback (ي)
+        ("o", "\u{0648}")  // Waw fallback (و)
     ]
 }
