@@ -17,18 +17,13 @@ class BanglishInputController: IMKInputController {
     public static var lastNonEnglishMode: InputMode = .bangla
 
     public static func syncTISInputSource(to mode: InputMode) {
-        guard mode != .english else { return }
-        let targetSuffix = (mode == .arabic) ? ".Arabic" : ".Bangla"
         DispatchQueue.main.async {
-            guard let list = TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource] else { return }
-            for source in list {
-                if let ptrId = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) {
-                    let id = Unmanaged<CFString>.fromOpaque(ptrId).takeUnretainedValue() as String
-                    if id.lowercased().contains("banglish") && id.hasSuffix(targetSuffix) {
-                        TISSelectInputSource(source)
-                        return
-                    }
-                }
+            if mode == .english {
+                GlobalHotKeyManager.shared.selectEnglishInputSource()
+            } else if mode == .arabic {
+                GlobalHotKeyManager.shared.selectBanglishInputSource(modeKeyword: "Arabic")
+            } else {
+                GlobalHotKeyManager.shared.selectBanglishInputSource(modeKeyword: "Bangla")
             }
         }
     }
@@ -159,7 +154,16 @@ class BanglishInputController: IMKInputController {
                        (modifiers.rawValue & NSEvent.ModifierFlags.option.rawValue) != 0
 
         // Universal Language Toggle Shortcuts:
-        // 1) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Arabic <-> English
+        // 1) Command + Space OR Control + Space when in Arabic or Bangla => Switch to English!
+        let isCmdOrCtrlSpace = (isCommand || isControl) && !isShift && !isOption && keyCode == 49
+        if isCmdOrCtrlSpace {
+            if !buffer.isEmpty { commitBuffer(client: client) }
+            Self.currentMode = .english
+            Self.syncTISInputSource(to: .english)
+            return false // Allow system to complete input source transition to English
+        }
+
+        // 2) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Arabic <-> English
         let isArabicToggle = !isCommand && ((isShift && isOption) || (isControl && isOption)) && keyCode == 49
         if isArabicToggle {
             if !buffer.isEmpty { commitBuffer(client: client) }
@@ -173,7 +177,7 @@ class BanglishInputController: IMKInputController {
             return true
         }
 
-        // 2) Option + Space (⌥ + Space) => Bangla <-> English (or active language <-> English)
+        // 3) Option + Space (⌥ + Space) => Bangla <-> English (or active language <-> English)
         let isBanglaToggle = !isCommand && !isShift && !isControl && isOption && keyCode == 49
         if isBanglaToggle {
             if !buffer.isEmpty { commitBuffer(client: client) }

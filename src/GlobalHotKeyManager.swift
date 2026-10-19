@@ -88,40 +88,33 @@ final class GlobalHotKeyManager {
         }
     }
 
-    private func selectBanglishInputSource(modeKeyword: String) {
+    func selectBanglishInputSource(modeKeyword: String) {
         guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return }
-        // 1. First try mode-specific source (e.g. Arabic or Bangla)
         for source in list {
-            if let ptrId = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) {
-                let id = Unmanaged<CFString>.fromOpaque(ptrId).takeUnretainedValue() as String
-                if id.lowercased().contains("banglish") && id.contains(modeKeyword) {
-                    TISSelectInputSource(source)
-                    return
-                }
-            }
-        }
-        // 2. Fallback to any enabled Banglish source
-        for source in list {
-            if let ptrId = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) {
-                let id = Unmanaged<CFString>.fromOpaque(ptrId).takeUnretainedValue() as String
-                if id.lowercased().contains("banglish") && id.contains("Bangla") {
-                    TISSelectInputSource(source)
-                    return
-                }
+            let modeId = (TISGetInputSourceProperty(source, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+            let name = (TISGetInputSourceProperty(source, kTISPropertyLocalizedName).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+            if modeId == modeKeyword || name.lowercased().contains(modeKeyword.lowercased()) {
+                TISSelectInputSource(source)
+                return
             }
         }
     }
 
-    private func selectEnglishInputSource() {
+    func selectEnglishInputSource() {
         guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return }
         for source in list {
-            if let ptrId = TISGetInputSourceProperty(source, kTISPropertyInputSourceID) {
-                let id = Unmanaged<CFString>.fromOpaque(ptrId).takeUnretainedValue() as String
-                if id.contains("keylayout.US") || id.contains("ABC") {
-                    TISSelectInputSource(source)
-                    return
-                }
+            let bId = (TISGetInputSourceProperty(source, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+            let id = (TISGetInputSourceProperty(source, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+            let name = (TISGetInputSourceProperty(source, kTISPropertyLocalizedName).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+            let cat = (TISGetInputSourceProperty(source, kTISPropertyInputSourceCategory).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+            
+            if cat == (kTISCategoryKeyboardInputSource as String) &&
+               !bId.contains("Banglish") &&
+               (id.contains("keylayout") || id.contains("US") || id.contains("ABC") || name == "U.S." || name == "ABC") {
+                TISSelectInputSource(source)
+                return
             }
         }
     }
 }
+

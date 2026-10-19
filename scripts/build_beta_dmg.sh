@@ -96,7 +96,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
 	<key>TISIconIsTemplate</key>
-	<false/>
+	<true/>
 	<key>tsInputMethodCharacterRepertoireKey</key>
 	<array>
 		<string>Beng</string>
