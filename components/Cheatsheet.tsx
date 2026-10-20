@@ -515,11 +515,13 @@ export default function Cheatsheet() {
   }, [searchQuery]);
 
   return (
-    <section id="cheatsheet" className="py-16 sm:py-24 bg-gradient-to-b from-slate-50/70 via-white to-emerald-50/20 border-t border-b border-emerald-100/70 relative">
+    <section id="cheatsheet" className="py-16 sm:py-24 bg-gradient-to-b from-slate-50/70 via-white to-emerald-50/20 border-t border-b border-emerald-100/70 relative overflow-hidden">
       
       {/* Decorative ambient gradients */}
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-emerald-100/30 rounded-full blur-3xl pointer-events-none -z-10" />
-      <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-teal-100/30 rounded-full blur-3xl pointer-events-none -z-10" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10" aria-hidden="true">
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-emerald-100/30 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-teal-100/30 rounded-full blur-3xl" />
+      </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
         

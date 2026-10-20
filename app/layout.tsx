@@ -184,7 +184,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bn" className="scroll-smooth">
+    <html lang="bn" className="scroll-smooth overflow-x-hidden w-full max-w-full">
       <head>
         <meta name="facebook-domain-verification" content="5rl38ybwfa6tmmdylipvjgnxshqabk" />
         
@@ -219,7 +219,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
       </head>
-      <body className="relative min-h-screen text-slate-800 bg-gradient-to-br from-emerald-50/40 via-white to-teal-50/30 overflow-x-hidden selection:bg-emerald-100 selection:text-emerald-900">
+      <body className="relative min-h-screen w-full max-w-full text-slate-800 bg-gradient-to-br from-emerald-50/40 via-white to-teal-50/30 overflow-x-hidden selection:bg-emerald-100 selection:text-emerald-900">
         
         {/* Google Tag Manager (noscript) */}
         <noscript>
@@ -276,9 +276,11 @@ gtag('config', 'G-TKXN340NZW');
           <span className="absolute bottom-16 right-[20%] text-7xl sm:text-9xl font-bangla font-bold text-teal-900/10 blur-[3px] float-glyph-3">শ</span>
         </div>
 
-        {/* Soft Ambient Glow Orbs */}
-        <div className="fixed -top-40 right-0 w-[550px] h-[550px] bg-emerald-200/20 rounded-full blur-3xl pointer-events-none animate-subtle-pulse -z-10" />
-        <div className="fixed top-1/2 -left-32 w-[450px] h-[450px] bg-teal-200/20 rounded-full blur-3xl pointer-events-none -z-10" />
+        {/* Soft Ambient Glow Orbs safely contained */}
+        <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10" aria-hidden="true">
+          <div className="absolute -top-40 right-0 w-[550px] h-[550px] bg-emerald-200/20 rounded-full blur-3xl animate-subtle-pulse" />
+          <div className="absolute top-1/2 -left-32 w-[450px] h-[450px] bg-teal-200/20 rounded-full blur-3xl" />
+        </div>
 
         {/* Children */}
         {children}
