@@ -16,39 +16,57 @@ class BanglishInputController: IMKInputController {
     public static var currentMode: InputMode = .bangla
     public static var lastNonEnglishMode: InputMode = .bangla
 
-    public static func selectSystemInputSource(mode: InputMode) {
-        let modeProps = [kTISPropertyInputSourceType: "TISTypeKeyboardInputMode"] as CFDictionary
-        if let modeList = TISCreateInputSourceList(modeProps, true)?.takeRetainedValue() as? [TISInputSource] {
-            for s in modeList {
-                let modeId = (TISGetInputSourceProperty(s, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-                let bId = (TISGetInputSourceProperty(s, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+    private static var cachedBanglaSource: TISInputSource?
+    private static var cachedArabicSource: TISInputSource?
+    private static var cachedEnglishSource: TISInputSource?
+
+    public static func prewarmInputSources() {
+        if let list = TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource] {
+            for s in list {
                 let sId = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+                let mId = (TISGetInputSourceProperty(s, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+                let bId = (TISGetInputSourceProperty(s, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+
                 if bId.contains("Banglish") || sId.contains("Banglish") {
-                    if mode == .bangla && (modeId.contains("Bangla") || sId.contains("Bangla")) {
-                        TISSelectInputSource(s)
-                        Self.currentMode = .bangla
-                        Self.lastNonEnglishMode = .bangla
-                        return
-                    } else if mode == .arabic && (modeId.contains("Arabic") || sId.contains("Arabic")) {
-                        TISSelectInputSource(s)
-                        Self.currentMode = .arabic
-                        Self.lastNonEnglishMode = .arabic
-                        return
+                    if sId.contains("Arabic") || mId.contains("Arabic") {
+                        cachedArabicSource = s
+                    } else if sId.contains("Bangla") || mId.contains("Bangla") {
+                        cachedBanglaSource = s
+                    }
+                } else if sId == "com.apple.keylayout.US" || sId.contains("keylayout.US") || sId.contains("ABC") {
+                    if cachedEnglishSource == nil {
+                        cachedEnglishSource = s
                     }
                 }
             }
         }
+    }
 
-        if mode == .english {
-            if let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] {
-                for s in list {
-                    let id = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-                    if id == "com.apple.keylayout.US" || id.contains("keylayout.US") || id.contains("ABC") {
-                        TISSelectInputSource(s)
-                        Self.currentMode = .english
-                        return
-                    }
-                }
+    public static func selectSystemInputSource(mode: InputMode) {
+        if cachedBanglaSource == nil || cachedArabicSource == nil || cachedEnglishSource == nil {
+            prewarmInputSources()
+        }
+
+        switch mode {
+        case .bangla:
+            if let src = cachedBanglaSource {
+                TISSelectInputSource(src)
+                Self.currentMode = .bangla
+                Self.lastNonEnglishMode = .bangla
+                return
+            }
+        case .arabic:
+            if let src = cachedArabicSource {
+                TISSelectInputSource(src)
+                Self.currentMode = .arabic
+                Self.lastNonEnglishMode = .arabic
+                return
+            }
+        case .english:
+            if let src = cachedEnglishSource {
+                TISSelectInputSource(src)
+                Self.currentMode = .english
+                return
             }
         }
     }
@@ -230,15 +248,20 @@ class BanglishInputController: IMKInputController {
                        modifiers.intersection(.deviceIndependentFlagsMask).contains(.option) ||
                        (modifiers.rawValue & NSEvent.ModifierFlags.option.rawValue) != 0
 
-        // Universal Language Toggle Shortcuts:
-        // 1) Option + Space (⌥ + Space) => Continuous cycle with system tray update
+        // Universal Language Toggle Shortcuts (Instant response on light tap):
+        // 1) Command + Space (⌘ + Space) => Continuous cycle
+        let isCommandSpace = isCommand && !isShift && !isControl && !isOption && keyCode == 49
+        // 2) Option + Space (⌥ + Space) => Continuous cycle
         let isOptionSpace = !isCommand && !isShift && !isControl && isOption && keyCode == 49
-        if isOptionSpace {
+        // 3) Control + Space (^ + Space) => Continuous cycle
+        let isControlSpace = !isCommand && !isShift && isControl && !isOption && keyCode == 49
+
+        if isCommandSpace || isOptionSpace || isControlSpace {
             cycleLanguage(client: client)
             return true
         }
 
-        // 2) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Direct to Arabic with system tray update
+        // 4) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Direct to Arabic with system tray update
         let isArabicToggle = !isCommand && ((isShift && isOption) || (isControl && isOption)) && keyCode == 49
         if isArabicToggle {
             if !buffer.isEmpty { commitBuffer(client: client) }

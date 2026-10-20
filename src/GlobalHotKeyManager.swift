@@ -23,7 +23,7 @@ final class GlobalHotKeyManager {
             guard err == noErr else { return noErr }
 
             let now = CACurrentMediaTime()
-            if now - GlobalHotKeyManager.shared.lastCycleTimestamp < 0.25 {
+            if now - GlobalHotKeyManager.shared.lastCycleTimestamp < 0.12 {
                 return noErr
             }
             GlobalHotKeyManager.shared.lastCycleTimestamp = now
@@ -64,6 +64,7 @@ final class GlobalHotKeyManager {
         let ctrlSpaceID = EventHotKeyID(signature: OSType(0x424E4354), id: 5) // 'BNCT'
         RegisterEventHotKey(49, UInt32(controlKey), ctrlSpaceID, GetEventDispatcherTarget(), 0, &ctrlSpaceHotKeyRef)
 
+        BanglishInputController.prewarmInputSources()
         enableAllBanglishModes()
         NSLog("[Banglish] Global HotKeys active: Cmd+Space, Opt+Space, Ctrl+Space for 3-way cycle")
     }
@@ -72,7 +73,7 @@ final class GlobalHotKeyManager {
     func activateArabicDirectly() {
         DispatchQueue.main.async {
             BanglishInputController.commitActiveBuffer()
-            self.selectBanglishMode("Arabic")
+            BanglishInputController.selectSystemInputSource(mode: .arabic)
         }
     }
 
@@ -82,7 +83,7 @@ final class GlobalHotKeyManager {
             BanglishInputController.commitActiveBuffer()
 
             guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else {
-                self.selectBanglishMode("Bangla")
+                BanglishInputController.selectSystemInputSource(mode: .bangla)
                 return
             }
 
@@ -95,53 +96,28 @@ final class GlobalHotKeyManager {
             if isBanglish {
                 if modeId.contains("Arabic") || sId.contains("Arabic") || BanglishInputController.currentMode == .arabic {
                     // Arabic -> English
-                    self.selectEnglishInputSource()
+                    BanglishInputController.selectSystemInputSource(mode: .english)
                 } else {
                     // Bangla -> Arabic
-                    self.selectBanglishMode("Arabic")
+                    BanglishInputController.selectSystemInputSource(mode: .arabic)
                 }
             } else {
                 // English or other -> Bangla
-                self.selectBanglishMode("Bangla")
+                BanglishInputController.selectSystemInputSource(mode: .bangla)
             }
         }
     }
 
     func selectBanglishMode(_ modeKeyword: String) {
-        let modeProps = [kTISPropertyInputSourceType: "TISTypeKeyboardInputMode"] as CFDictionary
-        if let modeList = TISCreateInputSourceList(modeProps, true)?.takeRetainedValue() as? [TISInputSource] {
-            for s in modeList {
-                let modeId = (TISGetInputSourceProperty(s, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-                let bId = (TISGetInputSourceProperty(s, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-                let sId = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-                if (bId.contains("Banglish") || sId.contains("Banglish")) && (modeId.contains(modeKeyword) || sId.contains(modeKeyword)) {
-                    TISSelectInputSource(s)
-                    if modeKeyword.contains("Arabic") {
-                        BanglishInputController.currentMode = .arabic
-                        BanglishInputController.lastNonEnglishMode = .arabic
-                    } else {
-                        BanglishInputController.currentMode = .bangla
-                        BanglishInputController.lastNonEnglishMode = .bangla
-                    }
-                    CandidateWindow.shared.hide()
-                    return
-                }
-            }
+        if modeKeyword.contains("Arabic") {
+            BanglishInputController.selectSystemInputSource(mode: .arabic)
+        } else {
+            BanglishInputController.selectSystemInputSource(mode: .bangla)
         }
     }
 
     func selectEnglishInputSource() {
-        if let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] {
-            for s in list {
-                let id = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-                if id == "com.apple.keylayout.US" || id.contains("keylayout.US") || id.contains("ABC") {
-                    TISSelectInputSource(s)
-                    BanglishInputController.currentMode = .english
-                    CandidateWindow.shared.hide()
-                    return
-                }
-            }
-        }
+        BanglishInputController.selectSystemInputSource(mode: .english)
     }
 
     func enableAllBanglishModes() {
