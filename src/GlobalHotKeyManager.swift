@@ -23,7 +23,7 @@ final class GlobalHotKeyManager {
             guard err == noErr else { return noErr }
 
             let now = CACurrentMediaTime()
-            if now - GlobalHotKeyManager.shared.lastCycleTimestamp < 0.12 {
+            if now - GlobalHotKeyManager.shared.lastCycleTimestamp < 0.22 {
                 return noErr
             }
             GlobalHotKeyManager.shared.lastCycleTimestamp = now
@@ -34,7 +34,7 @@ final class GlobalHotKeyManager {
             } else if hkID.id == 2 || hkID.id == 4 || hkID.id == 5 {
                 // Command + Space OR Option + Space OR Control + Space =>
                 // Cycle: Bangla -> Arabic -> English -> Bangla
-                GlobalHotKeyManager.shared.cycleNextLanguage()
+                BanglishInputController.performCycle()
             }
             return noErr
         }, 1, &eventType, nil, &eventHandlerRef)
@@ -79,33 +79,7 @@ final class GlobalHotKeyManager {
 
     /// Cycle continuously: Bangla -> Arabic -> English -> Bangla
     func cycleNextLanguage() {
-        DispatchQueue.main.async {
-            BanglishInputController.commitActiveBuffer()
-
-            guard let current = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else {
-                BanglishInputController.selectSystemInputSource(mode: .bangla)
-                return
-            }
-
-            let modeId = (TISGetInputSourceProperty(current, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let bId = (TISGetInputSourceProperty(current, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let sId = (TISGetInputSourceProperty(current, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-
-            let isBanglish = bId.contains("Banglish") || sId.contains("Banglish")
-
-            if isBanglish {
-                if modeId.contains("Arabic") || sId.contains("Arabic") || BanglishInputController.currentMode == .arabic {
-                    // Arabic -> English
-                    BanglishInputController.selectSystemInputSource(mode: .english)
-                } else {
-                    // Bangla -> Arabic
-                    BanglishInputController.selectSystemInputSource(mode: .arabic)
-                }
-            } else {
-                // English or other -> Bangla
-                BanglishInputController.selectSystemInputSource(mode: .bangla)
-            }
-        }
+        BanglishInputController.performCycle()
     }
 
     func selectBanglishMode(_ modeKeyword: String) {
