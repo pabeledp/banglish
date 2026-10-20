@@ -165,11 +165,11 @@ namespace Banglish
                 }
             };
 
-            hook.ModeToggled += (enabled) =>
+            hook.ModeChanged += (mode) =>
             {
                 if (candidateWindow != null && !candidateWindow.IsDisposed)
                 {
-                    if (!enabled)
+                    if (mode == InputMode.English)
                     {
                         if (candidateWindow.InvokeRequired)
                             candidateWindow.BeginInvoke(new Action(() => candidateWindow.Hide()));
@@ -180,10 +180,23 @@ namespace Banglish
 
                 if (toggleWidget != null && !toggleWidget.IsDisposed)
                 {
-                    toggleWidget.SetMode(enabled);
+                    toggleWidget.SetMode(mode);
                 }
 
-                string modeName = enabled ? "Bangla (বাংলা)" : "English (ENG)";
+                string modeName;
+                switch (mode)
+                {
+                    case InputMode.Bangla:
+                        modeName = "বাংলা (Bangla)";
+                        break;
+                    case InputMode.Arabic:
+                        modeName = "العربية (Arabic)";
+                        break;
+                    default:
+                        modeName = "English (ENG)";
+                        break;
+                }
+
                 if (trayIcon != null)
                 {
                     trayIcon.Text = "Banglish — " + modeName + " (F12)";
@@ -196,13 +209,20 @@ namespace Banglish
             contextMenu.AutoClose = true;
             contextMenu.Font = ToggleBarForm.GetBestFont(new[] { "Hind Siliguri", "Nirmala UI", "Segoe UI" }, 9.5f, FontStyle.Regular);
 
-            ToolStripMenuItem toggleItem = new ToolStripMenuItem("🔄  ভাষা পরিবর্তন (F12)", null, (s, e) =>
+            ToolStripMenuItem toggleItem = new ToolStripMenuItem("🔄  ভাষা পরিবর্তন সাইকেল (F12)", null, (s, e) =>
             {
-                hook.ToggleMode();
+                hook.CycleMode();
             });
             toggleItem.Font = new Font(toggleItem.Font, FontStyle.Bold);
-
             contextMenu.Items.Add(toggleItem);
+
+            ToolStripMenuItem banglaItem = new ToolStripMenuItem("🇧🇩  বাংলা (Bangla)", null, (s, e) => hook.SetModeDirectly(InputMode.Bangla));
+            ToolStripMenuItem arabicItem = new ToolStripMenuItem("🇸🇦  العربية (Arabic)", null, (s, e) => hook.SetModeDirectly(InputMode.Arabic));
+            ToolStripMenuItem englishItem = new ToolStripMenuItem("🇺🇸  English (ENG)", null, (s, e) => hook.SetModeDirectly(InputMode.English));
+            contextMenu.Items.Add(banglaItem);
+            contextMenu.Items.Add(arabicItem);
+            contextMenu.Items.Add(englishItem);
+            contextMenu.Items.Add(new ToolStripSeparator());
 
 #if VOICE_BETA
             ToolStripMenuItem voiceItem = new ToolStripMenuItem("🎙️  ভয়েস টাইপিং (Ctrl+F12)", null, (s, e) =>

@@ -6,6 +6,13 @@ using System.Text;
 
 namespace Banglish.Core
 {
+    public enum InputMode
+    {
+        English = 0,
+        Bangla = 1,
+        Arabic = 2
+    }
+
     public class KeyboardHook : IDisposable
     {
         private const int WH_KEYBOARD_LL = 13;
@@ -21,7 +28,14 @@ namespace Banglish.Core
         private HookProc _proc;
         private IntPtr _hookID = IntPtr.Zero;
 
-        public bool IsEnabled { get; set; }
+        public InputMode CurrentMode { get; set; } = InputMode.Bangla;
+
+        public bool IsEnabled
+        {
+            get { return CurrentMode != InputMode.English; }
+            set { CurrentMode = value ? InputMode.Bangla : InputMode.English; }
+        }
+
         public StringBuilder Buffer { get; private set; }
         private string _lastComposed = "";
         private List<string> _currentCandidates = new List<string>();
@@ -29,13 +43,14 @@ namespace Banglish.Core
 
         public event Action<string, List<string>, int> CandidatesChanged;
         public event Action<bool> ModeToggled;
+        public event Action<InputMode> ModeChanged;
         public event Action VoiceHotkeyPressed;
 
         private long _lastToggleTick = 0;
 
         public KeyboardHook()
         {
-            IsEnabled = true;
+            CurrentMode = InputMode.Bangla;
             Buffer = new StringBuilder();
             _proc = HookCallback;
             _staticProc = _proc;
@@ -108,20 +123,50 @@ namespace Banglish.Core
             }
         }
 
-        public void ToggleMode()
+        /// <summary>
+        /// Continuous 3-Way Language Cycling on F12 / Ctrl+Space:
+        /// English -> Bangla -> Arabic -> English -> ...
+        /// </summary>
+        public void CycleMode()
         {
             long now = Environment.TickCount;
             if (now - _lastToggleTick < 250)
             {
-                // Prevent duplicate rapid triggers (e.g. from simultaneous hook & hotkey)
+                // Prevent duplicate rapid triggers
                 return;
             }
             _lastToggleTick = now;
 
-            // Finalize any in-progress composed word so the typed Bengali word stays cleanly in the editor
+            // Finalize any in-progress composed word cleanly
             CommitComposition();
 
-            IsEnabled = !IsEnabled;
+            switch (CurrentMode)
+            {
+                case InputMode.English:
+                    CurrentMode = InputMode.Bangla;
+                    break;
+                case InputMode.Bangla:
+                    CurrentMode = InputMode.Arabic;
+                    break;
+                case InputMode.Arabic:
+                    CurrentMode = InputMode.English;
+                    break;
+            }
+
+            if (ModeChanged != null) ModeChanged(CurrentMode);
+            if (ModeToggled != null) ModeToggled(IsEnabled);
+        }
+
+        public void ToggleMode()
+        {
+            CycleMode();
+        }
+
+        public void SetModeDirectly(InputMode mode)
+        {
+            CommitComposition();
+            CurrentMode = mode;
+            if (ModeChanged != null) ModeChanged(CurrentMode);
             if (ModeToggled != null) ModeToggled(IsEnabled);
         }
 
@@ -133,310 +178,323 @@ namespace Banglish.Core
                 {
                     KBDLLHOOKSTRUCT hookStruct = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
 
-                // If key is injected by our own SendInput, pass it through immediately
-                if ((hookStruct.flags & 0x10) != 0 || hookStruct.dwExtraInfo == (UIntPtr)0xBA991158 || (long)hookStruct.dwExtraInfo == 0xBA991158L)
-                {
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                System.Windows.Forms.Keys key = (System.Windows.Forms.Keys)hookStruct.vkCode;
-
-                // Check Modifier Keys
-                bool ctrlPressed = (GetKeyState(0x11 /*VK_CONTROL*/) & 0x8000) != 0;
-                bool altPressed = (GetKeyState(0x12 /*VK_MENU*/) & 0x8000) != 0;
-                bool shiftPressed = (GetKeyState(0x10 /*VK_SHIFT*/) & 0x8000) != 0;
-
-                // 1. Function Keys (Section 1) - Hotkeys
-                if (key == System.Windows.Forms.Keys.F12)
-                {
-                    if (ctrlPressed && !altPressed && !shiftPressed)
+                    // If key is injected by our own SendInput, pass it through immediately
+                    if ((hookStruct.flags & 0x10) != 0 || hookStruct.dwExtraInfo == (UIntPtr)0xBA991158 || (long)hookStruct.dwExtraInfo == 0xBA991158L)
                     {
-                        // Ctrl + F12: Voice Typing Toggle
-                        if (VoiceHotkeyPressed != null)
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
+
+                    System.Windows.Forms.Keys key = (System.Windows.Forms.Keys)hookStruct.vkCode;
+
+                    // Check Modifier Keys
+                    bool ctrlPressed = (GetKeyState(0x11 /*VK_CONTROL*/) & 0x8000) != 0;
+                    bool altPressed = (GetKeyState(0x12 /*VK_MENU*/) & 0x8000) != 0;
+                    bool shiftPressed = (GetKeyState(0x10 /*VK_SHIFT*/) & 0x8000) != 0;
+
+                    // 1. Function Key F12: Language Mode Cycle (English -> Bangla -> Arabic -> English)
+                    if (key == System.Windows.Forms.Keys.F12)
+                    {
+                        if (ctrlPressed && !altPressed && !shiftPressed)
                         {
-                            VoiceHotkeyPressed();
+                            // Ctrl + F12: Voice Typing Toggle
+                            if (VoiceHotkeyPressed != null)
+                            {
+                                VoiceHotkeyPressed();
+                            }
+                            return (IntPtr)1;
                         }
-                        return (IntPtr)1;
-                    }
-                    else if (!ctrlPressed && !altPressed)
-                    {
-                        // Plain F12 or Shift + F12: Language Mode Toggle (even in the middle of words!)
-                        ToggleMode();
-                        return (IntPtr)1;
-                    }
-                }
-
-                // Universal Alternate Language Toggle: Ctrl + Space
-                if (ctrlPressed && !altPressed && !shiftPressed && key == System.Windows.Forms.Keys.Space)
-                {
-                    ToggleMode();
-                    return (IntPtr)1;
-                }
-
-                if (!IsEnabled)
-                {
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // 2. Standalone Modifier Keys (Pass through so holding Shift/Ctrl/Alt/Win doesn't clear composition)
-                bool isStandaloneModifier = key == System.Windows.Forms.Keys.ShiftKey ||
-                                            key == System.Windows.Forms.Keys.LShiftKey ||
-                                            key == System.Windows.Forms.Keys.RShiftKey ||
-                                            key == System.Windows.Forms.Keys.ControlKey ||
-                                            key == System.Windows.Forms.Keys.LControlKey ||
-                                            key == System.Windows.Forms.Keys.RControlKey ||
-                                            key == System.Windows.Forms.Keys.Menu ||
-                                            key == System.Windows.Forms.Keys.LMenu ||
-                                            key == System.Windows.Forms.Keys.RMenu ||
-                                            key == System.Windows.Forms.Keys.LWin ||
-                                            key == System.Windows.Forms.Keys.RWin ||
-                                            key == System.Windows.Forms.Keys.Capital ||
-                                            key == System.Windows.Forms.Keys.NumLock;
-                if (isStandaloneModifier)
-                {
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // 3. System Shortcut Combinations (Ctrl+C, Ctrl+V, Alt+Tab, Win+D, etc.)
-                bool winPressed = (GetKeyState(0x5B /*VK_LWIN*/) & 0x8000) != 0 || (GetKeyState(0x5C /*VK_RWIN*/) & 0x8000) != 0;
-                if (ctrlPressed || altPressed || winPressed)
-                {
-                    CommitComposition();
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // 4. Candidate Selection (Keys 1-9 on BOTH Top Number Row AND Numeric Keypad)
-                bool isPureDigits = true;
-                for (int bi = 0; bi < Buffer.Length; bi++)
-                {
-                    if (!char.IsDigit(Buffer[bi])) { isPureDigits = false; break; }
-                }
-
-                bool isNumRowChoice = key >= System.Windows.Forms.Keys.D1 && key <= System.Windows.Forms.Keys.D9;
-                bool isNumPadChoice = key >= System.Windows.Forms.Keys.NumPad1 && key <= System.Windows.Forms.Keys.NumPad9;
-
-                if (Buffer.Length > 0 && !isPureDigits && _currentCandidates.Count > 1 && (isNumRowChoice || isNumPadChoice))
-                {
-                    if (!shiftPressed)
-                    {
-                        int choiceIdx = isNumPadChoice 
-                            ? (key - System.Windows.Forms.Keys.NumPad1) 
-                            : (key - System.Windows.Forms.Keys.D1);
-                        if (choiceIdx < _currentCandidates.Count)
+                        else if (!ctrlPressed && !altPressed)
                         {
-                            CommitSelectedCandidate(_currentCandidates[choiceIdx]);
+                            // Plain F12 or Shift + F12: Language Cycle
+                            CycleMode();
                             return (IntPtr)1;
                         }
                     }
-                }
 
-                // 5. Candidate Navigation (Down Arrow / Tab: next candidate; Up Arrow: previous candidate)
-                if (Buffer.Length > 0 && (key == System.Windows.Forms.Keys.Down || key == System.Windows.Forms.Keys.Tab))
-                {
-                    if (_currentCandidates.Count > 1)
+                    // Universal Alternate Language Toggle: Ctrl + Space
+                    if (ctrlPressed && !altPressed && !shiftPressed && key == System.Windows.Forms.Keys.Space)
                     {
-                        _selectedCandidateIndex = (_selectedCandidateIndex + 1) % _currentCandidates.Count;
-                        string chosen = _currentCandidates[_selectedCandidateIndex];
-                        ReplaceComposedText(_lastComposed, chosen);
-                        _lastComposed = chosen;
-                        TriggerCandidatesUpdate();
+                        CycleMode();
                         return (IntPtr)1;
                     }
-                }
 
-                if (Buffer.Length > 0 && key == System.Windows.Forms.Keys.Up)
-                {
-                    if (_currentCandidates.Count > 1)
+                    // If English mode, let all keys pass through directly to Windows apps
+                    if (CurrentMode == InputMode.English)
                     {
-                        _selectedCandidateIndex = (_selectedCandidateIndex - 1 + _currentCandidates.Count) % _currentCandidates.Count;
-                        string chosen = _currentCandidates[_selectedCandidateIndex];
-                        ReplaceComposedText(_lastComposed, chosen);
-                        _lastComposed = chosen;
-                        TriggerCandidatesUpdate();
-                        return (IntPtr)1;
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
                     }
-                }
 
-                // 6. Navigation Keys (Left, Right, Home, End, PageUp, PageDown, Delete, Insert) & Non-candidate Arrows/Tab
-                bool isNavKey = key == System.Windows.Forms.Keys.Left ||
-                                key == System.Windows.Forms.Keys.Right ||
-                                key == System.Windows.Forms.Keys.Up ||
-                                key == System.Windows.Forms.Keys.Down ||
-                                key == System.Windows.Forms.Keys.Home ||
-                                key == System.Windows.Forms.Keys.End ||
-                                key == System.Windows.Forms.Keys.PageUp ||
-                                key == System.Windows.Forms.Keys.PageDown ||
-                                key == System.Windows.Forms.Keys.Insert ||
-                                key == System.Windows.Forms.Keys.Delete ||
-                                key == System.Windows.Forms.Keys.Tab;
-                if (isNavKey)
-                {
-                    CommitComposition();
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
+                    // 2. Standalone Modifier Keys
+                    bool isStandaloneModifier = key == System.Windows.Forms.Keys.ShiftKey ||
+                                                key == System.Windows.Forms.Keys.LShiftKey ||
+                                                key == System.Windows.Forms.Keys.RShiftKey ||
+                                                key == System.Windows.Forms.Keys.ControlKey ||
+                                                key == System.Windows.Forms.Keys.LControlKey ||
+                                                key == System.Windows.Forms.Keys.RControlKey ||
+                                                key == System.Windows.Forms.Keys.Menu ||
+                                                key == System.Windows.Forms.Keys.LMenu ||
+                                                key == System.Windows.Forms.Keys.RMenu ||
+                                                key == System.Windows.Forms.Keys.LWin ||
+                                                key == System.Windows.Forms.Keys.RWin ||
+                                                key == System.Windows.Forms.Keys.Capital ||
+                                                key == System.Windows.Forms.Keys.NumLock;
+                    if (isStandaloneModifier)
+                    {
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
 
-                // 7. Spacebar: commit composed word cleanly and dispatch single space
-                if (key == System.Windows.Forms.Keys.Space)
-                {
-                    if (Buffer.Length > 0)
+                    // 3. System Shortcut Combinations (Ctrl+C, Ctrl+V, Ctrl+Z, Ctrl+A, Alt+Tab, Win+D, etc.)
+                    bool winPressed = (GetKeyState(0x5B /*VK_LWIN*/) & 0x8000) != 0 || (GetKeyState(0x5C /*VK_RWIN*/) & 0x8000) != 0;
+                    if (ctrlPressed || altPressed || winPressed)
                     {
                         CommitComposition();
-                        SendSingleChar(' ');
-                        return (IntPtr)1;
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
                     }
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
 
-                // 8. Enter / Return (Both Main Enter and Keypad Enter)
-                if (key == System.Windows.Forms.Keys.Return)
-                {
-                    CommitComposition();
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // 9. Backspace: remove last character and re-transliterate live
-                if (key == System.Windows.Forms.Keys.Back)
-                {
-                    if (Buffer.Length > 0)
+                    // 4. Candidate Selection (Keys 1-9 on BOTH Top Number Row AND Numeric Keypad)
+                    bool isPureDigits = true;
+                    for (int bi = 0; bi < Buffer.Length; bi++)
                     {
-                        Buffer.Remove(Buffer.Length - 1, 1);
+                        if (!char.IsDigit(Buffer[bi])) { isPureDigits = false; break; }
+                    }
 
+                    bool isNumRowChoice = key >= System.Windows.Forms.Keys.D1 && key <= System.Windows.Forms.Keys.D9;
+                    bool isNumPadChoice = key >= System.Windows.Forms.Keys.NumPad1 && key <= System.Windows.Forms.Keys.NumPad9;
+
+                    if (Buffer.Length > 0 && !isPureDigits && _currentCandidates.Count > 1 && (isNumRowChoice || isNumPadChoice))
+                    {
+                        if (!shiftPressed)
+                        {
+                            int choiceIdx = isNumPadChoice 
+                                ? (key - System.Windows.Forms.Keys.NumPad1) 
+                                : (key - System.Windows.Forms.Keys.D1);
+                            if (choiceIdx < _currentCandidates.Count)
+                            {
+                                CommitSelectedCandidate(_currentCandidates[choiceIdx]);
+                                return (IntPtr)1;
+                            }
+                        }
+                    }
+
+                    // 5. Candidate Navigation (Down Arrow / Tab: next candidate; Up Arrow: previous candidate)
+                    if (Buffer.Length > 0 && (key == System.Windows.Forms.Keys.Down || key == System.Windows.Forms.Keys.Tab))
+                    {
+                        if (_currentCandidates.Count > 1)
+                        {
+                            _selectedCandidateIndex = (_selectedCandidateIndex + 1) % _currentCandidates.Count;
+                            string chosen = _currentCandidates[_selectedCandidateIndex];
+                            ReplaceComposedText(_lastComposed, chosen);
+                            _lastComposed = chosen;
+                            TriggerCandidatesUpdate();
+                            return (IntPtr)1;
+                        }
+                    }
+
+                    if (Buffer.Length > 0 && key == System.Windows.Forms.Keys.Up)
+                    {
+                        if (_currentCandidates.Count > 1)
+                        {
+                            _selectedCandidateIndex = (_selectedCandidateIndex - 1 + _currentCandidates.Count) % _currentCandidates.Count;
+                            string chosen = _currentCandidates[_selectedCandidateIndex];
+                            ReplaceComposedText(_lastComposed, chosen);
+                            _lastComposed = chosen;
+                            TriggerCandidatesUpdate();
+                            return (IntPtr)1;
+                        }
+                    }
+
+                    // 6. Navigation Keys (Left, Right, Home, End, PageUp, PageDown, Delete, Insert) & Non-candidate Arrows/Tab
+                    bool isNavKey = key == System.Windows.Forms.Keys.Left ||
+                                    key == System.Windows.Forms.Keys.Right ||
+                                    key == System.Windows.Forms.Keys.Up ||
+                                    key == System.Windows.Forms.Keys.Down ||
+                                    key == System.Windows.Forms.Keys.Home ||
+                                    key == System.Windows.Forms.Keys.End ||
+                                    key == System.Windows.Forms.Keys.PageUp ||
+                                    key == System.Windows.Forms.Keys.PageDown ||
+                                    key == System.Windows.Forms.Keys.Insert ||
+                                    key == System.Windows.Forms.Keys.Delete ||
+                                    key == System.Windows.Forms.Keys.Tab;
+                    if (isNavKey)
+                    {
+                        CommitComposition();
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
+
+                    // 7. Spacebar: commit composed word cleanly and dispatch single space
+                    if (key == System.Windows.Forms.Keys.Space)
+                    {
                         if (Buffer.Length > 0)
                         {
-                            _currentCandidates = BanglishDictionary.Shared.GetCandidates(Buffer.ToString());
-                            _selectedCandidateIndex = 0;
-                            string newBangla = _currentCandidates.Count > 0 ? _currentCandidates[0] : BanglishEngine.Shared.Transliterate(Buffer.ToString());
+                            CommitComposition();
+                            SendSingleChar(' ');
+                            return (IntPtr)1;
+                        }
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
 
-                            ReplaceComposedText(_lastComposed, newBangla);
-                            _lastComposed = newBangla;
+                    // 8. Enter / Return (Both Main Enter and Keypad Enter)
+                    if (key == System.Windows.Forms.Keys.Return)
+                    {
+                        CommitComposition();
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
+
+                    // 9. Backspace: remove last character and re-transliterate live
+                    if (key == System.Windows.Forms.Keys.Back)
+                    {
+                        if (Buffer.Length > 0)
+                        {
+                            Buffer.Remove(Buffer.Length - 1, 1);
+
+                            if (Buffer.Length > 0)
+                            {
+                                UpdateComposedFromBuffer();
+                            }
+                            else
+                            {
+                                ReplaceComposedText(_lastComposed, "");
+                                _lastComposed = "";
+                                _currentCandidates.Clear();
+                                _selectedCandidateIndex = 0;
+                            }
+
+                            TriggerCandidatesUpdate();
+                            return (IntPtr)1;
+                        }
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
+
+                    // 10. Escape: discard composition
+                    if (key == System.Windows.Forms.Keys.Escape)
+                    {
+                        if (Buffer.Length > 0)
+                        {
+                            ReplaceComposedText(_lastComposed, "");
+                            CommitComposition();
+                            return (IntPtr)1;
+                        }
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
+
+                    // 11. Function Keys (F1-F11, F13-F24) & System Keys
+                    bool isFunctionKey = (key >= System.Windows.Forms.Keys.F1 && key <= System.Windows.Forms.Keys.F11) ||
+                                         (key >= System.Windows.Forms.Keys.F13 && key <= System.Windows.Forms.Keys.F24);
+                    bool isSystemKey = key == System.Windows.Forms.Keys.PrintScreen ||
+                                       key == System.Windows.Forms.Keys.Scroll ||
+                                       key == System.Windows.Forms.Keys.Pause ||
+                                       key == System.Windows.Forms.Keys.Apps;
+                    if (isFunctionKey || isSystemKey)
+                    {
+                        CommitComposition();
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
+
+                    // 12. Numeric Keypad Operators: Multiply (*), Add (+), Subtract (-), Divide (/)
+                    bool isNumpadOperator = key == System.Windows.Forms.Keys.Multiply ||
+                                            key == System.Windows.Forms.Keys.Add ||
+                                            key == System.Windows.Forms.Keys.Subtract ||
+                                            key == System.Windows.Forms.Keys.Divide;
+                    if (isNumpadOperator)
+                    {
+                        CommitComposition();
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
+
+                    // 12b. Numpad Decimal (.)
+                    if (key == System.Windows.Forms.Keys.Decimal)
+                    {
+                        CommitComposition();
+                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
+                    }
+
+                    // 12c. Numpad Digits (NumPad0 to NumPad9)
+                    if (key >= System.Windows.Forms.Keys.NumPad0 && key <= System.Windows.Forms.Keys.NumPad9)
+                    {
+                        CommitComposition();
+                        bool numLockOn = System.Windows.Forms.Control.IsKeyLocked(System.Windows.Forms.Keys.NumLock);
+                        if (numLockOn)
+                        {
+                            int digitVal = (key - System.Windows.Forms.Keys.NumPad0);
+                            char targetDigit = (CurrentMode == InputMode.Arabic)
+                                ? (char)('\u0660' + digitVal)  // Arabic-Indic numeral (٠-٩)
+                                : (char)('০' + digitVal);      // Bengali numeral (০-৯)
+                            SendSingleChar(targetDigit);
+                            return (IntPtr)1;
                         }
                         else
                         {
-                            ReplaceComposedText(_lastComposed, "");
-                            _lastComposed = "";
-                            _currentCandidates.Clear();
-                            _selectedCandidateIndex = 0;
+                            return CallNextHookEx(_hookID, nCode, wParam, lParam);
                         }
+                    }
 
+                    // 13. Top Number Row Digits (D0 to D9 without Shift)
+                    if (key >= System.Windows.Forms.Keys.D0 && key <= System.Windows.Forms.Keys.D9)
+                    {
+                        if (!shiftPressed)
+                        {
+                            CommitComposition();
+                            int digitVal = (key - System.Windows.Forms.Keys.D0);
+                            char targetDigit = (CurrentMode == InputMode.Arabic)
+                                ? (char)('\u0660' + digitVal)  // Arabic-Indic numeral (٠-٩)
+                                : (char)('০' + digitVal);      // Bengali numeral (০-৯)
+                            SendSingleChar(targetDigit);
+                            return (IntPtr)1;
+                        }
+                    }
+
+                    // 14. Convert Key to Character
+                    char ch = GetCharFromKey(key);
+                    if (ch != '\0')
+                    {
+                        Buffer.Append(ch);
+                        UpdateComposedFromBuffer();
                         TriggerCandidatesUpdate();
-                        return (IntPtr)1;
-                    }
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // 10. Escape: discard composition
-                if (key == System.Windows.Forms.Keys.Escape)
-                {
-                    if (Buffer.Length > 0)
-                    {
-                        ReplaceComposedText(_lastComposed, "");
-                        CommitComposition();
-                        return (IntPtr)1;
-                    }
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // 11. Function Keys (F1-F11, F13-F24) & System Keys (PrintScreen, Scroll, Pause, Menu/Apps)
-                bool isFunctionKey = (key >= System.Windows.Forms.Keys.F1 && key <= System.Windows.Forms.Keys.F11) ||
-                                     (key >= System.Windows.Forms.Keys.F13 && key <= System.Windows.Forms.Keys.F24);
-                bool isSystemKey = key == System.Windows.Forms.Keys.PrintScreen ||
-                                   key == System.Windows.Forms.Keys.Scroll ||
-                                   key == System.Windows.Forms.Keys.Pause ||
-                                   key == System.Windows.Forms.Keys.Apps;
-                if (isFunctionKey || isSystemKey)
-                {
-                    CommitComposition();
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // 12. Numeric Keypad (Section 5)
-                // 12a. Numpad Operators: Multiply (*), Add (+), Subtract (-), Divide (/)
-                bool isNumpadOperator = key == System.Windows.Forms.Keys.Multiply ||
-                                        key == System.Windows.Forms.Keys.Add ||
-                                        key == System.Windows.Forms.Keys.Subtract ||
-                                        key == System.Windows.Forms.Keys.Divide;
-                if (isNumpadOperator)
-                {
-                    CommitComposition();
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // 12b. Numpad Decimal (.)
-                if (key == System.Windows.Forms.Keys.Decimal)
-                {
-                    CommitComposition();
-                    return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                }
-
-                // 12c. Numpad Digits (NumPad0 to NumPad9)
-                if (key >= System.Windows.Forms.Keys.NumPad0 && key <= System.Windows.Forms.Keys.NumPad9)
-                {
-                    CommitComposition();
-                    bool numLockOn = System.Windows.Forms.Control.IsKeyLocked(System.Windows.Forms.Keys.NumLock);
-                    if (numLockOn)
-                    {
-                        int digitVal = (key - System.Windows.Forms.Keys.NumPad0);
-                        char banglaDigit = (char)('০' + digitVal);
-                        SendSingleChar(banglaDigit);
                         return (IntPtr)1;
                     }
                     else
                     {
-                        // NumLock OFF: Numpad acts as navigation (Home, Up, PgUp, Left, Right, End, Down, PgDn, Ins, Del)
-                        return CallNextHookEx(_hookID, nCode, wParam, lParam);
-                    }
-                }
-
-                // 13. Top Number Row Digits (D0 to D9 without Shift)
-                if (key >= System.Windows.Forms.Keys.D0 && key <= System.Windows.Forms.Keys.D9)
-                {
-                    if (!shiftPressed)
-                    {
+                        // Non-phonetic key: finalize open composition so symbols are placed cleanly
                         CommitComposition();
-                        int digitVal = (key - System.Windows.Forms.Keys.D0);
-                        char banglaDigit = (char)('০' + digitVal);
-                        SendSingleChar(banglaDigit);
-                        return (IntPtr)1;
                     }
                 }
 
-                // 14. Convert Key to Character
-                char ch = GetCharFromKey(key);
-                if (ch != '\0')
-                {
-                    Buffer.Append(ch);
+                return CallNextHookEx(_hookID, nCode, wParam, lParam);
+            }
+            catch
+            {
+                return CallNextHookEx(_hookID, nCode, wParam, lParam);
+            }
+        }
 
-                    _currentCandidates = BanglishDictionary.Shared.GetCandidates(Buffer.ToString());
-                    _selectedCandidateIndex = 0;
-                    string newBangla = _currentCandidates.Count > 0 ? _currentCandidates[0] : BanglishEngine.Shared.Transliterate(Buffer.ToString());
+        private void UpdateComposedFromBuffer()
+        {
+            string raw = Buffer.ToString();
+            string newComposed;
 
-                    ReplaceComposedText(_lastComposed, newBangla);
-                    _lastComposed = newBangla;
-
-                    TriggerCandidatesUpdate();
-                    return (IntPtr)1; // Swallowed, because Bangla was typed live into the active app!
-                }
-                else
-                {
-                    // Non-phonetic key (e.g. punctuation !, @, #, $, %, &, *, (, ), -, =, [, ], \, ;, ', ", /, ?, etc.)
-                    // Finalize any open composition cleanly so symbol is inserted right after without breaking text!
-                    CommitComposition();
-                }
+            if (CurrentMode == InputMode.Arabic)
+            {
+                _currentCandidates = ArabicDictionary.Shared.GetCandidates(raw);
+                _selectedCandidateIndex = 0;
+                newComposed = _currentCandidates.Count > 0 ? _currentCandidates[0] : ArabicEngine.Shared.Transliterate(raw);
+            }
+            else
+            {
+                _currentCandidates = BanglishDictionary.Shared.GetCandidates(raw);
+                _selectedCandidateIndex = 0;
+                newComposed = _currentCandidates.Count > 0 ? _currentCandidates[0] : BanglishEngine.Shared.Transliterate(raw);
             }
 
-            return CallNextHookEx(_hookID, nCode, wParam, lParam);
+            ReplaceComposedText(_lastComposed, newComposed);
+            _lastComposed = newComposed;
         }
-        catch
-        {
-            return CallNextHookEx(_hookID, nCode, wParam, lParam);
-        }
-    }
 
         private char GetCharFromKey(System.Windows.Forms.Keys key)
         {
             bool shift = (System.Windows.Forms.Control.ModifierKeys & System.Windows.Forms.Keys.Shift) != 0;
             bool capsLock = System.Windows.Forms.Control.IsKeyLocked(System.Windows.Forms.Keys.CapsLock);
 
+            // A-Z Letters
             if (key >= System.Windows.Forms.Keys.A && key <= System.Windows.Forms.Keys.Z)
             {
                 bool upper = shift ^ capsLock;
@@ -444,25 +502,84 @@ namespace Banglish.Core
                 return upper ? char.ToUpperInvariant(baseChar) : baseChar;
             }
 
+            // Number Row with Shift (Symbols)
             if (key >= System.Windows.Forms.Keys.D0 && key <= System.Windows.Forms.Keys.D9)
             {
                 if (shift)
                 {
                     switch (key)
                     {
-                        case System.Windows.Forms.Keys.D6: return '^'; // Chandrabindu (ঁ)
-                        case System.Windows.Forms.Keys.D4: return '$'; // Taka (৳)
+                        case System.Windows.Forms.Keys.D2:
+                            // @ for Quranic Waqf & Honorifics (@saw, @ayah, @bis, @jj, etc.)
+                            return (CurrentMode == InputMode.Arabic) ? '@' : '\0';
+
+                        case System.Windows.Forms.Keys.D4:
+                            // $ for Taka (৳) in Bangla
+                            return (CurrentMode == InputMode.Bangla) ? '$' : '\0';
+
+                        case System.Windows.Forms.Keys.D6:
+                            // ^ for Chandrabindu in Bangla, and Dagger Alif in Arabic (^a, ^i, ^u)
+                            return '^';
                     }
                 }
                 return '\0';
             }
 
+            // OEM Punctuation & Special Keys
             switch (key)
             {
-                case System.Windows.Forms.Keys.OemPeriod: return shift ? '\0' : '.'; // Daari (।)
-                case System.Windows.Forms.Keys.Oemcomma: return shift ? '\0' : ','; // Comma (,) / Hasanta (,, -> ্‌)
-                case System.Windows.Forms.Keys.Oem1: return shift ? ':' : '\0'; // Bisorgo (ঃ)
-                case System.Windows.Forms.Keys.Oemtilde: return shift ? '\0' : '`'; // Avro joiner / escape (`)
+                case System.Windows.Forms.Keys.Oemtilde:
+                    // ` key: Backtick (Harakat in Arabic: `a, `i, `u, `an, `in, `un, `o, `s; Joiner in Bangla)
+                    // ~ key: Shift+Tilde (Maddah in Arabic: ~m, ~)
+                    if (CurrentMode == InputMode.Arabic)
+                    {
+                        return shift ? '~' : '`';
+                    }
+                    else
+                    {
+                        return shift ? '\0' : '`';
+                    }
+
+                case System.Windows.Forms.Keys.OemPeriod:
+                    if (CurrentMode == InputMode.Arabic)
+                    {
+                        // Shift + . gives > for double quote >>
+                        return shift ? '>' : '\0';
+                    }
+                    else
+                    {
+                        return shift ? '\0' : '.'; // Daari (।) in Bangla
+                    }
+
+                case System.Windows.Forms.Keys.Oemcomma:
+                    if (CurrentMode == InputMode.Arabic)
+                    {
+                        // , gives Arabic elevated comma (،); Shift + , gives < for double quote <<
+                        return shift ? '<' : ',';
+                    }
+                    else
+                    {
+                        return shift ? '\0' : ','; // Comma / Hasanta (,, -> ্‌)
+                    }
+
+                case System.Windows.Forms.Keys.Oem1: // Semicolon / Colon
+                    if (CurrentMode == InputMode.Arabic)
+                    {
+                        // ; gives Arabic semicolon (؛)
+                        return shift ? '\0' : ';';
+                    }
+                    else
+                    {
+                        return shift ? ':' : '\0'; // Bisorgo (ঃ)
+                    }
+
+                case System.Windows.Forms.Keys.OemQuestion: // Slash / Question mark
+                    if (CurrentMode == InputMode.Arabic)
+                    {
+                        // Shift + / gives ? for Arabic reversed question mark (؟)
+                        return shift ? '?' : '\0';
+                    }
+                    break;
             }
 
             return '\0';
@@ -536,8 +653,6 @@ namespace Banglish.Core
                     }
                 }
 
-                // Micro yield (2ms) guarantees active application (Notepad, Word, browsers, etc.)
-                // completes deleting previous characters before new replacement characters arrive!
                 if (!string.IsNullOrEmpty(newText))
                 {
                     System.Threading.Thread.Sleep(2);

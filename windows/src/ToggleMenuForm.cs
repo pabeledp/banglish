@@ -180,9 +180,9 @@ namespace Banglish.UI
             this.Cursor = Cursors.Default;
 
 #if VOICE_BETA
-            this.Size = new Size(224, 252);
+            this.Size = new Size(224, 330);
 #else
-            this.Size = new Size(224, 212);
+            this.Size = new Size(224, 290);
 #endif
 
             this.Paint += ToggleMenuForm_Paint;
@@ -203,14 +203,45 @@ namespace Banglish.UI
             int x = 8;
             int y = startY;
 
-            // 1. Language Toggle
+            // 1. Language Cycle
             _items.Add(new MenuItemDef
             {
                 Icon = "🔄",
-                Title = "ভাষা পরিবর্তন",
+                Title = "ভাষা সাইকেল",
                 Shortcut = "F12",
                 Bounds = new Rectangle(x, y, itemWidth, itemHeight),
-                Action = () => { if (_hook != null) _hook.ToggleMode(); }
+                Action = () => { if (_hook != null) _hook.CycleMode(); }
+            });
+            y += itemHeight + 2;
+
+            // 1b. Direct Language Selectors
+            _items.Add(new MenuItemDef
+            {
+                Icon = "🇧🇩",
+                Title = "বাংলা (Bangla)",
+                Shortcut = "",
+                Bounds = new Rectangle(x, y, itemWidth, itemHeight),
+                Action = () => { if (_hook != null) _hook.SetModeDirectly(InputMode.Bangla); }
+            });
+            y += itemHeight + 2;
+
+            _items.Add(new MenuItemDef
+            {
+                Icon = "🇸🇦",
+                Title = "العربية (Arabic)",
+                Shortcut = "",
+                Bounds = new Rectangle(x, y, itemWidth, itemHeight),
+                Action = () => { if (_hook != null) _hook.SetModeDirectly(InputMode.Arabic); }
+            });
+            y += itemHeight + 2;
+
+            _items.Add(new MenuItemDef
+            {
+                Icon = "🇺🇸",
+                Title = "English (ENG)",
+                Shortcut = "",
+                Bounds = new Rectangle(x, y, itemWidth, itemHeight),
+                Action = () => { if (_hook != null) _hook.SetModeDirectly(InputMode.English); }
             });
             y += itemHeight + 2;
 

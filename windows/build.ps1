@@ -29,7 +29,7 @@ class DictComp {
 }
 
 # Common source files
-$coreSrc = "src\BanglishData.cs src\BanglishEngine.cs src\BanglishDictionary.cs src\Win32Caret.cs src\KeyboardHook.cs src\CandidateForm.cs src\ToggleMenuForm.cs src\ToggleBarForm.cs src\WelcomeForm.cs src\TrayApp.cs"
+$coreSrc = "src\BanglishData.cs src\BanglishEngine.cs src\BanglishDictionary.cs src\ArabicData.cs src\ArabicEngine.cs src\ArabicDictionary.cs src\Win32Caret.cs src\KeyboardHook.cs src\CandidateForm.cs src\ToggleMenuForm.cs src\ToggleBarForm.cs src\WelcomeForm.cs src\TrayApp.cs"
 $voiceSrc = "src\Voice\BanglishConfig.cs src\Voice\AudioRecorder.cs src\Voice\GoogleSpeechClient.cs src\Voice\VoiceIndicatorForm.cs src\Voice\VoiceTypingManager.cs"
 
 # ========================================================
@@ -77,7 +77,27 @@ cmd.exe /c "$csc /nologo /target:winexe /define:VOICE_BETA /platform:anycpu /win
 if ($LASTEXITCODE -eq 0) {
     Write-Host "  [OK] windows\Banglish-v1.0.1-beta.exe (Beta Executable)" -ForegroundColor Magenta
     Write-Host "  [OK] windows\Banglish-Setup-v1.0.1-beta.exe (Beta Setup Wizard)" -ForegroundColor Magenta
-    Write-Host "`nALL BUILDS COMPLETED SUCCESSFULLY!" -ForegroundColor Green
 } else {
     Write-Host "`nFailed to build Banglish-Setup-v1.0.1-beta.exe!" -ForegroundColor Red
 }
+
+# ========================================================
+# 3. BUILD NEXT BETA RELEASE: v1.0.2-beta (Arabic & 3-Way Cycle)
+# ========================================================
+Write-Host "`n========================================================" -ForegroundColor Cyan
+Write-Host "3. Building NEXT BETA v1.0.2-beta (Arabic Engine & 3-Way Cycle)..." -ForegroundColor Yellow
+Write-Host "========================================================" -ForegroundColor Cyan
+
+cmd.exe /c "$csc /nologo /target:winexe /define:VOICE_BETA /platform:anycpu /win32icon:app.ico /resource:Banglish-Logo.png /resource:app.ico /resource:words.txt.gz /resource:autodict.txt /out:Banglish-v1.0.2-beta.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll /r:System.Core.dll $coreSrc $voiceSrc"
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "`nFailed to build Banglish-v1.0.2-beta.exe!" -ForegroundColor Red
+} else {
+    cmd.exe /c "$csc /nologo /target:winexe /define:VOICE_BETA /platform:anycpu /win32icon:app.ico /resource:Banglish-Logo.png /resource:app.ico /resource:Banglish-v1.0.2-beta.exe /resource:words.txt.gz /resource:autodict.txt /out:Banglish-Setup-v1.0.2-beta.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.dll src\SetupWizard.cs"
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  [OK] windows\Banglish-v1.0.2-beta.exe (Next Beta Executable)" -ForegroundColor Green
+        Write-Host "  [OK] windows\Banglish-Setup-v1.0.2-beta.exe (Next Beta Setup Wizard)" -ForegroundColor Green
+    }
+}
+
+Write-Host "`nALL BUILDS COMPLETED SUCCESSFULLY!" -ForegroundColor Green

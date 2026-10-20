@@ -51,6 +51,7 @@ namespace Banglish.UI
         #endregion
 
         private readonly Font fontBangla;
+        private readonly Font fontArabic;
         private readonly Font fontEnglish;
         private readonly Font fontNumber;
 
@@ -63,6 +64,7 @@ namespace Banglish.UI
         public CandidateForm()
         {
             fontBangla = GetBestFont(new[] { "Hind Siliguri", "Nirmala UI", "Vrinda", "Kalpurush" }, 14f, FontStyle.Regular);
+            fontArabic = GetBestFont(new[] { "Traditional Arabic", "Sakkal Majalla", "Segoe UI", "Tahoma" }, 14f, FontStyle.Regular);
             fontEnglish = GetBestFont(new[] { "Creato Display", "Plus Jakarta Sans", "Segoe UI", "Inter" }, 9.5f, FontStyle.Regular);
             fontNumber = GetBestFont(new[] { "Creato Display", "Plus Jakarta Sans", "Segoe UI" }, 9f, FontStyle.Bold);
 
@@ -348,8 +350,15 @@ namespace Banglish.UI
                 }
                 else
                 {
+                    bool isArabic = false;
+                    foreach (char ch in word)
+                    {
+                        if (ch >= 0x0600 && ch <= 0x06FF) { isArabic = true; break; }
+                    }
+
+                    Font baseFont = isArabic ? fontArabic : fontBangla;
                     wordColor = isSelected ? Color.White : Color.FromArgb(226, 232, 240); // Clean Slate-200
-                    wordFont = isSelected ? new Font(fontBangla, FontStyle.Bold) : fontBangla;
+                    wordFont = isSelected ? new Font(baseFont, FontStyle.Bold) : baseFont;
                 }
 
                 using (var textBrush = new SolidBrush(wordColor))

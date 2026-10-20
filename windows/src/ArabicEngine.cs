@@ -4,92 +4,84 @@ using System.Text;
 
 namespace Banglish.Core
 {
+    /// <summary>
+    /// Clean, Deterministic Latin-to-Arabic Phonetic Transliteration Engine for Windows.
+    /// Follows the Master Antigravity Specification with Case-Sensitive, Greedy Longest-Prefix Matching.
+    /// </summary>
     public class ArabicEngine
     {
         public static readonly ArabicEngine Shared = new ArabicEngine();
 
+        public static string TransliterateText(string text)
+        {
+            return Shared.Transliterate(text);
+        }
+
+        /// <summary>
+        /// Strip Harakat (Diacritics) & Maddah for unvocalized search & fallback
+        /// </summary>
         public string StripDiacritics(string text)
         {
             if (string.IsNullOrEmpty(text)) return "";
             StringBuilder sb = new StringBuilder();
             foreach (char c in text)
             {
-                if (c >= 0x064B && c <= 0x0652) continue;
+                if (c >= 0x064B && c <= 0x0652) continue; // Fathatan to Sukun
+                if (c == 0x0670 || c == 0x0656 || c == 0x0657 || c == 0x0653 || c == 0x06E4) continue; // Maddah & dagger alif
                 sb.Append(c);
             }
             return sb.ToString();
         }
 
-        public string Transliterate(string rawInput)
+        /// <summary>
+        /// Transliterate Latin phonetic string into Arabic Unicode (Case-Sensitive, Greedy Longest-Prefix Match)
+        /// </summary>
+        public string Transliterate(string text)
         {
-            if (string.IsNullOrEmpty(rawInput)) return "";
+            if (string.IsNullOrEmpty(text)) return "";
 
-            int total = rawInput.Length;
-            StringBuilder output = new StringBuilder();
+            StringBuilder result = new StringBuilder();
             int cur = 0;
+            int total = text.Length;
 
             while (cur < total)
             {
-                bool isWordStart = (cur == 0) || (cur > 0 && (rawInput[cur - 1] == ' ' || rawInput[cur - 1] == '-'));
+                // Check for initial 'al' ligature at word start
+                bool isWordStart = (result.Length == 0) || 
+                                   (result[result.Length - 1] == ' ') || 
+                                   (result[result.Length - 1] == '\n') || 
+                                   (result[result.Length - 1] == '-');
 
-                // 1. Initial Vowel Handling
-                if (isWordStart)
+                if (isWordStart && (cur + 2 <= total))
                 {
-                    if (cur + 1 < total && char.ToLowerInvariant(rawInput[cur]) == 'a' && char.ToLowerInvariant(rawInput[cur + 1]) == 'l')
+                    string prefix2 = text.Substring(cur, 2);
+                    if (prefix2 == "al" || prefix2 == "Al")
                     {
-                        output.Append("ال");
+                        result.Append("ال");
                         cur += 2;
-                        continue;
-                    }
-                    if (rawInput[cur] == 'a')
-                    {
-                        output.Append("أ");
-                        cur += 1;
-                        continue;
-                    }
-                    if (rawInput[cur] == 'A' || (cur + 1 < total && char.ToLowerInvariant(rawInput[cur]) == 'a' && char.ToLowerInvariant(rawInput[cur + 1]) == 'a'))
-                    {
-                        output.Append("ا");
-                        cur += (rawInput[cur] == 'A') ? 1 : 2;
-                        continue;
-                    }
-                    if (char.ToLowerInvariant(rawInput[cur]) == 'i' || char.ToLowerInvariant(rawInput[cur]) == 'e')
-                    {
-                        output.Append("إ");
-                        cur += 1;
-                        continue;
-                    }
-                    if (char.ToLowerInvariant(rawInput[cur]) == 'u' || char.ToLowerInvariant(rawInput[cur]) == 'o')
-                    {
-                        output.Append("أُ");
-                        cur += 1;
                         continue;
                     }
                 }
 
-                // 2. Greedy pattern matching
                 bool matched = false;
-                foreach (var pattern in ArabicData.Patterns)
+                foreach (var rule in ArabicData.Rules)
                 {
-                    string pFind = pattern.Find;
-                    int pLen = pFind.Length;
-                    int end = cur + pLen;
-
-                    if (end <= total)
+                    int rLen = rule.Latin.Length;
+                    if (cur + rLen <= total)
                     {
-                        string sub = rawInput.Substring(cur, pLen);
-                        if (sub == pFind)
+                        if (string.CompareOrdinal(text, cur, rule.Latin, 0, rLen) == 0)
                         {
-                            if (output.Length > 0 && output[output.Length - 1] == 'ل' && (pattern.Replace == "ا" || pattern.Replace == "أ"))
+                            // Check Lam-Alif ligature if previous character is Lam and rule produces Alif
+                            if (result.Length > 0 && result[result.Length - 1] == 'ل' && (rule.Arabic == "\u0627" || rule.Arabic == "\u0623"))
                             {
-                                output.Remove(output.Length - 1, 1);
-                                output.Append(ArabicData.LamAlif);
+                                result.Remove(result.Length - 1, 1);
+                                result.Append(ArabicData.LamAlif);
                             }
                             else
                             {
-                                output.Append(pattern.Replace);
+                                result.Append(rule.Arabic);
                             }
-                            cur = end;
+                            cur += rLen;
                             matched = true;
                             break;
                         }
@@ -98,12 +90,27 @@ namespace Banglish.Core
 
                 if (!matched)
                 {
-                    output.Append(rawInput[cur]);
-                    cur += 1;
+                    char firstChar = text[cur];
+                    string lowerStr = char.ToLowerInvariant(firstChar).ToString();
+                    bool fallbackMatched = false;
+                    foreach (var rule in ArabicData.Rules)
+                    {
+                        if (rule.Latin == lowerStr)
+                        {
+                            result.Append(rule.Arabic);
+                            fallbackMatched = true;
+                            break;
+                        }
+                    }
+                    if (!fallbackMatched)
+                    {
+                        result.Append(firstChar);
+                    }
+                    cur++;
                 }
             }
 
-            return output.ToString();
+            return result.ToString();
         }
     }
 }

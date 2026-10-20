@@ -60,7 +60,7 @@ namespace Banglish.UI
         private const uint SWP_NOACTIVATE = 0x0010;
 
         private readonly KeyboardHook _hook;
-        private bool _isBangla = true;
+        private InputMode _currentMode = InputMode.Bangla;
         private Image _logoImg;
 
         private bool _isHovered = false;
@@ -90,7 +90,7 @@ namespace Banglish.UI
         public ToggleBarForm(KeyboardHook hook)
         {
             _hook = hook;
-            _isBangla = hook != null ? hook.IsEnabled : true;
+            _currentMode = hook != null ? hook.CurrentMode : InputMode.Bangla;
 
             LoadLogo();
             InitializeComponent();
@@ -333,16 +333,21 @@ namespace Banglish.UI
             catch {}
         }
 
-        public void SetMode(bool isBangla)
+        public void SetMode(InputMode mode)
         {
             if (this.InvokeRequired)
             {
-                this.BeginInvoke(new Action(() => SetMode(isBangla)));
+                this.BeginInvoke(new Action(() => SetMode(mode)));
                 return;
             }
 
-            _isBangla = isBangla;
+            _currentMode = mode;
             this.Invalidate();
+        }
+
+        public void SetMode(bool isBangla)
+        {
+            SetMode(isBangla ? InputMode.Bangla : InputMode.English);
         }
 
         private void ToggleBarForm_MouseDown(object sender, MouseEventArgs e)
@@ -384,10 +389,10 @@ namespace Banglish.UI
                     return;
                 }
 #endif
-                // Toggle language mode
+                // Continuous 3-way cycle: English -> Bangla -> Arabic -> English ...
                 if (_hook != null)
                 {
-                    _hook.ToggleMode();
+                    _hook.CycleMode();
                 }
             }
         }
@@ -415,12 +420,19 @@ namespace Banglish.UI
 
             Color bgTop, bgBottom, borderColor;
 
-            if (_isBangla)
+            if (_currentMode == InputMode.Bangla)
             {
                 // Vibrant Emerald Green
                 bgTop = _isHovered ? Color.FromArgb(16, 185, 129) : Color.FromArgb(5, 150, 105);
                 bgBottom = _isHovered ? Color.FromArgb(5, 150, 105) : Color.FromArgb(4, 120, 87);
                 borderColor = Color.FromArgb(110, 231, 183);
+            }
+            else if (_currentMode == InputMode.Arabic)
+            {
+                // Rich Royal Ruby-Gold Gradient
+                bgTop = _isHovered ? Color.FromArgb(190, 24, 93) : Color.FromArgb(159, 18, 57);
+                bgBottom = _isHovered ? Color.FromArgb(159, 18, 57) : Color.FromArgb(136, 19, 55);
+                borderColor = Color.FromArgb(251, 191, 36);
             }
             else
             {
@@ -452,10 +464,25 @@ namespace Banglish.UI
             }
 
             // Draw Language Text
-            string label = _isBangla ? "বাংলা" : "ENG";
-            using (var font = _isBangla
-                ? GetBestFont(new[] { "Hind Siliguri", "Nirmala UI", "Segoe UI" }, 10.5f, FontStyle.Bold)
-                : GetBestFont(new[] { "Creato Display", "Segoe UI" }, 10f, FontStyle.Bold))
+            string label;
+            Font font;
+            if (_currentMode == InputMode.Bangla)
+            {
+                label = "বাংলা";
+                font = GetBestFont(new[] { "Hind Siliguri", "Nirmala UI", "Segoe UI" }, 10.5f, FontStyle.Bold);
+            }
+            else if (_currentMode == InputMode.Arabic)
+            {
+                label = "العربية";
+                font = GetBestFont(new[] { "Traditional Arabic", "Sakkal Majalla", "Segoe UI", "Tahoma" }, 10f, FontStyle.Bold);
+            }
+            else
+            {
+                label = "ENG";
+                font = GetBestFont(new[] { "Creato Display", "Segoe UI" }, 10f, FontStyle.Bold);
+            }
+
+            using (font)
             using (var brush = new SolidBrush(Color.White))
             {
                 g.DrawString(label, font, brush, 28, 6);
