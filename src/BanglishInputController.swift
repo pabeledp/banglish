@@ -300,23 +300,10 @@ class BanglishInputController: IMKInputController {
                        modifiers.intersection(.deviceIndependentFlagsMask).contains(.option) ||
                        (modifiers.rawValue & NSEvent.ModifierFlags.option.rawValue) != 0
 
-        // Universal Language Toggle Shortcuts (Instant response on light tap):
-        // 1) Option + Space (⌥ + Space) => Continuous cycle
+        // Universal Language Toggle Shortcut (ONLY Option + Space => 3-Way Cycle):
         let isOptionSpace = !isCommand && !isShift && !isControl && isOption && keyCode == 49
-        // 2) Control + Space (^ + Space) => Continuous cycle
-        let isControlSpace = !isCommand && !isShift && isControl && !isOption && keyCode == 49
-
-        if isOptionSpace || isControlSpace {
+        if isOptionSpace {
             cycleLanguage(client: client)
-            return true
-        }
-
-        // 4) Shift + Option + Space (⇧ + ⌥ + Space) OR Control + Option + Space (^ + ⌥ + Space) => Direct to Arabic with system tray update
-        let isArabicToggle = !isCommand && ((isShift && isOption) || (isControl && isOption)) && keyCode == 49
-        if isArabicToggle {
-            if !buffer.isEmpty { commitBuffer(client: client) }
-            CandidateWindow.shared.hide()
-            Self.selectSystemInputSource(mode: (Self.currentMode == .arabic) ? .english : .arabic)
             return true
         }
 
