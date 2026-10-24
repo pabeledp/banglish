@@ -96,14 +96,16 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 	<key>NSSupportsSuddenTermination</key>
 	<true/>
 	<key>TISIconIsTemplate</key>
-	<true/>
+	<false/>
+	<key>TISIntendedLanguage</key>
+	<string>bn</string>
 	<key>tsInputMethodCharacterRepertoireKey</key>
 	<array>
 		<string>Beng</string>
 		<string>Arab</string>
 	</array>
 	<key>tsInputMethodIconFileKey</key>
-	<string>MenuIcon.tiff</string>
+	<string>MenuIcon</string>
 	<key>ComponentInputModeDict</key>
 	<dict>
 		<key>tsInputModeListKey</key>
@@ -127,9 +129,9 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeKeyLayoutKey</key>
 				<string>com.apple.keylayout.US</string>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>MenuIcon.tiff</string>
+				<string>MenuIcon</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIcon.tiff</string>
+				<string>MenuIcon</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -154,9 +156,9 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeKeyLayoutKey</key>
 				<string>com.apple.keylayout.US</string>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>MenuIcon.tiff</string>
+				<string>MenuIcon</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIcon.tiff</string>
+				<string>MenuIcon</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -181,9 +183,9 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeKeyLayoutKey</key>
 				<string>com.apple.keylayout.US</string>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>MenuIconAR.tiff</string>
+				<string>MenuIconAR</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIconAR.tiff</string>
+				<string>MenuIconAR</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -208,9 +210,9 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeKeyLayoutKey</key>
 				<string>com.apple.keylayout.US</string>
 				<key>tsInputModeMenuIconFileKey</key>
-				<string>MenuIconAR.tiff</string>
+				<string>MenuIconAR</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIconAR.tiff</string>
+				<string>MenuIconAR</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
