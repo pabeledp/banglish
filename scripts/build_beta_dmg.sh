@@ -110,6 +110,33 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 	<dict>
 		<key>tsInputModeListKey</key>
 		<dict>
+			<key>Bangla</key>
+			<dict>
+				<key>TISInputSourceID</key>
+				<string>org.banglish.inputmethod.Banglish.Bangla</string>
+				<key>TISIntendedLanguage</key>
+				<string>bn</string>
+				<key>tsInputModeCharacterRepertoireKey</key>
+				<array>
+					<string>Beng</string>
+				</array>
+				<key>tsInputModeDefaultStateKey</key>
+				<true/>
+				<key>tsInputModeIsVisibleKey</key>
+				<true/>
+				<key>tsInputModeKeyEquivalentModifiersKey</key>
+				<integer>0</integer>
+				<key>tsInputModeKeyLayoutKey</key>
+				<string>com.apple.keylayout.US</string>
+				<key>tsInputModeMenuIconFileKey</key>
+				<string>MenuIcon</string>
+				<key>tsInputModePaletteIconFileKey</key>
+				<string>MenuIcon</string>
+				<key>tsInputModePrimaryInScriptKey</key>
+				<true/>
+				<key>tsInputModeScriptKey</key>
+				<string>smUnicodeScript</string>
+			</dict>
 			<key>org.banglish.inputmethod.Banglish.Bangla</key>
 			<dict>
 				<key>TISInputSourceID</key>
@@ -132,6 +159,33 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<string>MenuIcon</string>
 				<key>tsInputModePaletteIconFileKey</key>
 				<string>MenuIcon</string>
+				<key>tsInputModePrimaryInScriptKey</key>
+				<true/>
+				<key>tsInputModeScriptKey</key>
+				<string>smUnicodeScript</string>
+			</dict>
+			<key>Arabic</key>
+			<dict>
+				<key>TISInputSourceID</key>
+				<string>org.banglish.inputmethod.Banglish.Arabic</string>
+				<key>TISIntendedLanguage</key>
+				<string>ar</string>
+				<key>tsInputModeCharacterRepertoireKey</key>
+				<array>
+					<string>Arab</string>
+				</array>
+				<key>tsInputModeDefaultStateKey</key>
+				<true/>
+				<key>tsInputModeIsVisibleKey</key>
+				<true/>
+				<key>tsInputModeKeyEquivalentModifiersKey</key>
+				<integer>0</integer>
+				<key>tsInputModeKeyLayoutKey</key>
+				<string>com.apple.keylayout.US</string>
+				<key>tsInputModeMenuIconFileKey</key>
+				<string>MenuIconAR</string>
+				<key>tsInputModePaletteIconFileKey</key>
+				<string>MenuIconAR</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -167,6 +221,8 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 		</dict>
 		<key>tsVisibleInputModeOrderedArrayKey</key>
 		<array>
+			<string>Bangla</string>
+			<string>Arabic</string>
 			<string>org.banglish.inputmethod.Banglish.Bangla</string>
 			<string>org.banglish.inputmethod.Banglish.Arabic</string>
 		</array>
@@ -326,11 +382,8 @@ if os.path.exists(path_hk):
         with open(path_hk, 'rb') as f:
             pl_hk = plistlib.load(f)
         pl_hk.setdefault('AppleSymbolicHotKeys', {})
-        # HotKey 60: Previous input source -> disabled so it does not hijack Control + Space
-        pl_hk['AppleSymbolicHotKeys']['60'] = {'enabled': False, 'value': {'parameters': [32, 49, 786432], 'type': 'standard'}}
-        # HotKey 61: Next source in Input menu -> Control + Space (Continuous 3-way cycle)
-        pl_hk['AppleSymbolicHotKeys']['61'] = {'enabled': True, 'value': {'parameters': [32, 49, 262144], 'type': 'standard'}}
-        # HotKey 64: Spotlight -> Command + Space
+        pl_hk['AppleSymbolicHotKeys']['60'] = {'enabled': True, 'value': {'parameters': [32, 49, 262144], 'type': 'standard'}}
+        pl_hk['AppleSymbolicHotKeys']['61'] = {'enabled': True, 'value': {'parameters': [32, 49, 786432], 'type': 'standard'}}
         pl_hk['AppleSymbolicHotKeys']['64'] = {'enabled': True, 'value': {'parameters': [32, 49, 1048576], 'type': 'standard'}}
         with open(path_hk, 'wb') as f:
             plistlib.dump(pl_hk, f)
