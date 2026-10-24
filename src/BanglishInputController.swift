@@ -22,10 +22,13 @@ class BanglishInputController: IMKInputController {
     public static var lastCycleTime: TimeInterval = 0
 
     public static func prewarmInputSources() {
-        guard let list = TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource] else { return }
+        guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return }
         for s in list {
             let cat = (TISGetInputSourceProperty(s, kTISPropertyInputSourceCategory).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
             guard cat == (kTISCategoryKeyboardInputSource as String) else { continue }
+
+            let selectCapable = (TISGetInputSourceProperty(s, kTISPropertyInputSourceIsSelectCapable).map { Unmanaged<CFBoolean>.fromOpaque($0).takeUnretainedValue() == kCFBooleanTrue }) ?? false
+            guard selectCapable else { continue }
 
             let sId = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
 
@@ -43,10 +46,12 @@ class BanglishInputController: IMKInputController {
     }
 
     private static func findSource(byId targetId: String) -> TISInputSource? {
-        guard let list = TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource] else { return nil }
+        guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return nil }
         for s in list {
             let sId = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            if sId == targetId {
+            guard sId == targetId else { continue }
+            let selectCapable = (TISGetInputSourceProperty(s, kTISPropertyInputSourceIsSelectCapable).map { Unmanaged<CFBoolean>.fromOpaque($0).takeUnretainedValue() == kCFBooleanTrue }) ?? false
+            if selectCapable {
                 return s
             }
         }
@@ -54,10 +59,12 @@ class BanglishInputController: IMKInputController {
     }
 
     private static func findEnglishSource() -> TISInputSource? {
-        guard let list = TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource] else { return nil }
+        guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return nil }
         for s in list {
             let cat = (TISGetInputSourceProperty(s, kTISPropertyInputSourceCategory).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
             guard cat == (kTISCategoryKeyboardInputSource as String) else { continue }
+            let selectCapable = (TISGetInputSourceProperty(s, kTISPropertyInputSourceIsSelectCapable).map { Unmanaged<CFBoolean>.fromOpaque($0).takeUnretainedValue() == kCFBooleanTrue }) ?? false
+            guard selectCapable else { continue }
             let sId = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
             if sId == "com.apple.keylayout.US" || sId.hasPrefix("com.apple.keylayout.ABC") || sId.hasPrefix("com.apple.keylayout.") {
                 return s
