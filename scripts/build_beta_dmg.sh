@@ -281,7 +281,6 @@ if os.path.exists(path):
         with open(path, 'rb') as f:
             pl = plistlib.load(f)
         enabled = pl.get('AppleEnabledInputSources', [])
-        im_entry = {'InputSourceKind': 'Keyboard Input Method', 'Bundle ID': 'org.banglish.inputmethod.Banglish'}
         enabled = [e for e in enabled if e.get('Bundle ID') != 'org.banglish.inputmethod.Banglish']
         bangla_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Bangla'}
         arabic_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Arabic'}
@@ -293,6 +292,9 @@ if os.path.exists(path):
     except Exception:
         pass
 " 2>/dev/null || true
+
+defaults write com.apple.TextInputMenu visible -bool true 2>/dev/null || true
+defaults write "$REAL_HOME/Library/Preferences/com.apple.TextInputMenu" visible -bool true 2>/dev/null || true
 
 killall cfprefsd 2>/dev/null || true
 killall Banglish 2>/dev/null || true

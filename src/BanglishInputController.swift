@@ -71,7 +71,7 @@ class BanglishInputController: IMKInputController {
 
     public static func performCycle() {
         let now = CACurrentMediaTime()
-        guard now - lastCycleTime > 0.20 else { return }
+        guard now - lastCycleTime > 0.15 else { return }
         lastCycleTime = now
 
         commitActiveBuffer()
@@ -84,12 +84,12 @@ class BanglishInputController: IMKInputController {
             let mId = (TISGetInputSourceProperty(cur, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
             let bId = (TISGetInputSourceProperty(cur, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
 
-            if bId.contains("Banglish") || sId.contains("Banglish") {
-                if sId.contains("Arabic") || mId.contains("Arabic") || currentMode == .arabic {
-                    detectedMode = .arabic
-                } else {
-                    detectedMode = .bangla
-                }
+            if sId.contains("Arabic") || mId.contains("Arabic") {
+                detectedMode = .arabic
+            } else if sId.contains("Bangla") || mId.contains("Bangla") {
+                detectedMode = .bangla
+            } else if bId.contains("Banglish") || sId.contains("Banglish") {
+                detectedMode = (currentMode == .arabic) ? .arabic : .bangla
             } else {
                 detectedMode = .english
             }
@@ -112,7 +112,7 @@ class BanglishInputController: IMKInputController {
     }
 
     private func updateModeFromSystem() {
-        if CACurrentMediaTime() - Self.lastCycleTime < 0.6 {
+        if CACurrentMediaTime() - Self.lastCycleTime < 0.25 {
             return
         }
         guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
@@ -123,9 +123,11 @@ class BanglishInputController: IMKInputController {
         if sId.contains("Arabic") || mId.contains("Arabic") {
             Self.currentMode = .arabic
             Self.lastNonEnglishMode = .arabic
-        } else if sId.contains("Bangla") || mId.contains("Bangla") || sId.contains("Banglish") {
+        } else if sId.contains("Bangla") || mId.contains("Bangla") {
             Self.currentMode = .bangla
             Self.lastNonEnglishMode = .bangla
+        } else if sId.contains("Banglish") {
+            // Retain existing mode
         } else {
             Self.currentMode = .english
         }
