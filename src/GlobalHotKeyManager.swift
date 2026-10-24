@@ -31,8 +31,8 @@ final class GlobalHotKeyManager {
             if hkID.id == 1 || hkID.id == 3 {
                 // Shift + Option + Space OR Control + Option + Space => ARABIC DIRECTLY
                 GlobalHotKeyManager.shared.activateArabicDirectly()
-            } else if hkID.id == 2 || hkID.id == 4 || hkID.id == 5 {
-                // Command + Space OR Option + Space OR Control + Space =>
+            } else if hkID.id == 2 || hkID.id == 5 {
+                // Option + Space OR Control + Space =>
                 // Cycle: Bangla -> Arabic -> English -> Bangla
                 BanglishInputController.performCycle()
             }
@@ -56,17 +56,13 @@ final class GlobalHotKeyManager {
         let ctrlArabicID = EventHotKeyID(signature: OSType(0x424E4341), id: 3) // 'BNCA'
         RegisterEventHotKey(49, UInt32(controlKey | optionKey), ctrlArabicID, GetApplicationEventTarget(), 0, &ctrlArabicHotKeyRef)
 
-        // HotKey 4: Command + Space (keyCode 49, cmdKey) => CYCLE
-        let cmdSpaceID = EventHotKeyID(signature: OSType(0x424E4353), id: 4) // 'BNCS'
-        RegisterEventHotKey(49, UInt32(cmdKey), cmdSpaceID, GetApplicationEventTarget(), 0, &cmdSpaceHotKeyRef)
-
         // HotKey 5: Control + Space (keyCode 49, controlKey) => CYCLE
         let ctrlSpaceID = EventHotKeyID(signature: OSType(0x424E4354), id: 5) // 'BNCT'
         RegisterEventHotKey(49, UInt32(controlKey), ctrlSpaceID, GetApplicationEventTarget(), 0, &ctrlSpaceHotKeyRef)
 
         BanglishInputController.prewarmInputSources()
         enableAllBanglishModes()
-        NSLog("[Banglish] Global HotKeys active: Cmd+Space, Opt+Space, Ctrl+Space for 3-way cycle")
+        NSLog("[Banglish] Global HotKeys active: Opt+Space, Ctrl+Space for 3-way cycle")
     }
 
     /// Directly switch to Arabic mode regardless of which app was active

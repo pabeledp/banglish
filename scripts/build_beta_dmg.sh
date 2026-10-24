@@ -103,11 +103,38 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 		<string>Arab</string>
 	</array>
 	<key>tsInputMethodIconFileKey</key>
-	<string>AppIcon.icns</string>
+	<string>MenuIcon.tiff</string>
 	<key>ComponentInputModeDict</key>
 	<dict>
 		<key>tsInputModeListKey</key>
 		<dict>
+			<key>Bangla</key>
+			<dict>
+				<key>TISInputSourceID</key>
+				<string>org.banglish.inputmethod.Banglish.Bangla</string>
+				<key>TISIntendedLanguage</key>
+				<string>bn</string>
+				<key>tsInputModeCharacterRepertoireKey</key>
+				<array>
+					<string>Beng</string>
+				</array>
+				<key>tsInputModeDefaultStateKey</key>
+				<true/>
+				<key>tsInputModeIsVisibleKey</key>
+				<true/>
+				<key>tsInputModeKeyEquivalentModifiersKey</key>
+				<integer>0</integer>
+				<key>tsInputModeKeyLayoutKey</key>
+				<string>com.apple.keylayout.US</string>
+				<key>tsInputModeMenuIconFileKey</key>
+				<string>MenuIcon.tiff</string>
+				<key>tsInputModePaletteIconFileKey</key>
+				<string>MenuIcon.tiff</string>
+				<key>tsInputModePrimaryInScriptKey</key>
+				<true/>
+				<key>tsInputModeScriptKey</key>
+				<string>smUnicodeScript</string>
+			</dict>
 			<key>org.banglish.inputmethod.Banglish.Bangla</key>
 			<dict>
 				<key>TISInputSourceID</key>
@@ -129,7 +156,34 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeMenuIconFileKey</key>
 				<string>MenuIcon.tiff</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>AppIcon.icns</string>
+				<string>MenuIcon.tiff</string>
+				<key>tsInputModePrimaryInScriptKey</key>
+				<true/>
+				<key>tsInputModeScriptKey</key>
+				<string>smUnicodeScript</string>
+			</dict>
+			<key>Arabic</key>
+			<dict>
+				<key>TISInputSourceID</key>
+				<string>org.banglish.inputmethod.Banglish.Arabic</string>
+				<key>TISIntendedLanguage</key>
+				<string>ar</string>
+				<key>tsInputModeCharacterRepertoireKey</key>
+				<array>
+					<string>Arab</string>
+				</array>
+				<key>tsInputModeDefaultStateKey</key>
+				<true/>
+				<key>tsInputModeIsVisibleKey</key>
+				<true/>
+				<key>tsInputModeKeyEquivalentModifiersKey</key>
+				<integer>0</integer>
+				<key>tsInputModeKeyLayoutKey</key>
+				<string>com.apple.keylayout.US</string>
+				<key>tsInputModeMenuIconFileKey</key>
+				<string>MenuIconAR.tiff</string>
+				<key>tsInputModePaletteIconFileKey</key>
+				<string>MenuIconAR.tiff</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -156,7 +210,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeMenuIconFileKey</key>
 				<string>MenuIconAR.tiff</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>AppIconAR.icns</string>
+				<string>MenuIconAR.tiff</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -165,6 +219,8 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 		</dict>
 		<key>tsVisibleInputModeOrderedArrayKey</key>
 		<array>
+			<string>Bangla</string>
+			<string>Arabic</string>
 			<string>org.banglish.inputmethod.Banglish.Bangla</string>
 			<string>org.banglish.inputmethod.Banglish.Arabic</string>
 		</array>
@@ -276,6 +332,8 @@ ln -sf "$INSTALL_DIR/Banglish.app" "/Applications/Banglish.app"
 # Register both Banglish and Banglish AR into user's enabled input sources
 DEVELOPER_DIR=/Library/Developer/CommandLineTools /Library/Developer/CommandLineTools/usr/bin/python3 -c "
 import plistlib, os
+
+# 1. Update HIToolbox.plist
 path = os.path.expanduser('$REAL_HOME/Library/Preferences/com.apple.HIToolbox.plist')
 if os.path.exists(path):
     try:
@@ -283,16 +341,57 @@ if os.path.exists(path):
             pl = plistlib.load(f)
         enabled = pl.get('AppleEnabledInputSources', [])
         enabled = [e for e in enabled if e.get('Bundle ID') != 'org.banglish.inputmethod.Banglish']
+        
+        im_parent = {'InputSourceKind': 'Keyboard Input Method', 'Bundle ID': 'org.banglish.inputmethod.Banglish'}
         bangla_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Bangla'}
         arabic_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Arabic'}
+        
+        enabled.append(im_parent)
         enabled.append(bangla_mode)
         enabled.append(arabic_mode)
         pl['AppleEnabledInputSources'] = enabled
+        
         with open(path, 'wb') as f:
             plistlib.dump(pl, f)
     except Exception:
         pass
+
+# 2. Update com.apple.inputsources.plist
+path_is = os.path.expanduser('$REAL_HOME/Library/Preferences/com.apple.inputsources.plist')
+if os.path.exists(path_is):
+    try:
+        with open(path_is, 'rb') as f:
+            pl_is = plistlib.load(f)
+        tp_enabled = pl_is.get('AppleEnabledThirdPartyInputSources', [])
+        tp_enabled = [e for e in tp_enabled if e.get('Bundle ID') != 'org.banglish.inputmethod.Banglish']
+        tp_enabled.append({'InputSourceKind': 'Keyboard Input Method', 'Bundle ID': 'org.banglish.inputmethod.Banglish'})
+        tp_enabled.append({'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Bangla'})
+        tp_enabled.append({'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Arabic'})
+        pl_is['AppleEnabledThirdPartyInputSources'] = tp_enabled
+        with open(path_is, 'wb') as f:
+            plistlib.dump(pl_is, f)
+    except Exception:
+        pass
+
+# 3. Clean and restore symbolichotkeys.plist
+path_hk = os.path.expanduser('$REAL_HOME/Library/Preferences/com.apple.symbolichotkeys.plist')
+if os.path.exists(path_hk):
+    try:
+        with open(path_hk, 'rb') as f:
+            pl_hk = plistlib.load(f)
+        pl_hk.setdefault('AppleSymbolicHotKeys', {})
+        pl_hk['AppleSymbolicHotKeys']['60'] = {'enabled': True, 'value': {'parameters': [32, 49, 262144], 'type': 'standard'}}
+        pl_hk['AppleSymbolicHotKeys']['61'] = {'enabled': True, 'value': {'parameters': [32, 49, 786432], 'type': 'standard'}}
+        pl_hk['AppleSymbolicHotKeys']['64'] = {'enabled': True, 'value': {'parameters': [32, 49, 1048576], 'type': 'standard'}}
+        with open(path_hk, 'wb') as f:
+            plistlib.dump(pl_hk, f)
+    except Exception:
+        pass
 " 2>/dev/null || true
+
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u /Applications/Banglish.app 2>/dev/null || true
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "/Library/Input Methods/Banglish.app" 2>/dev/null || true
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$INSTALL_DIR/Banglish.app" 2>/dev/null || true
 
 defaults write com.apple.TextInputMenu visible -bool true 2>/dev/null || true
 defaults write "$REAL_HOME/Library/Preferences/com.apple.TextInputMenu" visible -bool true 2>/dev/null || true
