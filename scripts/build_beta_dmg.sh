@@ -108,7 +108,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 	<dict>
 		<key>tsInputModeListKey</key>
 		<dict>
-			<key>Bangla</key>
+			<key>org.banglish.inputmethod.Banglish.Bangla</key>
 			<dict>
 				<key>TISInputSourceID</key>
 				<string>org.banglish.inputmethod.Banglish.Bangla</string>
@@ -135,7 +135,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeScriptKey</key>
 				<string>smUnicodeScript</string>
 			</dict>
-			<key>Arabic</key>
+			<key>org.banglish.inputmethod.Banglish.Arabic</key>
 			<dict>
 				<key>TISInputSourceID</key>
 				<string>org.banglish.inputmethod.Banglish.Arabic</string>
@@ -165,8 +165,8 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 		</dict>
 		<key>tsVisibleInputModeOrderedArrayKey</key>
 		<array>
-			<string>Bangla</string>
-			<string>Arabic</string>
+			<string>org.banglish.inputmethod.Banglish.Bangla</string>
+			<string>org.banglish.inputmethod.Banglish.Arabic</string>
 		</array>
 	</dict>
 </dict>
@@ -282,14 +282,11 @@ if os.path.exists(path):
             pl = plistlib.load(f)
         enabled = pl.get('AppleEnabledInputSources', [])
         im_entry = {'InputSourceKind': 'Keyboard Input Method', 'Bundle ID': 'org.banglish.inputmethod.Banglish'}
-        bangla_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'Bangla'}
-        arabic_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'Arabic'}
-        if not any(i.get('Input Mode') == bangla_mode['Input Mode'] for i in enabled):
-            enabled.append(bangla_mode)
-        if not any(i.get('Input Mode') == arabic_mode['Input Mode'] for i in enabled):
-            enabled.append(arabic_mode)
-        if not any(i.get('Bundle ID') == im_entry['Bundle ID'] and i.get('InputSourceKind') == im_entry['InputSourceKind'] for i in enabled):
-            enabled.append(im_entry)
+        enabled = [e for e in enabled if e.get('Bundle ID') != 'org.banglish.inputmethod.Banglish']
+        bangla_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Bangla'}
+        arabic_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Arabic'}
+        enabled.append(bangla_mode)
+        enabled.append(arabic_mode)
         pl['AppleEnabledInputSources'] = enabled
         with open(path, 'wb') as f:
             plistlib.dump(pl, f)

@@ -32,9 +32,9 @@ class BanglishInputController: IMKInputController {
             let bId = (TISGetInputSourceProperty(s, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
 
             if bId.contains("Banglish") || sId.contains("Banglish") {
-                if mId == "Arabic" || (sId.contains("Arabic") && cachedArabicSource == nil) {
+                if mId.contains("Arabic") || sId.contains("Arabic") {
                     cachedArabicSource = s
-                } else if mId == "Bangla" || (sId.contains("Bangla") && cachedBanglaSource == nil) {
+                } else if mId.contains("Bangla") || sId.contains("Bangla") {
                     cachedBanglaSource = s
                 }
             } else if sId == "com.apple.keylayout.US" || sId.hasPrefix("com.apple.keylayout.ABC") || (!bId.contains("Banglish") && !sId.contains("Banglish") && cachedEnglishSource == nil) {
@@ -658,9 +658,9 @@ class BanglishInputController: IMKInputController {
     override func value(forTag tag: Int, client sender: Any!) -> Any! {
         if tag == 1186 || tag == 0x6D6F6465 || tag == 1953655152 {
             if Self.currentMode == .arabic {
-                return "Arabic" as NSString
+                return "org.banglish.inputmethod.Banglish.Arabic" as NSString
             } else {
-                return "Bangla" as NSString
+                return "org.banglish.inputmethod.Banglish.Bangla" as NSString
             }
         }
         return super.value(forTag: tag, client: sender)
