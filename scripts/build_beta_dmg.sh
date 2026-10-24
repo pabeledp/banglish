@@ -110,33 +110,6 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 	<dict>
 		<key>tsInputModeListKey</key>
 		<dict>
-			<key>Bangla</key>
-			<dict>
-				<key>TISInputSourceID</key>
-				<string>org.banglish.inputmethod.Banglish.Bangla</string>
-				<key>TISIntendedLanguage</key>
-				<string>bn</string>
-				<key>tsInputModeCharacterRepertoireKey</key>
-				<array>
-					<string>Beng</string>
-				</array>
-				<key>tsInputModeDefaultStateKey</key>
-				<true/>
-				<key>tsInputModeIsVisibleKey</key>
-				<true/>
-				<key>tsInputModeKeyEquivalentModifiersKey</key>
-				<integer>0</integer>
-				<key>tsInputModeKeyLayoutKey</key>
-				<string>com.apple.keylayout.US</string>
-				<key>tsInputModeMenuIconFileKey</key>
-				<string>MenuIcon</string>
-				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIcon</string>
-				<key>tsInputModePrimaryInScriptKey</key>
-				<true/>
-				<key>tsInputModeScriptKey</key>
-				<string>smUnicodeScript</string>
-			</dict>
 			<key>org.banglish.inputmethod.Banglish.Bangla</key>
 			<dict>
 				<key>TISInputSourceID</key>
@@ -159,33 +132,6 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<string>MenuIcon</string>
 				<key>tsInputModePaletteIconFileKey</key>
 				<string>MenuIcon</string>
-				<key>tsInputModePrimaryInScriptKey</key>
-				<true/>
-				<key>tsInputModeScriptKey</key>
-				<string>smUnicodeScript</string>
-			</dict>
-			<key>Arabic</key>
-			<dict>
-				<key>TISInputSourceID</key>
-				<string>org.banglish.inputmethod.Banglish.Arabic</string>
-				<key>TISIntendedLanguage</key>
-				<string>ar</string>
-				<key>tsInputModeCharacterRepertoireKey</key>
-				<array>
-					<string>Arab</string>
-				</array>
-				<key>tsInputModeDefaultStateKey</key>
-				<true/>
-				<key>tsInputModeIsVisibleKey</key>
-				<true/>
-				<key>tsInputModeKeyEquivalentModifiersKey</key>
-				<integer>0</integer>
-				<key>tsInputModeKeyLayoutKey</key>
-				<string>com.apple.keylayout.US</string>
-				<key>tsInputModeMenuIconFileKey</key>
-				<string>MenuIconAR</string>
-				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIconAR</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -221,8 +167,6 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 		</dict>
 		<key>tsVisibleInputModeOrderedArrayKey</key>
 		<array>
-			<string>Bangla</string>
-			<string>Arabic</string>
 			<string>org.banglish.inputmethod.Banglish.Bangla</string>
 			<string>org.banglish.inputmethod.Banglish.Arabic</string>
 		</array>
