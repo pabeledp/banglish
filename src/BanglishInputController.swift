@@ -31,13 +31,11 @@ class BanglishInputController: IMKInputController {
             let mId = (TISGetInputSourceProperty(s, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
             let bId = (TISGetInputSourceProperty(s, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
 
-            if bId.contains("Banglish") || sId.contains("Banglish") {
-                if mId.contains("Arabic") || sId.contains("Arabic") {
-                    cachedArabicSource = s
-                } else if mId.contains("Bangla") || sId.contains("Bangla") {
-                    cachedBanglaSource = s
-                }
-            } else if sId == "com.apple.keylayout.US" || sId.hasPrefix("com.apple.keylayout.ABC") || (!bId.contains("Banglish") && !sId.contains("Banglish") && cachedEnglishSource == nil) {
+            if sId == "org.banglish.inputmethod.Banglish.Arabic" {
+                cachedArabicSource = s
+            } else if sId == "org.banglish.inputmethod.Banglish.Bangla" {
+                cachedBanglaSource = s
+            } else if sId == "com.apple.keylayout.US" || (sId.hasPrefix("com.apple.keylayout.ABC") && cachedEnglishSource == nil) {
                 cachedEnglishSource = s
             }
         }
@@ -227,22 +225,9 @@ class BanglishInputController: IMKInputController {
         }
 
         // 1. Dedicated Hardware Fn / Globe key (keycode 63) on Mac keyboards
+        // Let flagsChanged pass cleanly to macOS system switcher to prevent double-switching race conditions
         if event.type == .flagsChanged {
-            if event.keyCode == 63 {
-                let isFnDown = event.modifierFlags.contains(.function) ||
-                               (event.modifierFlags.rawValue & NSEvent.ModifierFlags.function.rawValue) != 0
-                if isFnDown {
-                    Self.fnKeyDownTime = CACurrentMediaTime()
-                    Self.fnUsedWithOtherKey = false
-                } else {
-                    let elapsed = CACurrentMediaTime() - Self.fnKeyDownTime
-                    // Dedicated tap (released within 500ms without combination)
-                    if !Self.fnUsedWithOtherKey && elapsed > 0.01 && elapsed < 0.6 {
-                        cycleLanguage(client: client)
-                    }
-                }
-            }
-            return false // Pass flagsChanged through so system shortcuts and macOS input switching are never blocked
+            return false
         }
 
         guard event.type == .keyDown else {
@@ -258,10 +243,9 @@ class BanglishInputController: IMKInputController {
         let keyCode = event.keyCode
         let char = event.characters?.first ?? event.charactersIgnoringModifiers?.first
 
-        // Dedicated hardware Fn / Globe key (keycode 63) keyDown fallback
+        // Dedicated hardware Fn / Globe key (keycode 63)
         if keyCode == 63 {
-            cycleLanguage(client: client)
-            return true
+            return false
         }
 
         // Check modifier keys cleanly
