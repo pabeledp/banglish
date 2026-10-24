@@ -291,6 +291,19 @@ if os.path.exists(path):
             plistlib.dump(pl, f)
     except Exception:
         pass
+
+path_hk = os.path.expanduser('$REAL_HOME/Library/Preferences/com.apple.symbolichotkeys.plist')
+if os.path.exists(path_hk):
+    try:
+        with open(path_hk, 'rb') as f:
+            pl_hk = plistlib.load(f)
+        pl_hk.setdefault('AppleSymbolicHotKeys', {})
+        pl_hk['AppleSymbolicHotKeys']['60'] = {'enabled': False, 'value': {'parameters': [32, 49, 1048576], 'type': 'standard'}}
+        pl_hk['AppleSymbolicHotKeys']['61'] = {'enabled': True, 'value': {'parameters': [32, 49, 1048576], 'type': 'standard'}}
+        with open(path_hk, 'wb') as f:
+            plistlib.dump(pl_hk, f)
+    except Exception:
+        pass
 " 2>/dev/null || true
 
 defaults write com.apple.TextInputMenu visible -bool true 2>/dev/null || true

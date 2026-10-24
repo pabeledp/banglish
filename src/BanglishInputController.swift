@@ -22,7 +22,7 @@ class BanglishInputController: IMKInputController {
     public static var lastCycleTime: TimeInterval = 0
 
     public static func prewarmInputSources() {
-        guard let list = TISCreateInputSourceList(nil, false)?.takeRetainedValue() as? [TISInputSource] else { return }
+        guard let list = TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource] else { return }
         for s in list {
             let cat = (TISGetInputSourceProperty(s, kTISPropertyInputSourceCategory).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
             guard cat == (kTISCategoryKeyboardInputSource as String) else { continue }
@@ -44,27 +44,31 @@ class BanglishInputController: IMKInputController {
     }
 
     public static func selectSystemInputSource(mode: InputMode) {
-        if cachedBanglaSource == nil || cachedArabicSource == nil || cachedEnglishSource == nil {
-            prewarmInputSources()
+        Self.currentMode = mode
+        if mode != .english {
+            Self.lastNonEnglishMode = mode
         }
 
-        switch mode {
-        case .bangla:
-            Self.currentMode = .bangla
-            Self.lastNonEnglishMode = .bangla
-            if let src = cachedBanglaSource {
-                TISSelectInputSource(src)
+        DispatchQueue.main.async {
+            if cachedBanglaSource == nil || cachedArabicSource == nil || cachedEnglishSource == nil {
+                prewarmInputSources()
             }
-        case .arabic:
-            Self.currentMode = .arabic
-            Self.lastNonEnglishMode = .arabic
-            if let src = cachedArabicSource {
-                TISSelectInputSource(src)
-            }
-        case .english:
-            Self.currentMode = .english
-            if let src = cachedEnglishSource {
-                TISSelectInputSource(src)
+
+            switch mode {
+            case .bangla:
+                if let src = cachedBanglaSource {
+                    TISEnableInputSource(src)
+                    TISSelectInputSource(src)
+                }
+            case .arabic:
+                if let src = cachedArabicSource {
+                    TISEnableInputSource(src)
+                    TISSelectInputSource(src)
+                }
+            case .english:
+                if let src = cachedEnglishSource {
+                    TISSelectInputSource(src)
+                }
             }
         }
     }
