@@ -103,7 +103,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 		<string>Arab</string>
 	</array>
 	<key>tsInputMethodIconFileKey</key>
-	<string>MenuIcon.tiff</string>
+	<string>AppIcon.icns</string>
 	<key>ComponentInputModeDict</key>
 	<dict>
 		<key>tsInputModeListKey</key>
@@ -129,7 +129,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeMenuIconFileKey</key>
 				<string>MenuIcon.tiff</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIcon.tiff</string>
+				<string>AppIcon.icns</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -156,7 +156,7 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 				<key>tsInputModeMenuIconFileKey</key>
 				<string>MenuIconAR.tiff</string>
 				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIconAR.tiff</string>
+				<string>AppIconAR.icns</string>
 				<key>tsInputModePrimaryInScriptKey</key>
 				<true/>
 				<key>tsInputModeScriptKey</key>
@@ -218,6 +218,7 @@ STRINGS
 
 # 5. Resources (icons & words dictionary)
 cp "${PROJECT_DIR}/Resources/AppIcon.icns" "${APP_DIR}/Contents/Resources/"
+cp "${PROJECT_DIR}/Resources/AppIconAR.icns" "${APP_DIR}/Contents/Resources/"
 cp "${PROJECT_DIR}/Resources/MenuIcon.png" "${APP_DIR}/Contents/Resources/"
 cp "${PROJECT_DIR}/Resources/MenuIcon@2x.png" "${APP_DIR}/Contents/Resources/" 2>/dev/null || true
 cp "${PROJECT_DIR}/Resources/MenuIcon.tiff" "${APP_DIR}/Contents/Resources/"
@@ -289,19 +290,6 @@ if os.path.exists(path):
         pl['AppleEnabledInputSources'] = enabled
         with open(path, 'wb') as f:
             plistlib.dump(pl, f)
-    except Exception:
-        pass
-
-path_hk = os.path.expanduser('$REAL_HOME/Library/Preferences/com.apple.symbolichotkeys.plist')
-if os.path.exists(path_hk):
-    try:
-        with open(path_hk, 'rb') as f:
-            pl_hk = plistlib.load(f)
-        pl_hk.setdefault('AppleSymbolicHotKeys', {})
-        pl_hk['AppleSymbolicHotKeys']['60'] = {'enabled': False, 'value': {'parameters': [32, 49, 1048576], 'type': 'standard'}}
-        pl_hk['AppleSymbolicHotKeys']['61'] = {'enabled': True, 'value': {'parameters': [32, 49, 1048576], 'type': 'standard'}}
-        with open(path_hk, 'wb') as f:
-            plistlib.dump(pl_hk, f)
     except Exception:
         pass
 " 2>/dev/null || true
