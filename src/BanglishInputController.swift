@@ -73,40 +73,25 @@ class BanglishInputController: IMKInputController {
 
     public static func performCycle() {
         let now = CACurrentMediaTime()
-        guard now - lastCycleTime > 0.15 else { return }
+        guard now - lastCycleTime > 0.10 else { return }
         lastCycleTime = now
 
         commitActiveBuffer()
         CandidateWindow.shared.hide()
 
-        var detectedMode: InputMode = .english
-
-        if let cur = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() {
-            let sId = (TISGetInputSourceProperty(cur, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let mId = (TISGetInputSourceProperty(cur, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let bId = (TISGetInputSourceProperty(cur, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-
-            if sId.contains("Arabic") || mId.contains("Arabic") {
-                detectedMode = .arabic
-            } else if sId.contains("Bangla") || mId.contains("Bangla") {
-                detectedMode = .bangla
-            } else if bId.contains("Banglish") || sId.contains("Banglish") {
-                detectedMode = (currentMode == .arabic) ? .arabic : .bangla
-            } else {
-                detectedMode = .english
-            }
-        } else {
-            detectedMode = currentMode
-        }
-
-        switch detectedMode {
+        // Continuous 3-way cycle: Bangla -> Arabic -> English -> Bangla
+        let nextMode: InputMode
+        switch currentMode {
         case .bangla:
-            selectSystemInputSource(mode: .arabic)
+            nextMode = .arabic
         case .arabic:
-            selectSystemInputSource(mode: .english)
+            nextMode = .english
         case .english:
-            selectSystemInputSource(mode: .bangla)
+            nextMode = .bangla
         }
+
+        selectSystemInputSource(mode: nextMode)
+        ModeIndicatorHUD.shared.show(mode: nextMode)
     }
 
     private func cycleLanguage(client: any IMKTextInput) {
@@ -114,7 +99,7 @@ class BanglishInputController: IMKInputController {
     }
 
     private func updateModeFromSystem() {
-        if CACurrentMediaTime() - Self.lastCycleTime < 0.25 {
+        if CACurrentMediaTime() - Self.lastCycleTime < 1.0 {
             return
         }
         guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
@@ -156,6 +141,7 @@ class BanglishInputController: IMKInputController {
             commitActiveBuffer()
             selectSystemInputSource(mode: .arabic)
             CandidateWindow.shared.hide()
+            ModeIndicatorHUD.shared.show(mode: .arabic)
         }
     }
 
