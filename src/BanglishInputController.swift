@@ -71,35 +71,39 @@ class BanglishInputController: IMKInputController {
 
     public static func performCycle() {
         let now = CACurrentMediaTime()
-        guard now - lastCycleTime > 0.22 else { return }
+        guard now - lastCycleTime > 0.20 else { return }
         lastCycleTime = now
 
         commitActiveBuffer()
         CandidateWindow.shared.hide()
 
-        // Check if the current system input source is English / non-Banglish
-        var isSystemEnglish = false
+        var detectedMode: InputMode = .english
+
         if let cur = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() {
             let sId = (TISGetInputSourceProperty(cur, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+            let mId = (TISGetInputSourceProperty(cur, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
             let bId = (TISGetInputSourceProperty(cur, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            if !bId.contains("Banglish") && !sId.contains("Banglish") {
-                isSystemEnglish = true
+
+            if bId.contains("Banglish") || sId.contains("Banglish") {
+                if sId.contains("Arabic") || mId.contains("Arabic") || currentMode == .arabic {
+                    detectedMode = .arabic
+                } else {
+                    detectedMode = .bangla
+                }
+            } else {
+                detectedMode = .english
             }
+        } else {
+            detectedMode = currentMode
         }
 
-        if isSystemEnglish {
-            // English -> Bangla
+        switch detectedMode {
+        case .bangla:
+            selectSystemInputSource(mode: .arabic)
+        case .arabic:
+            selectSystemInputSource(mode: .english)
+        case .english:
             selectSystemInputSource(mode: .bangla)
-        } else {
-            // In Banglish: cycle Bangla -> Arabic -> English -> Bangla
-            switch currentMode {
-            case .bangla:
-                selectSystemInputSource(mode: .arabic)
-            case .arabic:
-                selectSystemInputSource(mode: .english)
-            case .english:
-                selectSystemInputSource(mode: .bangla)
-            }
         }
     }
 
@@ -108,21 +112,22 @@ class BanglishInputController: IMKInputController {
     }
 
     private func updateModeFromSystem() {
-        // If we recently performed a cycle, don't let stale system notifications overwrite mode
         if CACurrentMediaTime() - Self.lastCycleTime < 0.6 {
             return
         }
-        if let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() {
-            if let ptr = TISGetInputSourceProperty(src, kTISPropertyInputModeID) {
-                let id = Unmanaged<CFString>.fromOpaque(ptr).takeUnretainedValue() as String
-                if id.contains("Arabic") {
-                    Self.currentMode = .arabic
-                    Self.lastNonEnglishMode = .arabic
-                } else if id.contains("Bangla") {
-                    Self.currentMode = .bangla
-                    Self.lastNonEnglishMode = .bangla
-                }
-            }
+        guard let src = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else { return }
+
+        let sId = (TISGetInputSourceProperty(src, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+        let mId = (TISGetInputSourceProperty(src, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
+
+        if sId.contains("Arabic") || mId.contains("Arabic") {
+            Self.currentMode = .arabic
+            Self.lastNonEnglishMode = .arabic
+        } else if sId.contains("Bangla") || mId.contains("Bangla") || sId.contains("Banglish") {
+            Self.currentMode = .bangla
+            Self.lastNonEnglishMode = .bangla
+        } else {
+            Self.currentMode = .english
         }
     }
 
@@ -671,7 +676,7 @@ class BanglishInputController: IMKInputController {
             if modeStr.contains("Arabic") {
                 Self.currentMode = .arabic
                 Self.lastNonEnglishMode = .arabic
-            } else if modeStr.contains("Bangla") {
+            } else if modeStr.contains("Bangla") || modeStr.contains("Banglish") {
                 Self.currentMode = .bangla
                 Self.lastNonEnglishMode = .bangla
             }
