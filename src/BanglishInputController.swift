@@ -28,8 +28,6 @@ class BanglishInputController: IMKInputController {
             guard cat == (kTISCategoryKeyboardInputSource as String) else { continue }
 
             let sId = (TISGetInputSourceProperty(s, kTISPropertyInputSourceID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let mId = (TISGetInputSourceProperty(s, kTISPropertyInputModeID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
-            let bId = (TISGetInputSourceProperty(s, kTISPropertyBundleID).map { Unmanaged<CFString>.fromOpaque($0).takeUnretainedValue() as String }) ?? ""
 
             if sId == "org.banglish.inputmethod.Banglish.Arabic" {
                 cachedArabicSource = s
@@ -91,7 +89,6 @@ class BanglishInputController: IMKInputController {
         }
 
         selectSystemInputSource(mode: nextMode)
-        ModeIndicatorHUD.shared.show(mode: nextMode)
     }
 
     private func cycleLanguage(client: any IMKTextInput) {
@@ -141,7 +138,6 @@ class BanglishInputController: IMKInputController {
             commitActiveBuffer()
             selectSystemInputSource(mode: .arabic)
             CandidateWindow.shared.hide()
-            ModeIndicatorHUD.shared.show(mode: .arabic)
         }
     }
 
@@ -683,15 +679,6 @@ class BanglishInputController: IMKInputController {
         if Self.currentMode == .english { englishItem.state = .on }
         menu.addItem(englishItem)
 
-        menu.addItem(NSMenuItem.separator())
-        let openSettings = NSMenuItem(title: "Open Banglish Dashboard...", action: #selector(openDashboard), keyEquivalent: "")
-        openSettings.target = self
-        menu.addItem(openSettings)
-
-        let openMacSettings = NSMenuItem(title: "Open macOS Keyboard Settings...", action: #selector(openMacSettings), keyEquivalent: "")
-        openMacSettings.target = self
-        menu.addItem(openMacSettings)
-
         return menu
     }
 
@@ -705,17 +692,5 @@ class BanglishInputController: IMKInputController {
 
     @objc func switchToEnglish() {
         Self.selectSystemInputSource(mode: .english)
-    }
-
-    @objc func openDashboard() {
-        if let appDelegate = NSApplication.shared.delegate as? BanglishAppCoordinator {
-            appDelegate.showMainWindow()
-        }
-    }
-
-    @objc func openMacSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
-            NSWorkspace.shared.open(url)
-        }
     }
 }
