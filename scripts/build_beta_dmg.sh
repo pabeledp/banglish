@@ -382,8 +382,9 @@ if os.path.exists(path_hk):
         with open(path_hk, 'rb') as f:
             pl_hk = plistlib.load(f)
         pl_hk.setdefault('AppleSymbolicHotKeys', {})
-        pl_hk['AppleSymbolicHotKeys']['60'] = {'enabled': True, 'value': {'parameters': [32, 49, 262144], 'type': 'standard'}}
-        pl_hk['AppleSymbolicHotKeys']['61'] = {'enabled': True, 'value': {'parameters': [32, 49, 786432], 'type': 'standard'}}
+        # Disable macOS system hotkeys 60 & 61 so macOS TextInputSwitcher does not intercept Control+Space and pop up Settings
+        pl_hk['AppleSymbolicHotKeys']['60'] = {'enabled': False, 'value': {'parameters': [32, 49, 262144], 'type': 'standard'}}
+        pl_hk['AppleSymbolicHotKeys']['61'] = {'enabled': False, 'value': {'parameters': [32, 49, 786432], 'type': 'standard'}}
         pl_hk['AppleSymbolicHotKeys']['64'] = {'enabled': True, 'value': {'parameters': [32, 49, 1048576], 'type': 'standard'}}
         with open(path_hk, 'wb') as f:
             plistlib.dump(pl_hk, f)
