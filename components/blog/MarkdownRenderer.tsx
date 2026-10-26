@@ -77,9 +77,9 @@ function parseInlineMarkdown(text: string): string {
 
   // Links & CTA Download Buttons
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, linkText, href) => {
-    const isDownload = href.endsWith('.pkg') || href.endsWith('.exe') || href.endsWith('.dmg') || linkText.toLowerCase().includes('download');
+    const isDownload = href.endsWith('.pkg') || href.endsWith('.exe') || href.endsWith('.dmg') || linkText.toLowerCase().includes('download') || linkText.includes('ডাউনলোড');
     if (isDownload) {
-      return `<a href="${href}" class="inline-flex items-center gap-2 px-4 py-2 my-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-md shadow-emerald-600/20 transition-all hover:scale-[1.02] cursor-pointer no-underline"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg><span>${linkText}</span></a>`;
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-5 py-2.5 my-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm shadow-emerald-600/20 transition-all hover:scale-[1.02] cursor-pointer no-underline"><svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg><span>${linkText}</span></a>`;
     }
     const isExternal = href.startsWith('http');
     return `<a href="${href}" ${isExternal ? 'target="_blank" rel="noopener noreferrer"' : ''} class="text-emerald-700 hover:text-emerald-800 font-semibold underline decoration-emerald-300 underline-offset-4 transition-colors">${linkText}</a>`;
