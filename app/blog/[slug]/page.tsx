@@ -21,10 +21,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   }
 
   const cover = post.coverImage || (post as any).cover_image;
+  const tagsList = Array.isArray(post.tags)
+    ? post.tags
+    : typeof post.tags === 'string'
+      ? (post.tags as string).split(',').map((t: string) => t.trim()).filter(Boolean)
+      : [];
 
   return {
     title: `${post.seoTitle || (post as any).seo_title || post.title} | Banglish Keyboard`,
     description: post.excerpt,
+    keywords: tagsList,
     alternates: {
       canonical: `https://banglish.bd/blog/${post.slug}`,
     },
@@ -36,6 +42,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       images: cover ? [{ url: cover }] : [],
       type: 'article',
       publishedTime: post.isoDate || (post as any).iso_date,
+      tags: tagsList,
+      authors: [post.author?.name || 'Rasel Molla'],
     },
     twitter: {
       card: 'summary_large_image',

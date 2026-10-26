@@ -2765,6 +2765,7 @@ function renderBlogPostHtml(post, related = [], authorAvatarOverride = null) {
   const dateStr = post.date || new Date().toLocaleDateString('bn-BD', { year: 'numeric', month: 'long', day: 'numeric' });
   const category = post.category || 'সাধারণ';
   const views = post.views || 1;
+  const tagsStr = Array.isArray(post.tags) ? post.tags.join(', ') : (post.tags || '');
 
   const contentHtml = convertMarkdownToHtml(post.content || '');
   const encodedTitle = encodeURIComponent(title);
@@ -2793,6 +2794,7 @@ function renderBlogPostHtml(post, related = [], authorAvatarOverride = null) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${seoTitle} | Banglish Keyboard</title>
   <meta name="description" content="${excerpt}">
+  <meta name="keywords" content="${tagsStr}">
   <link rel="canonical" href="${canonical}">
   
   <!-- Open Graph -->

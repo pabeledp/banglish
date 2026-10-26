@@ -98,6 +98,7 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
               readTime: p.readTime || p.read_time || '',
               seoTitle: p.seoTitle || p.seo_title || p.title || '',
               isoDate: p.isoDate || p.iso_date || '',
+              author: p.author || (p.author_name ? { name: p.author_name, role: p.author_role || 'Author', avatar: p.author_avatar || '/assets/banglish-logo-192.png' } : initialPost?.author || { name: 'Rasel Molla', role: 'Social Media Marketing Intern', avatar: '/assets/banglish-logo-192.png' }),
             });
             if (typeof p.likes === 'number') {
               setLikesCount(p.likes);
@@ -414,7 +415,7 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-600 p-0.5 shadow-sm">
                 <img
-                  src={post.author?.avatar || '/assets/pabel_light_avatar.webp'}
+                  src={post.author?.avatar || '/assets/banglish-logo-192.png'}
                   alt={post.author?.name || 'A M Pabel'}
                   className="w-full h-full object-cover rounded-full"
                   onError={(e: any) => { e.target.src = '/assets/banglish-logo-192.png'; }}
@@ -470,20 +471,6 @@ export default function BlogPostClient({ slug, initialPost }: Props) {
         <div className="prose prose-slate max-w-none">
           <MarkdownRenderer content={post.content} />
         </div>
-
-        {/* Tags */}
-        {post.tags && post.tags.length > 0 && (
-          <div className="mt-10 pt-6 border-t border-slate-200">
-            <span className="text-xs font-semibold text-slate-500 font-bangla mr-2">ট্যাগসমূহ:</span>
-            <div className="inline-flex flex-wrap gap-1.5 mt-2">
-              {post.tags.map((tag, idx) => (
-                <span key={idx} className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-mono font-medium">
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Interactive Like / Love React Bar */}
         <div className="my-8 p-5 rounded-3xl bg-white border border-slate-200/90 shadow-xs flex flex-wrap items-center justify-between gap-4">

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Copy, Check, Download, ExternalLink, ChevronDown } from 'lucide-react';
+import { Copy, Check, ChevronDown } from 'lucide-react';
 
 function CodeBlock({ code, language }: { code: string; language?: string }) {
   const [copied, setCopied] = useState(false);
@@ -35,6 +35,27 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
         <code>{code}</code>
       </pre>
     </div>
+  );
+}
+
+function CollapsibleFAQ({ question, answer }: { question: string; answer: string }) {
+  return (
+    <details className="my-3 rounded-2xl border border-slate-200/90 hover:border-emerald-300 bg-white overflow-hidden shadow-2xs transition-all duration-200 group open:border-emerald-500/60 open:shadow-sm open:ring-4 open:ring-emerald-500/5">
+      <summary className="p-4 sm:p-4.5 font-bold text-slate-800 hover:text-emerald-700 text-base sm:text-lg flex items-center justify-between gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden select-none font-bangla transition-colors">
+        <span className="flex items-center gap-2.5 min-w-0">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0 group-open:scale-125 transition-transform" />
+          <span className="truncate sm:whitespace-normal">{question}</span>
+        </span>
+        <div className="w-8 h-8 rounded-xl bg-slate-100 group-open:bg-emerald-100 text-slate-500 group-open:text-emerald-800 flex items-center justify-center shrink-0 transition-all shadow-2xs">
+          <ChevronDown className="w-4 h-4 group-open:rotate-180 transition-transform duration-200" />
+        </div>
+      </summary>
+      <div className="px-5 pb-5 pt-2 text-slate-600 text-sm sm:text-base leading-relaxed border-t border-slate-100 font-bangla space-y-2">
+        {answer.split('\n').filter(Boolean).map((p, pIdx) => (
+          <p key={pIdx} dangerouslySetInnerHTML={{ __html: parseInlineMarkdown(p) }} />
+        ))}
+      </div>
+    </details>
   );
 }
 
@@ -83,6 +104,9 @@ export default function MarkdownRenderer({ content }: { content: string }) {
   let isOrderedList = false;
   let inBlockquote = false;
   let quoteBuffer: string[] = [];
+  let inDetails = false;
+  let detailsSummary = '';
+  let detailsContent: string[] = [];
 
   const flushCodeBlock = () => {
     if (inCodeBlock) {
@@ -175,8 +199,54 @@ export default function MarkdownRenderer({ content }: { content: string }) {
     }
   };
 
+  const flushDetails = () => {
+    if (inDetails) {
+      elements.push(
+        <CollapsibleFAQ
+          key={`details-${elements.length}`}
+          question={detailsSummary}
+          answer={detailsContent.join('\n')}
+        />
+      );
+      inDetails = false;
+      detailsSummary = '';
+      detailsContent = [];
+    }
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+
+    // Details / FAQ Block
+    if (line.trim().startsWith('<details>')) {
+      flushCodeBlock();
+      flushTable();
+      flushList();
+      flushBlockquote();
+      flushDetails();
+      inDetails = true;
+      detailsSummary = '';
+      detailsContent = [];
+
+      const sumMatch = line.match(/<summary>(.*?)<\/summary>/);
+      if (sumMatch) {
+        detailsSummary = sumMatch[1];
+      }
+      continue;
+    }
+
+    if (inDetails) {
+      if (line.trim().startsWith('</details>')) {
+        flushDetails();
+        continue;
+      }
+      if (line.trim().startsWith('<summary>') && line.trim().endsWith('</summary>')) {
+        detailsSummary = line.trim().replace(/^<summary>/, '').replace(/<\/summary>$/, '');
+        continue;
+      }
+      detailsContent.push(line);
+      continue;
+    }
 
     // Fenced Code Block delimiter
     if (line.trim().startsWith('```')) {
@@ -301,6 +371,7 @@ export default function MarkdownRenderer({ content }: { content: string }) {
   flushTable();
   flushList();
   flushBlockquote();
+  flushDetails();
 
   return <div className="blog-content font-bangla">{elements}</div>;
 }
