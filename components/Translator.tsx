@@ -282,7 +282,7 @@ export default function Translator() {
   };
 
   return (
-    <section id="dictionary" className="py-16 sm:py-24 relative bg-gradient-to-b from-white via-emerald-50/20 to-white border-t border-emerald-100/70">
+    <section id="dictionary" className="py-16 sm:py-24 relative bg-gradient-to-b from-white via-emerald-50/20 to-white border-t border-emerald-100/70 overflow-hidden">
       {/* Ambient glow decorations safely contained */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
         <div className="absolute top-1/4 -right-36 w-96 h-96 bg-emerald-200/20 rounded-full blur-3xl pointer-events-none" />

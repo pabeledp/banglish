@@ -4,7 +4,7 @@ import React from 'react';
 
 export default function Features() {
   return (
-    <section id="features" className="py-16 sm:py-20 relative bg-white/70 border-t border-b border-emerald-100/50">
+    <section id="features" className="py-16 sm:py-20 relative bg-white/70 border-t border-b border-emerald-100/50 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Section Header */}

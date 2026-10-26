@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function Tribute() {
   return (
-    <section id="tribute" className="py-16 sm:py-20 relative">
+    <section id="tribute" className="py-16 sm:py-20 relative overflow-hidden">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Dedicated Tribute Box with Dark Green Smooth Hover */}

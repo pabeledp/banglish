@@ -2641,18 +2641,13 @@ async function callGeminiAPI(userText, history, env, knownCustomerName = null) {
   const isNameKnown = Boolean(knownCustomerName && knownCustomerName.trim());
   const nameInstruction = !isNameKnown
     ? `
-### CRITICAL CUSTOMER ONBOARDING RULE (HIGHEST PRIORITY):
-The customer's real name is CURRENTLY UNKNOWN.
-1. If the customer is starting the conversation, greeting (e.g. "Hi", "Hello", "Salam"), or asking their initial question without introducing themselves:
-   - You MUST politely greet them and ask for their name first in your response!
-   - Example (Bengali): "Banglish Keyboard কাস্টমার সাপোর্টে স্বাগতম! আমি আপনাকে কীভাবে সহায়তা করতে পারি? শুরুতে অনুগ্রহ করে আপনার শুভ নামটি জানাবেন কি?"
-2. If the customer tells you their name (e.g. "আমার নাম তানভীর", "আমি কবির", "Tanvir", "Fahim", "A M Pabel", "My name is ...", etc.):
-   - Greet them warmly by their name (e.g. "ধন্যবাদ তানভীর ভাই! Banglish Keyboard-এ আপনাকে স্বাগতম।").
-   - Proceed to answer their inquiry or assist them.
-   - At the VERY END of your reply, YOU MUST APPEND this exact hidden tag:
-     <!--CUSTOMER_NAME:ExtractedName-->
-     (Replace ExtractedName with their clean name, e.g. <!--CUSTOMER_NAME:তানভীর--> or <!--CUSTOMER_NAME:Tanvir-->).
-   - Never omit this tag when the customer provides their name.
+### Customer Name Handling:
+- DO NOT ask for the customer's name. Never ask "আপনার নাম কি?" বা "আপনার শুভ নামটি জানাবেন কি?". Directly answer their question or greet and assist them warmly.
+- If the customer introduces themselves voluntarily (e.g. "আমার নাম তানভীর", "আমি কবির", "Tanvir", "Fahim", "My name is ..."):
+  - Acknowledge their name warmly.
+  - At the VERY END of your reply, append this exact hidden tag:
+    <!--CUSTOMER_NAME:ExtractedName-->
+    (Replace ExtractedName with their clean name, e.g. <!--CUSTOMER_NAME:তানভীর--> or <!--CUSTOMER_NAME:Tanvir-->).
 `
     : `
 ### Customer Context:

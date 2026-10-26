@@ -6,7 +6,7 @@ export default function InstallationGuide() {
   const [activeTab, setActiveTab] = useState<'mac' | 'win'>('mac');
 
   return (
-    <section id="installation" className="py-16 sm:py-20 relative">
+    <section id="installation" className="py-16 sm:py-20 relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Section Header */}
