@@ -324,9 +324,10 @@ class BanglishInputController: IMKInputController {
                        modifiers.intersection(.deviceIndependentFlagsMask).contains(.option) ||
                        (modifiers.rawValue & NSEvent.ModifierFlags.option.rawValue) != 0
 
-        // Universal Language Toggle Shortcut (ONLY Option + Space => 3-Way Cycle):
+        // Universal Language Toggle Shortcut (Command + Space / Option + Space => 3-Way Cycle):
+        let isCmdSpace = isCommand && !isShift && !isControl && !isOption && keyCode == 49
         let isOptionSpace = !isCommand && !isShift && !isControl && isOption && keyCode == 49
-        if isOptionSpace {
+        if isCmdSpace || isOptionSpace {
             cycleLanguage(client: client)
             return true
         }
@@ -729,17 +730,17 @@ class BanglishInputController: IMKInputController {
         menu.addItem(item1)
         menu.addItem(NSMenuItem.separator())
 
-        let banglaItem = NSMenuItem(title: "বাংলা (Bangla) — ⌥ + Space", action: #selector(switchToBangla), keyEquivalent: "")
+        let banglaItem = NSMenuItem(title: "বাংলা (Bangla) — ⌘ + Space", action: #selector(switchToBangla), keyEquivalent: "")
         banglaItem.target = self
         if Self.currentMode == .bangla { banglaItem.state = .on }
         menu.addItem(banglaItem)
 
-        let arabicItem = NSMenuItem(title: "العربية (Arabic) — ⌥ + Space", action: #selector(switchToArabic), keyEquivalent: "")
+        let arabicItem = NSMenuItem(title: "العربية (Arabic) — ⌘ + Space", action: #selector(switchToArabic), keyEquivalent: "")
         arabicItem.target = self
         if Self.currentMode == .arabic { arabicItem.state = .on }
         menu.addItem(arabicItem)
 
-        let englishItem = NSMenuItem(title: "English — ⌥ + Space", action: #selector(switchToEnglish), keyEquivalent: "")
+        let englishItem = NSMenuItem(title: "English — ⌘ + Space", action: #selector(switchToEnglish), keyEquivalent: "")
         englishItem.target = self
         if Self.currentMode == .english { englishItem.state = .on }
         menu.addItem(englishItem)

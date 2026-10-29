@@ -118,79 +118,14 @@ final class PillActionButton: NSButton {
 // MARK: - App Coordinator & Window Setup
 final class BanglishAppCoordinator: NSObject, NSApplicationDelegate {
     static let shared = BanglishAppCoordinator()
-    private var statusItem: NSStatusItem?
     private var mainWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        setupStatusItem()
-    }
-
-    func setupStatusItem() {
-        DispatchQueue.main.async {
-            self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-            self.updateStatusItem()
-        }
+        // Pure background input method - native macOS input menu only, no extra tray duplicate
     }
 
     func updateStatusItem() {
-        DispatchQueue.main.async {
-            guard let button = self.statusItem?.button else { return }
-            switch BanglishInputController.currentMode {
-            case .bangla:
-                button.image = NSImage(named: "MenuIcon")
-                button.title = " বা"
-            case .arabic:
-                button.image = NSImage(named: "MenuIconAR")
-                button.title = " عر"
-            case .english:
-                button.image = nil
-                button.title = " EN"
-            }
-
-            let menu = NSMenu()
-            let titleItem = NSMenuItem(title: "🇧🇩 Banglish v1.0.002", action: nil, keyEquivalent: "")
-            titleItem.isEnabled = false
-            menu.addItem(titleItem)
-            menu.addItem(NSMenuItem.separator())
-
-            let banglaItem = NSMenuItem(title: "বাংলা (Bangla) — ⌥ + Space", action: #selector(self.menuSelectBangla), keyEquivalent: "")
-            banglaItem.target = self
-            if BanglishInputController.currentMode == .bangla { banglaItem.state = .on }
-            menu.addItem(banglaItem)
-
-            let arabicItem = NSMenuItem(title: "العربية (Arabic) — ⌥ + Space", action: #selector(self.menuSelectArabic), keyEquivalent: "")
-            arabicItem.target = self
-            if BanglishInputController.currentMode == .arabic { arabicItem.state = .on }
-            menu.addItem(arabicItem)
-
-            let englishItem = NSMenuItem(title: "English — ⌥ + Space", action: #selector(self.menuSelectEnglish), keyEquivalent: "")
-            englishItem.target = self
-            if BanglishInputController.currentMode == .english { englishItem.state = .on }
-            menu.addItem(englishItem)
-
-            self.statusItem?.menu = menu
-        }
-    }
-
-    @objc func menuSelectBangla() {
-        BanglishInputController.commitActiveBuffer()
-        CandidateWindow.shared.hide()
-        BanglishInputController.currentMode = .bangla
-        updateStatusItem()
-    }
-
-    @objc func menuSelectArabic() {
-        BanglishInputController.commitActiveBuffer()
-        CandidateWindow.shared.hide()
-        BanglishInputController.currentMode = .arabic
-        updateStatusItem()
-    }
-
-    @objc func menuSelectEnglish() {
-        BanglishInputController.commitActiveBuffer()
-        CandidateWindow.shared.hide()
-        BanglishInputController.currentMode = .english
-        updateStatusItem()
+        // Native input menu only
     }
 
     @objc func openSystemKeyboardSettings() {

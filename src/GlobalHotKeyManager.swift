@@ -28,8 +28,8 @@ final class GlobalHotKeyManager {
             }
             GlobalHotKeyManager.shared.lastCycleTimestamp = now
 
-            if hkID.id == 2 {
-                // Option + Space ONLY => Continuous Cycle: Bangla -> Arabic -> English -> Bangla
+            if hkID.id == 1 || hkID.id == 2 {
+                // Command + Space or Option + Space => Continuous Cycle: Bangla -> Arabic -> English -> Bangla
                 BanglishInputController.performCycle()
             }
             return noErr
@@ -40,13 +40,17 @@ final class GlobalHotKeyManager {
             return
         }
 
-        // HotKey 2: Option + Space (keyCode 49, optionKey) => 3-Way Language Cycle
+        // HotKey 1: Command + Space (keyCode 49, cmdKey) => 3-Way Language Cycle
+        let cmdID = EventHotKeyID(signature: OSType(0x424E434D), id: 1) // 'BNCM'
+        RegisterEventHotKey(49, UInt32(cmdKey), cmdID, GetApplicationEventTarget(), 0, &cmdSpaceHotKeyRef)
+
+        // HotKey 2: Option + Space (keyCode 49, optionKey) => 3-Way Language Cycle fallback
         let banglaID = EventHotKeyID(signature: OSType(0x424E4247), id: 2) // 'BNBG'
         RegisterEventHotKey(49, UInt32(optionKey), banglaID, GetApplicationEventTarget(), 0, &banglaHotKeyRef)
 
         BanglishInputController.prewarmInputSources()
         enableAllBanglishModes()
-        NSLog("[Banglish] Global HotKey active: Option + Space ONLY for 3-way cycle")
+        NSLog("[Banglish] Global HotKey active: Command + Space & Option + Space for 3-way cycle")
     }
 
     /// Directly switch to Arabic mode regardless of which app was active
