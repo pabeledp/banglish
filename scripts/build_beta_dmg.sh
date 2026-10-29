@@ -49,7 +49,7 @@ mkdir -p "${BUILD_DIR}/ModuleCache"
 # 2. PkgInfo
 echo -n "APPL????" > "${APP_DIR}/Contents/PkgInfo"
 
-# 3. Info.plist with dual input modes: Banglish & Banglish AR
+# 3. Info.plist (Standard clean Input Method without broken sub-modes)
 cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -106,71 +106,6 @@ cat << 'PLIST' > "${APP_DIR}/Contents/Info.plist"
 	</array>
 	<key>tsInputMethodIconFileKey</key>
 	<string>MenuIcon</string>
-	<key>ComponentInputModeDict</key>
-	<dict>
-		<key>tsInputModeListKey</key>
-		<dict>
-			<key>org.banglish.inputmethod.Banglish.Bangla</key>
-			<dict>
-				<key>TISInputSourceID</key>
-				<string>org.banglish.inputmethod.Banglish.Bangla</string>
-				<key>TISIntendedLanguage</key>
-				<string>bn</string>
-				<key>tsInputModeCharacterRepertoireKey</key>
-				<array>
-					<string>Beng</string>
-				</array>
-				<key>tsInputModeDefaultStateKey</key>
-				<true/>
-				<key>tsInputModeIsVisibleKey</key>
-				<true/>
-				<key>tsInputModeKeyEquivalentModifiersKey</key>
-				<integer>0</integer>
-				<key>tsInputModeKeyLayoutKey</key>
-				<string>com.apple.keylayout.US</string>
-				<key>tsInputModeMenuIconFileKey</key>
-				<string>MenuIcon</string>
-				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIcon</string>
-				<key>tsInputModePrimaryInScriptKey</key>
-				<true/>
-				<key>tsInputModeScriptKey</key>
-				<string>smUnicodeScript</string>
-			</dict>
-			<key>org.banglish.inputmethod.Banglish.Arabic</key>
-			<dict>
-				<key>TISInputSourceID</key>
-				<string>org.banglish.inputmethod.Banglish.Arabic</string>
-				<key>TISIntendedLanguage</key>
-				<string>ar</string>
-				<key>tsInputModeCharacterRepertoireKey</key>
-				<array>
-					<string>Arab</string>
-				</array>
-				<key>tsInputModeDefaultStateKey</key>
-				<true/>
-				<key>tsInputModeIsVisibleKey</key>
-				<true/>
-				<key>tsInputModeKeyEquivalentModifiersKey</key>
-				<integer>0</integer>
-				<key>tsInputModeKeyLayoutKey</key>
-				<string>com.apple.keylayout.US</string>
-				<key>tsInputModeMenuIconFileKey</key>
-				<string>MenuIconAR</string>
-				<key>tsInputModePaletteIconFileKey</key>
-				<string>MenuIconAR</string>
-				<key>tsInputModePrimaryInScriptKey</key>
-				<true/>
-				<key>tsInputModeScriptKey</key>
-				<string>smUnicodeScript</string>
-			</dict>
-		</dict>
-		<key>tsVisibleInputModeOrderedArrayKey</key>
-		<array>
-			<string>org.banglish.inputmethod.Banglish.Bangla</string>
-			<string>org.banglish.inputmethod.Banglish.Arabic</string>
-		</array>
-	</dict>
 </dict>
 </plist>
 PLIST
@@ -275,7 +210,7 @@ rm -f "/Applications/Banglish.app" 2>/dev/null || true
 rm -rf "/Applications/Banglish.app" 2>/dev/null || true
 ln -sf "$INSTALL_DIR/Banglish.app" "/Applications/Banglish.app"
 
-# Register both Banglish and Banglish AR into user's enabled input sources
+# Register Banglish into user's enabled input sources cleanly
 DEVELOPER_DIR=/Library/Developer/CommandLineTools /Library/Developer/CommandLineTools/usr/bin/python3 -c "
 import plistlib, os
 
@@ -289,12 +224,7 @@ if os.path.exists(path):
         enabled = [e for e in enabled if e.get('Bundle ID') != 'org.banglish.inputmethod.Banglish']
         
         im_parent = {'InputSourceKind': 'Keyboard Input Method', 'Bundle ID': 'org.banglish.inputmethod.Banglish'}
-        bangla_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Bangla'}
-        arabic_mode = {'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Arabic'}
-        
         enabled.append(im_parent)
-        enabled.append(bangla_mode)
-        enabled.append(arabic_mode)
         pl['AppleEnabledInputSources'] = enabled
         
         with open(path, 'wb') as f:
@@ -311,8 +241,6 @@ if os.path.exists(path_is):
         tp_enabled = pl_is.get('AppleEnabledThirdPartyInputSources', [])
         tp_enabled = [e for e in tp_enabled if e.get('Bundle ID') != 'org.banglish.inputmethod.Banglish']
         tp_enabled.append({'InputSourceKind': 'Keyboard Input Method', 'Bundle ID': 'org.banglish.inputmethod.Banglish'})
-        tp_enabled.append({'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Bangla'})
-        tp_enabled.append({'InputSourceKind': 'Input Mode', 'Bundle ID': 'org.banglish.inputmethod.Banglish', 'Input Mode': 'org.banglish.inputmethod.Banglish.Arabic'})
         pl_is['AppleEnabledThirdPartyInputSources'] = tp_enabled
         with open(path_is, 'wb') as f:
             plistlib.dump(pl_is, f)

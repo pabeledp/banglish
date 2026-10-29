@@ -8,7 +8,7 @@ var server: IMKServer!
 autoreleasepool {
     server = IMKServer(name: kConnectionName, bundleIdentifier: kBundleId)
 
-    let delegate = BanglishAppCoordinator()
+    let delegate = BanglishAppCoordinator.shared
     NSApplication.shared.delegate = delegate
 
     GlobalHotKeyManager.shared.start()

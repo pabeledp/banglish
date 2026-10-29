@@ -157,19 +157,18 @@ class BanglishInputController: IMKInputController {
         commitActiveBuffer()
         CandidateWindow.shared.hide()
 
-        // Deterministic 3-way continuous cycle: English -> Bangla -> Arabic -> English -> Bangla ...
-        let active = getCurrentSystemMode()
-        let nextMode: InputMode
-        switch active {
-        case .english:
-            nextMode = .bangla
+        // Instant internal 3-way continuous cycle: Bangla -> Arabic -> English -> Bangla
+        switch currentMode {
         case .bangla:
-            nextMode = .arabic
+            currentMode = .arabic
         case .arabic:
-            nextMode = .english
+            currentMode = .english
+        case .english:
+            currentMode = .bangla
         }
 
-        selectSystemInputSource(mode: nextMode)
+        BanglishAppCoordinator.shared.updateStatusItem()
+        NSLog("[Banglish] 3-way cycle switched to: \(currentMode)")
     }
 
     private func cycleLanguage(client: any IMKTextInput) {
@@ -725,22 +724,22 @@ class BanglishInputController: IMKInputController {
     // MARK: - Menu Bar
     override func menu() -> NSMenu! {
         let menu = NSMenu()
-        let item1 = NSMenuItem(title: "🇧🇩 Banglish v1.0.002 (Beta)", action: nil, keyEquivalent: "")
+        let item1 = NSMenuItem(title: "🇧🇩 Banglish v1.0.002", action: nil, keyEquivalent: "")
         item1.isEnabled = false
         menu.addItem(item1)
         menu.addItem(NSMenuItem.separator())
 
-        let banglaItem = NSMenuItem(title: "বাংলা (Bangla) — ⌘ + Space", action: #selector(switchToBangla), keyEquivalent: "")
+        let banglaItem = NSMenuItem(title: "বাংলা (Bangla) — ⌥ + Space", action: #selector(switchToBangla), keyEquivalent: "")
         banglaItem.target = self
         if Self.currentMode == .bangla { banglaItem.state = .on }
         menu.addItem(banglaItem)
 
-        let arabicItem = NSMenuItem(title: "العربية (Banglish AR) — ⌘ + Space", action: #selector(switchToArabic), keyEquivalent: "")
+        let arabicItem = NSMenuItem(title: "العربية (Arabic) — ⌥ + Space", action: #selector(switchToArabic), keyEquivalent: "")
         arabicItem.target = self
         if Self.currentMode == .arabic { arabicItem.state = .on }
         menu.addItem(arabicItem)
 
-        let englishItem = NSMenuItem(title: "English — ⌘ + Space", action: #selector(switchToEnglish), keyEquivalent: "")
+        let englishItem = NSMenuItem(title: "English — ⌥ + Space", action: #selector(switchToEnglish), keyEquivalent: "")
         englishItem.target = self
         if Self.currentMode == .english { englishItem.state = .on }
         menu.addItem(englishItem)
@@ -749,14 +748,23 @@ class BanglishInputController: IMKInputController {
     }
 
     @objc func switchToBangla() {
-        Self.selectSystemInputSource(mode: .bangla)
+        Self.commitActiveBuffer()
+        CandidateWindow.shared.hide()
+        Self.currentMode = .bangla
+        BanglishAppCoordinator.shared.updateStatusItem()
     }
 
     @objc func switchToArabic() {
-        Self.selectSystemInputSource(mode: .arabic)
+        Self.commitActiveBuffer()
+        CandidateWindow.shared.hide()
+        Self.currentMode = .arabic
+        BanglishAppCoordinator.shared.updateStatusItem()
     }
 
     @objc func switchToEnglish() {
-        Self.selectSystemInputSource(mode: .english)
+        Self.commitActiveBuffer()
+        CandidateWindow.shared.hide()
+        Self.currentMode = .english
+        BanglishAppCoordinator.shared.updateStatusItem()
     }
 }
