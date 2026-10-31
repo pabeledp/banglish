@@ -5,9 +5,14 @@ import DictionaryApp from '@/components/DictionaryApp';
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'অভিধান (বাংলা ⇄ English ⇄ العربية) | Banglish Tri-Lingual Dictionary',
-  description: 'বাংলা, ইংরেজি ও আরবি ভাষার নির্ভুল তিন ভাষার অভিধান। বাংলা একাডেমি ও কেমব্রিজ অনুমোদিত শব্দভাণ্ডার, অর্থ, উচ্চারণ ও বাস্তব বাক্য প্রয়োগ।',
+  title: 'অভিধান (বাংলা ⇄ English ⇄ العربية) | Banglish Keyboard Tri-Lingual Dictionary',
+  description: 'Banglish Keyboard-এর বাংলা, ইংরেজি ও আরবি ভাষার নির্ভুল তিন ভাষার অভিধান। বাংলা একাডেমি ও কেমব্রিজ অনুমোদিত শব্দভাণ্ডার, অর্থ, উচ্চারণ ও বাস্তব বাক্য প্রয়োগ।',
+  openGraph: {
+    title: 'অভিধান (বাংলা ⇄ English ⇄ العربية) | Banglish Keyboard Tri-Lingual Dictionary',
+    siteName: 'Banglish Keyboard',
+  },
   keywords: [
+    'Banglish Keyboard Dictionary',
     'Bangla to English Dictionary',
     'Bangla to Arabic Dictionary',
     'English to Bengali Dictionary',

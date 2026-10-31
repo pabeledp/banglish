@@ -5,9 +5,14 @@ import SiteTracker from '@/components/SiteTracker';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Banglish — Best Avro & iAvro Alternative for macOS & Windows',
-  description: 'Download Banglish, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard for Apple Silicon M1-M4, Intel Macs, and Windows 10/11. Free, offline & private.',
+  title: {
+    default: 'Banglish Keyboard — Best Avro & iAvro Alternative for macOS & Windows',
+    template: '%s | Banglish Keyboard',
+  },
+  description: 'Download Banglish Keyboard, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard for Apple Silicon M1-M4, Intel Macs, and Windows 10/11. Free, offline & private.',
   keywords: [
+    'Banglish Keyboard',
+    'Banglish',
     'Best Avro Alternative for Mac',
     'Best Avro Alternative for Windows',
     'Best iAvro Alternative',
@@ -21,8 +26,7 @@ export const metadata: Metadata = {
     'iAvro replacement',
     'Apple Silicon M1 M2 M3 M4 Bangla',
     'Avro Keyboard alternative',
-    'Bangla typing macOS',
-    'Banglish'
+    'Bangla typing macOS'
   ],
   authors: [{ name: 'Team FramEmpire, A M Pabel' }],
   metadataBase: new URL('https://banglish.bd'),
@@ -30,24 +34,24 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   openGraph: {
-    title: 'Banglish — Best Avro & iAvro Alternative for macOS & Windows',
-    description: 'Download Banglish, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard with Tri-lingual Dictionary.',
+    title: 'Banglish Keyboard — Best Avro & iAvro Alternative for macOS & Windows',
+    description: 'Download Banglish Keyboard, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard with Tri-lingual Dictionary.',
     url: 'https://banglish.bd/',
-    siteName: 'Banglish',
+    siteName: 'Banglish Keyboard',
     images: [
       {
         url: 'https://banglish.bd/assets/banglish-og-preview.png',
         width: 1024,
         height: 390,
         type: 'image/png',
-        alt: 'Banglish — macOS ও Windows-এর জন্য দ্রুততম, নিখুঁত ও সম্পূর্ণ ফ্রি বাংলা টাইপিং সফটওয়্যার',
+        alt: 'Banglish Keyboard — macOS ও Windows-এর জন্য দ্রুততম, নিখুঁত ও সম্পূর্ণ ফ্রি বাংলা টাইপিং সফটওয়্যার',
       },
       {
         url: 'https://banglish.bd/assets/banglish-og-preview.webp',
         width: 1024,
         height: 390,
         type: 'image/webp',
-        alt: 'Banglish — macOS ও Windows-এর জন্য দ্রুততম, নিখুঁত ও সম্পূর্ণ ফ্রি বাংলা টাইপিং সফটওয়্যার',
+        alt: 'Banglish Keyboard — macOS ও Windows-এর জন্য দ্রুততম, নিখুঁত ও সম্পূর্ণ ফ্রি বাংলা টাইপিং সফটওয়্যার',
       },
     ],
     locale: 'bn_BD',
@@ -55,8 +59,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Banglish — Best Avro & iAvro Alternative for macOS & Windows',
-    description: 'Download Banglish, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard with Tri-lingual Dictionary.',
+    title: 'Banglish Keyboard — Best Avro & iAvro Alternative for macOS & Windows',
+    description: 'Download Banglish Keyboard, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard with Tri-lingual Dictionary.',
     images: ['https://banglish.bd/assets/banglish-og-preview.png'],
   },
   icons: {
@@ -82,9 +86,9 @@ const jsonLd = {
     {
       '@type': 'SoftwareApplication',
       '@id': 'https://banglish.bd/#software',
-      name: 'Banglish',
+      name: 'Banglish Keyboard',
       alternateName: [
-        'Banglish Keyboard',
+        'Banglish',
         'Banglish macOS',
         'Banglish Windows',
         'Banglish Avro Alternative',
@@ -94,12 +98,12 @@ const jsonLd = {
       applicationCategory: 'UtilitiesApplication',
       applicationSubCategory: 'Productivity',
       softwareVersion: '1.0.0',
-      downloadUrl: 'https://banglish.bd/downloads/Banglish.dmg',
+      downloadUrl: 'https://banglish.bd/downloads/Banglish_Installer.dmg',
       installUrl: 'https://banglish.bd/#installation',
       url: 'https://banglish.bd/',
       image: 'https://banglish.bd/assets/banglish-logo-512.png',
       screenshot: 'https://banglish.bd/assets/banglish-og-preview.png',
-      description: 'Banglish is the fastest, modern 100% native phonetic Bangla keyboard input method for macOS and Windows. Designed as the ultimate replacement for iAvro on Apple Silicon (M1/M2/M3/M4), Intel Macs, and Windows (Beta).',
+      description: 'Banglish Keyboard is the fastest, modern 100% native phonetic Bangla keyboard input method for macOS and Windows. Designed as the ultimate replacement for iAvro on Apple Silicon (M1/M2/M3/M4), Intel Macs, and Windows (Beta).',
       featureList: [
         '100% Native architecture for macOS & Windows',
         'Universal Binary: Native Apple Silicon (M1/M2/M3/M4) and Intel support',
@@ -138,8 +142,9 @@ const jsonLd = {
       '@type': 'WebSite',
       '@id': 'https://banglish.bd/#website',
       url: 'https://banglish.bd/',
-      name: 'Banglish',
-      description: 'Best Avro & iAvro Alternative for macOS — 100% Native Swift Phonetic Bangla Keyboard',
+      name: 'Banglish Keyboard',
+      alternateName: 'Banglish',
+      description: 'Banglish Keyboard — Best Avro & iAvro Alternative for macOS & Windows — 100% Native Swift Phonetic Bangla Keyboard',
       publisher: {
         '@id': 'https://banglish.bd/#organization'
       },
@@ -190,23 +195,23 @@ export default function RootLayout({
         
         {/* Primary Social Media & OpenGraph Preview Meta Tags */}
         <meta property="og:type" content="website" />
-        <meta property="og:site_name" content="Banglish" />
+        <meta property="og:site_name" content="Banglish Keyboard" />
         <meta property="og:url" content="https://banglish.bd/" />
-        <meta property="og:title" content="Banglish — Best Avro & iAvro Alternative for macOS & Windows" />
-        <meta property="og:description" content="Download Banglish, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard for Apple Silicon & Windows. Free, offline & private." />
+        <meta property="og:title" content="Banglish Keyboard — Best Avro & iAvro Alternative for macOS & Windows" />
+        <meta property="og:description" content="Download Banglish Keyboard, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard for Apple Silicon & Windows. Free, offline & private." />
         <meta property="og:image" content="https://banglish.bd/assets/banglish-og-preview.png" />
         <meta property="og:image:secure_url" content="https://banglish.bd/assets/banglish-og-preview.png" />
         <meta property="og:image:type" content="image/png" />
         <meta property="og:image:width" content="1024" />
         <meta property="og:image:height" content="390" />
-        <meta property="og:image:alt" content="Banglish — Best Avro & iAvro Alternative for macOS & Windows" />
+        <meta property="og:image:alt" content="Banglish Keyboard — Best Avro & iAvro Alternative for macOS & Windows" />
 
         {/* Twitter / X Card */}
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Banglish — Best Avro & iAvro Alternative for macOS & Windows" />
-        <meta name="twitter:description" content="Download Banglish, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard for Apple Silicon & Windows. Free, offline & private." />
+        <meta name="twitter:title" content="Banglish Keyboard — Best Avro & iAvro Alternative for macOS & Windows" />
+        <meta name="twitter:description" content="Download Banglish Keyboard, the best Avro & iAvro alternative for macOS & Windows. 100% native phonetic Bangla keyboard for Apple Silicon & Windows. Free, offline & private." />
         <meta name="twitter:image" content="https://banglish.bd/assets/banglish-og-preview.png" />
-        <meta name="twitter:image:alt" content="Banglish — Best Avro & iAvro Alternative for macOS & Windows" />
+        <meta name="twitter:image:alt" content="Banglish Keyboard — Best Avro & iAvro Alternative for macOS & Windows" />
 
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

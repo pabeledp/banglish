@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     title: 'Banglish Keyboard — Official WhatsApp Support',
     description: 'Banglish Keyboard অফিশিয়াল হোয়াটসঅ্যাপ হেল্পলাইন। সরাসরি মেসেজ পাঠাতে ক্লিক করুন।',
     url: 'https://banglish.bd/support',
-    siteName: 'Banglish',
+    siteName: 'Banglish Keyboard',
     images: [
       {
         url: 'https://banglish.bd/assets/banglish-og-preview.png',
