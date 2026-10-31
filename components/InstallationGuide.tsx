@@ -64,7 +64,7 @@ export default function InstallationGuide() {
                   <p className="text-sm text-slate-600 font-bangla leading-relaxed mb-4">
                     প্রথমে <span className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-800">Banglish.dmg</span> ফাইলটি ডাউনলোড করে ওপেন করুন এবং ডাবল-ক্লিক করে ইনস্টল করুন।
                   </p>
-                  <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg" className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 font-bangla mb-3">
+                  <a href="https://raw.githubusercontent.com/pabeledp/banglish/main/public/downloads/Banglish_Installer.dmg" className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700 font-bangla mb-3">
                     <span>ফাইলটি ডাউনলোড করতে ক্লিক করুন</span>
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                   </a>

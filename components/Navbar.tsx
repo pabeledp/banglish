@@ -59,7 +59,7 @@ export default function Navbar() {
               
               <div className={`absolute right-0 top-full pt-1.5 w-64 transition-all z-50 ${isDropdownOpen ? 'block' : 'hidden'}`}>
                 <div className="bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200/90 py-2 overflow-hidden ring-1 ring-black/5">
-                  <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg" className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 text-slate-800 transition-colors group/item">
+                  <a href="https://raw.githubusercontent.com/pabeledp/banglish/main/public/downloads/Banglish_Installer.dmg" className="flex items-center gap-3 px-4 py-3 hover:bg-emerald-50 text-slate-800 transition-colors group/item">
                     <div className="w-8 h-8 rounded-lg bg-slate-100 group-hover/item:bg-emerald-100 flex items-center justify-center text-slate-800 group-hover/item:text-emerald-700 flex-shrink-0 transition-colors">
                       <svg className="w-4 h-4 fill-current" viewBox="0 0 170 170"><path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.04-7.69-7.85-12-14.44-6.1-9.35-10.87-20.02-14.33-32-3.46-11.98-5.19-23.27-5.19-33.86 0-14.58 3.7-26.68 11.1-36.29 7.4-9.61 16.65-14.53 27.75-14.75 4.35 0 9.29 1.15 14.81 3.46 5.53 2.31 9.38 3.52 11.55 3.63 1.74 0 5.86-1.32 12.38-3.95 6.52-2.63 12.06-3.72 16.62-3.27 12.63.87 22.65 5.76 30.06 14.67-10.89 6.64-16.22 15.77-16 27.42.22 9.14 3.69 16.75 10.42 22.84 6.74 6.09 14.77 9.58 24.1 10.45-2.18 6.53-4.79 13.06-7.83 19.59zM119.22 31.84c0-7.39 2.61-14.35 7.83-20.87 5.22-6.52 11.75-10.51 19.59-11.97.22 1.09.33 2.07.33 2.94 0 7.39-2.72 14.46-8.16 21.21-5.44 6.74-12.18 10.76-20.24 12.06-.22-1.09-.35-2.2-.35-3.37z"/></svg>
                     </div>
@@ -130,7 +130,7 @@ export default function Navbar() {
           
           <div className="pt-4 border-t border-slate-100 flex flex-col gap-2">
             <div className="flex flex-row gap-2">
-              <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg" className="flex-1 text-center py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold font-sans shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 text-xs">
+              <a href="https://raw.githubusercontent.com/pabeledp/banglish/main/public/downloads/Banglish_Installer.dmg" className="flex-1 text-center py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold font-sans shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 text-xs">
                 <span>macOS (.dmg)</span>
               </a>
               <a href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe" className="flex-1 text-center py-2.5 px-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold font-sans shadow-md shadow-sky-600/20 flex items-center justify-center gap-1.5 text-xs">

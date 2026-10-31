@@ -1,5 +1,8 @@
+'use client';
+
 import React from 'react';
 import Simulator from './Simulator';
+import DownloadCounterBar, { trackSoftwareDownload } from './DownloadCounterBar';
 
 export default function Hero() {
   return (
@@ -50,7 +53,8 @@ export default function Hero() {
           <div className="flex flex-row items-center justify-center gap-2.5 sm:gap-4 pt-4 px-1 max-w-2xl mx-auto">
             {/* Primary macOS CTA Button */}
             <a
-              href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg"
+              href="https://raw.githubusercontent.com/pabeledp/banglish/main/public/downloads/Banglish_Installer.dmg"
+              onClick={() => trackSoftwareDownload('mac')}
               className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 sm:gap-3 px-3.5 py-3 sm:px-7 sm:py-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs sm:text-base shadow-lg shadow-emerald-500/25 hover:shadow-xl hover:shadow-emerald-500/35 transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 group text-left"
             >
               <svg className="w-5 h-5 sm:w-6 sm:h-6 fill-current transition-transform duration-300 group-hover:scale-110 flex-shrink-0" viewBox="0 0 170 170">
@@ -65,6 +69,7 @@ export default function Hero() {
             {/* Primary Windows CTA Button */}
             <a
               href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe"
+              onClick={() => trackSoftwareDownload('windows')}
               className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 sm:gap-3 px-3.5 py-3 sm:px-7 sm:py-4 rounded-xl sm:rounded-2xl bg-gradient-to-r from-sky-600 via-sky-500 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white font-bold text-xs sm:text-base shadow-lg shadow-sky-500/25 hover:shadow-xl hover:shadow-sky-500/35 transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 group text-left"
             >
               <svg className="w-4 h-4 sm:w-5 sm:h-5 fill-current transition-transform duration-300 group-hover:scale-110 flex-shrink-0" viewBox="0 0 88 88">
@@ -79,6 +84,9 @@ export default function Hero() {
               </div>
             </a>
           </div>
+
+          {/* Social Proof Counter Bar */}
+          <DownloadCounterBar />
 
           <p className="text-xs text-slate-600 font-sans tracking-wide">
             <span className="text-emerald-700 font-semibold">Try Banglish For Free</span> • কোনো কার্ড, রেজিস্ট্রেশন বা সাইনআপ লাগবে না

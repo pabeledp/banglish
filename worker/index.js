@@ -1373,6 +1373,86 @@ async function handleBlogApi(request, env, ctx, url) {
     }
   }
 
+  // 16b. Download Statistics API: GET /api/download-stats & POST /api/download-stats
+  if ((pathname === '/api/download-stats' || pathname === '/api/download-stats/') && request.method === 'GET') {
+    try {
+      // Create table if it doesn't exist
+      await env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS download_counts (
+          os TEXT PRIMARY KEY,
+          count INTEGER NOT NULL DEFAULT 0
+        )
+      `).run();
+
+      // Ensure initial base counts exist (mac: 467, windows: 225)
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO download_counts (os, count) VALUES ('mac', 467)
+      `).run();
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO download_counts (os, count) VALUES ('windows', 225)
+      `).run();
+
+      const macRow = await env.DB.prepare("SELECT count FROM download_counts WHERE os = 'mac'").first();
+      const winRow = await env.DB.prepare("SELECT count FROM download_counts WHERE os = 'windows'").first();
+
+      const mac = Math.max(macRow?.count || 467, 467);
+      const windows = Math.max(winRow?.count || 225, 225);
+      return jsonResponse({
+        success: true,
+        mac,
+        windows,
+        total: mac + windows
+      });
+    } catch (e) {
+      return jsonResponse({
+        success: true,
+        mac: 467,
+        windows: 225,
+        total: 692
+      });
+    }
+  }
+
+  if ((pathname === '/api/download-stats' || pathname === '/api/download-stats/') && request.method === 'POST') {
+    try {
+      const body = await request.json().catch(() => ({}));
+      const os = body.os === 'windows' ? 'windows' : 'mac';
+
+      // Ensure table and initial baseline row
+      await env.DB.prepare(`
+        CREATE TABLE IF NOT EXISTS download_counts (
+          os TEXT PRIMARY KEY,
+          count INTEGER NOT NULL DEFAULT 0
+        )
+      `).run();
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO download_counts (os, count) VALUES ('mac', 467)
+      `).run();
+      await env.DB.prepare(`
+        INSERT OR IGNORE INTO download_counts (os, count) VALUES ('windows', 225)
+      `).run();
+
+      // Increment count
+      await env.DB.prepare(`
+        UPDATE download_counts SET count = count + 1 WHERE os = ?
+      `).bind(os).run();
+
+      const macRow = await env.DB.prepare("SELECT count FROM download_counts WHERE os = 'mac'").first();
+      const winRow = await env.DB.prepare("SELECT count FROM download_counts WHERE os = 'windows'").first();
+
+      const mac = Math.max(macRow?.count || 467, 467);
+      const windows = Math.max(winRow?.count || 225, 225);
+      return jsonResponse({
+        success: true,
+        mac,
+        windows,
+        total: mac + windows
+      });
+    } catch (e) {
+      return jsonResponse({ success: false, error: e.message }, 500);
+    }
+  }
+
   // 17. Admin Analytics Data: GET /api/blog/admin/analytics
   if (pathname === '/api/blog/admin/analytics' && request.method === 'GET') {
     if (!verifyAdminAuth(request, env)) {

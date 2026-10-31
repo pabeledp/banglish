@@ -1,4 +1,7 @@
+'use client';
+
 import React from 'react';
+import DownloadCounterBar, { trackSoftwareDownload } from './DownloadCounterBar';
 
 export default function FinalCTA() {
   return (
@@ -17,7 +20,8 @@ export default function FinalCTA() {
             <div className="flex flex-row items-center justify-center gap-2.5 sm:gap-4 pt-2 max-w-xl mx-auto">
               {/* CTA: Download for macOS */}
               <a
-                href="https://github.com/pabeledp/Banglish-Avro-Keyboard/releases/latest/download/Banglish.dmg"
+                href="https://raw.githubusercontent.com/pabeledp/banglish/main/public/downloads/Banglish_Installer.dmg"
+                onClick={() => trackSoftwareDownload('mac')}
                 className="flex-1 sm:flex-initial px-3.5 py-3 sm:px-8 sm:py-4 rounded-xl sm:rounded-2xl bg-white text-slate-900 hover:bg-emerald-50 font-bold text-xs sm:text-base shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 font-sans flex items-center justify-center gap-2"
               >
                 <svg className="w-4 h-4 sm:w-5 sm:h-5 fill-current" viewBox="0 0 170 170">
@@ -28,6 +32,7 @@ export default function FinalCTA() {
               {/* CTA: Download for Windows */}
               <a
                 href="https://github.com/pabeledp/Banglish-Avro-Keyboard/raw/main/windows/Banglish-Setup.exe"
+                onClick={() => trackSoftwareDownload('windows')}
                 className="flex-1 sm:flex-initial px-3.5 py-3 sm:px-8 sm:py-4 rounded-xl sm:rounded-2xl bg-sky-900/40 hover:bg-sky-900/60 text-white font-bold text-xs sm:text-base border border-sky-300/50 shadow-lg transition-all duration-300 transform hover:-translate-y-0.5 active:scale-95 font-sans flex items-center justify-center gap-2"
               >
                 <svg className="w-4 h-4 sm:w-5 sm:h-5 fill-current" viewBox="0 0 88 88">
@@ -39,6 +44,9 @@ export default function FinalCTA() {
                 </div>
               </a>
             </div>
+
+            {/* Counter bar */}
+            <DownloadCounterBar />
 
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-xs text-emerald-100 font-mono">
               <span>macOS 12+ (Apple Silicon & Intel) • Windows 10 & 11 (Beta Preview) • 100% Free Forever</span>
